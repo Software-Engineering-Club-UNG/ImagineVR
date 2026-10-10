@@ -1,0 +1,53 @@
+name: Provision ImagineVR API host
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  provision:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: openrouter-api-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Configure privileged provisioning authentication
+        env:
+          KEY: ${{ secrets.VULTR_PROVISION_SSH_KEY }}
+        run: |
+          test -n "$KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          install -m 600 infra/deploy/known_hosts ~/.ssh/known_hosts
+      - name: Configure host and runtime secrets
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          IMAGINE_APP_TOKEN: ${{ secrets.IMAGINE_APP_TOKEN }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os, re
+          for name in ('OPENROUTER_API_KEY', 'IMAGINE_APP_TOKEN', 'ELEVENLABS_API_KEY'):
+              value = os.environ[name]
+              if not re.fullmatch(r'[A-Za-z0-9_.-]{20,}', value) or value == 'dev-token':
+                  raise SystemExit(f'Add a valid repository secret: {name}')
+          PY
+          tar -czf "$RUNNER_TEMP/provision.tar.gz" infra/deploy
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes "$RUNNER_TEMP/provision.tar.gz" ubuntu@64.177.52.162:/tmp/imagine-provision.tar.gz
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes ubuntu@64.177.52.162 \
+            'sudo install -d -m 750 -o root -g openrouter-api /etc/openrouter-api; sudo install -m 600 /dev/null /etc/openrouter-api/environment; sudo tee /etc/openrouter-api/environment >/dev/null' <<EOF
+          OPENROUTER_API_KEY=$OPENROUTER_API_KEY
+          IMAGINE_APP_TOKEN=$IMAGINE_APP_TOKEN
+          ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY
+          IMAGINE_STT=elevenlabs
+          EOF
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes ubuntu@64.177.52.162 \
+            'sudo install -d -m 700 /opt/imagine-provision; sudo tar -xzf /tmp/imagine-provision.tar.gz -C /opt/imagine-provision; sudo bash /opt/imagine-provision/infra/deploy/bootstrap.sh /opt/imagine-provision/infra/deploy/keys/github-actions.pub'
+      - name: Remove provisioning key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519

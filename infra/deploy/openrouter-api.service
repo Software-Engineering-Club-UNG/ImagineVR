@@ -21,6 +21,11 @@ ProtectHome=true
 UMask=0027
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONUNBUFFERED=1
+Environment=IMAGINE_ENV=production
+Environment=IMAGINE_STT=elevenlabs
+Environment=IMAGINE_PUBLIC_URL=https://64.177.52.162.sslip.io
+Environment=IMAGINE_CATALOG=/srv/openrouter-api/current/shared/catalog.json
+TimeoutStartSec=300
 
 [Install]
 WantedBy=multi-user.target

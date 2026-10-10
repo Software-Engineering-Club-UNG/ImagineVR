@@ -27,6 +27,16 @@ resource "vultr_firewall_rule" "http" {
   notes             = "FastAPI HTTP via nginx"
 }
 
+resource "vultr_firewall_rule" "https" {
+  firewall_group_id = vultr_firewall_group.server.id
+  protocol          = "tcp"
+  ip_type           = "v4"
+  subnet            = "0.0.0.0"
+  subnet_size       = 0
+  port              = "443"
+  notes             = "ImagineVR HTTPS API"
+}
+
 resource "vultr_instance" "ubuntu" {
   region            = "atl"
   plan              = "vc2-1c-1gb"

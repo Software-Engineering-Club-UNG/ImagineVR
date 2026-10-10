@@ -18,6 +18,8 @@ crash.*.log
 
 # Python development files.
 **/.venv/
+**/.venv313/
+**/.venv-python314/
 **/__pycache__/
 **/.pytest_cache/
 *.pyc

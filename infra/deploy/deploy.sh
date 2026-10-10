@@ -37,7 +37,7 @@ mv -Tf "$base/.current-$$" "$base/current"
 switched=true
 sudo -n /usr/bin/systemctl restart openrouter-api.service
 
-for attempt in {1..30}; do
+for attempt in {1..150}; do
   if curl --fail --silent --max-time 3 http://127.0.0.1:8000/health |
     "$release/.venv/bin/python" -c 'import json,sys; data=json.load(sys.stdin); sys.exit(0 if data.get("status") == "ok" and data.get("revision") == sys.argv[1] else 1)' "$revision" 2>/dev/null; then
     echo "Deployment healthy: $revision"

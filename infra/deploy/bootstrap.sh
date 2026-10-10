@@ -14,6 +14,7 @@ public_key=$(cat -- "$1")
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y python3-venv nginx curl
+apt-get install -y certbot python3-certbot-nginx
 
 id deploy &>/dev/null || useradd --create-home --shell /bin/bash deploy
 id openrouter-api &>/dev/null || useradd --system --home /nonexistent --shell /usr/sbin/nologin openrouter-api
@@ -43,5 +44,9 @@ systemctl enable --now nginx
 systemctl reload nginx
 if command -v ufw >/dev/null && ufw status | grep -q '^Status: active'; then
   ufw allow 80/tcp comment 'openrouter-api HTTP via nginx'
+  ufw allow 443/tcp comment 'openrouter-api HTTPS via nginx'
 fi
+certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email \
+  --redirect -d 64.177.52.162.sslip.io
+systemctl enable --now certbot.timer
 echo 'Bootstrap complete. Deploy a release to start FastAPI.'

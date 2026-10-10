@@ -6,12 +6,14 @@ on:
     paths:
       - 'openrouter-api/**'
       - 'infra/deploy/**'
+      - 'shared/**'
       - '.github/workflows/deploy-openrouter-api.yml'
   pull_request:
     branches: [main]
     paths:
       - 'openrouter-api/**'
       - 'infra/deploy/**'
+      - 'shared/**'
       - '.github/workflows/deploy-openrouter-api.yml'
   workflow_dispatch:
 
@@ -69,7 +71,7 @@ jobs:
           install -m 600 infra/deploy/known_hosts ~/.ssh/known_hosts
       - name: Upload and deploy the tested backend
         run: |
-          tar -czf "$RUNNER_TEMP/$REVISION.tar.gz" -C openrouter-api app requirements.txt
+          tar -czf "$RUNNER_TEMP/$REVISION.tar.gz" -C openrouter-api app imagine requirements.txt -C .. shared
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
             "$RUNNER_TEMP/$REVISION.tar.gz" \
             "$DEPLOY_USER@$DEPLOY_HOST:/srv/openrouter-api/incoming/$REVISION.tar.gz"
@@ -78,7 +80,7 @@ jobs:
       - name: Verify public API
         run: |
           curl --fail --silent --show-error --retry 5 --retry-delay 2 \
-            --connect-timeout 10 --max-time 20 "http://$DEPLOY_HOST/health" |
+            --connect-timeout 10 --max-time 20 "https://$DEPLOY_HOST.sslip.io/health" |
             python -c 'import json,os,sys; data=json.load(sys.stdin); assert data["status"] == "ok" and data["revision"] == os.environ["REVISION"], data'
       - name: Remove deployment private key
         if: always()

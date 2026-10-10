@@ -43,6 +43,7 @@ MOCK
 printf '#!/usr/bin/env bash\nexit 0\n' > "$test_dir/bin/sleep"
 chmod +x "$test_dir/bin/"*
 export PATH="$test_dir/bin:$PATH"
+export PYTHON_BIN="$test_dir/bin/python3"
 good_revision=$(printf 'a%.0s' {1..40})
 bad_revision=$(printf 'b%.0s' {1..40})
 tar -czf "$TEST_BASE/incoming/$good_revision.tar.gz" -C "$test_dir/source" requirements.txt

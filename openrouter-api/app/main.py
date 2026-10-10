@@ -1,8 +1,7 @@
 import os
 
-from fastapi import FastAPI
+from imagine.main import app
 
-app = FastAPI(title="ImagineVR OpenRouter API", version="0.1.0")
 
 
 @app.get("/")
