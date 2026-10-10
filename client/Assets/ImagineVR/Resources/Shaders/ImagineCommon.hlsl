@@ -1,0 +1,87 @@
+#ifndef IMAGINE_COMMON_INCLUDED
+#define IMAGINE_COMMON_INCLUDED
+
+// World-wide values, set every frame by SkySystem. All ImagineVR shaders light and fog
+// themselves from these, so nothing depends on URP's light loop.
+float4 _ImSunDir;     // xyz: direction towards the light
+float4 _ImSunColor;   // rgb: colour * intensity
+float4 _ImAmbSky;     // rgb: ambient from above
+float4 _ImAmbGround;  // rgb: ambient from below
+float4 _ImFogColor;   // rgb
+float4 _ImFogParams;  // x: density, y: world-edge fade start (m), z: world-edge fade end (m)
+float4 _ImWind;       // xy: direction on the ground plane, z: strength
+float _ImNight;       // 0 day .. 1 night, drives night-only emission
+
+float ImHash(float2 p)
+{
+    p = frac(p * float2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return frac(p.x * p.y);
+}
+
+float ImHash3(float3 p)
+{
+    p = frac(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float ImNoise(float2 p)
+{
+    float2 i = floor(p);
+    float2 f = frac(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = ImHash(i);
+    float b = ImHash(i + float2(1.0, 0.0));
+    float c = ImHash(i + float2(0.0, 1.0));
+    float d = ImHash(i + float2(1.0, 1.0));
+    return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+float ImFbm(float2 p)
+{
+    float v = 0.0;
+    v += 0.5 * ImNoise(p);
+    v += 0.25 * ImNoise(p * 2.03 + 17.1);
+    v += 0.125 * ImNoise(p * 4.01 + 43.7);
+    return v / 0.875;
+}
+
+// Overshooting ease used when things pop into the world.
+float ImBackOut(float t)
+{
+    float c1 = 1.70158;
+    float c3 = c1 + 1.0;
+    float u = t - 1.0;
+    return 1.0 + c3 * u * u * u + c1 * u * u;
+}
+
+void ImRotateY(inout float3 v, float angle)
+{
+    float s, c;
+    sincos(angle, s, c);
+    v.xz = float2(v.x * c + v.z * s, -v.x * s + v.z * c);
+}
+
+half3 ImLight(half3 albedo, float3 normalWS)
+{
+    half ndl = saturate(dot(normalWS, _ImSunDir.xyz));
+    half3 ambient = lerp(_ImAmbGround.rgb, _ImAmbSky.rgb, normalWS.y * 0.5 + 0.5);
+    return albedo * (ambient + _ImSunColor.rgb * ndl);
+}
+
+// 0 = no fog, 1 = fully the fog colour.
+half ImFog(float3 positionWS, float3 cameraWS)
+{
+    float d = distance(positionWS, cameraWS) * _ImFogParams.x;
+    return saturate(1.0 - exp(-d * d));
+}
+
+// The ground fades into the horizon at the edge of the world. Objects do not, so that
+// things placed far away on purpose (a planet, a distant mountain) stay visible.
+half ImEdge(float3 positionWS)
+{
+    return smoothstep(_ImFogParams.y, _ImFogParams.z, length(positionWS.xz));
+}
+
+#endif

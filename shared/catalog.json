@@ -1,0 +1,1047 @@
+{
+  "language_version": 1,
+  "catalog_version": "1.54.9e3fd2fa",
+  "limits": {
+    "max_spawned": 60,
+    "max_scatter_count": 300,
+    "max_scatter_total": 1500,
+    "max_kits": 3,
+    "max_physics": 40,
+    "safe_radius_m": 3,
+    "world_radius_m": 120
+  },
+  "sky_presets": [
+    {
+      "id": "void",
+      "desc": "Pure darkness, the empty room before anything is built",
+      "tags": ["dark", "black", "empty", "nothing"],
+      "aliases": ["darkness", "blank", "dark room"]
+    },
+    {
+      "id": "clear_noon",
+      "desc": "Bright blue midday, high sun, a few clouds",
+      "tags": ["day", "sunny", "blue", "bright", "afternoon"],
+      "aliases": ["noon", "midday", "daytime", "sunny day", "clear sky"]
+    },
+    {
+      "id": "morning",
+      "desc": "Fresh morning light, soft warm horizon",
+      "tags": ["day", "early", "soft", "fresh"],
+      "aliases": ["early morning", "am"]
+    },
+    {
+      "id": "golden_hour",
+      "desc": "Low warm sun, orange horizon, long golden light",
+      "tags": ["sunset", "evening", "warm", "orange", "gold"],
+      "aliases": ["sunset", "sundown", "evening", "magic hour"]
+    },
+    {
+      "id": "sunset_pink",
+      "desc": "Pink and violet sunset, sun on the horizon",
+      "tags": ["sunset", "pink", "romantic", "evening", "purple"],
+      "aliases": ["pink sky", "rose sunset"]
+    },
+    {
+      "id": "dusk",
+      "desc": "Just after sunset, deep blue with the first stars",
+      "tags": ["twilight", "evening", "blue hour"],
+      "aliases": ["twilight", "blue hour", "nightfall"]
+    },
+    {
+      "id": "night_stars",
+      "desc": "Clear night full of stars",
+      "tags": ["night", "dark", "stars", "starry"],
+      "aliases": ["night", "starry night", "nighttime", "midnight"]
+    },
+    {
+      "id": "moonlit",
+      "desc": "Night under a bright full moon",
+      "tags": ["night", "moon", "blue", "calm"],
+      "aliases": ["moonlight", "full moon", "moon"]
+    },
+    {
+      "id": "night_city",
+      "desc": "City night, glow on the horizon, few stars",
+      "tags": ["night", "urban", "neon", "downtown"],
+      "aliases": ["city night", "urban night"]
+    },
+    {
+      "id": "overcast",
+      "desc": "Flat grey cloud cover, soft even light",
+      "tags": ["grey", "gray", "cloudy", "dull", "rainy"],
+      "aliases": ["cloudy", "grey sky", "gray sky"]
+    },
+    {
+      "id": "stormy",
+      "desc": "Dark storm clouds, heavy and windy",
+      "tags": ["storm", "thunder", "dark", "rain", "dramatic"],
+      "aliases": ["storm", "thunderstorm", "tempest"]
+    },
+    {
+      "id": "dawn",
+      "desc": "First light, peach horizon under a deep blue sky",
+      "tags": ["sunrise", "early", "pink", "quiet"],
+      "aliases": ["sunrise", "daybreak", "first light"]
+    },
+    {
+      "id": "foggy_morning",
+      "desc": "Thick pale mist, everything soft and close",
+      "tags": ["fog", "mist", "grey", "quiet", "mysterious"],
+      "aliases": ["misty", "fog", "mist", "haze"]
+    },
+    {
+      "id": "alien_dusk",
+      "desc": "Alien sky: violet above, teal horizon, magenta sun",
+      "tags": ["alien", "planet", "sci-fi", "strange", "purple", "teal"],
+      "aliases": ["alien planet", "another world", "exoplanet"]
+    },
+    {
+      "id": "deep_space",
+      "desc": "Open space: black, dense stars, coloured nebula",
+      "tags": ["space", "stars", "galaxy", "cosmos", "black"],
+      "aliases": ["outer space", "space", "galaxy", "cosmos"]
+    },
+    {
+      "id": "aurora_night",
+      "desc": "Polar night with green and violet northern lights",
+      "tags": ["aurora", "night", "arctic", "green", "magic"],
+      "aliases": ["northern lights", "aurora", "aurora borealis"]
+    },
+    {
+      "id": "underwater",
+      "desc": "Beneath the sea: blue-green light from above, murky distance",
+      "tags": ["ocean", "sea", "deep", "blue", "water"],
+      "aliases": ["under the sea", "undersea", "deep sea"]
+    },
+    {
+      "id": "synthwave",
+      "desc": "Retro neon: magenta horizon, huge low sun, stars",
+      "tags": ["retro", "neon", "80s", "vaporwave", "outrun", "pink"],
+      "aliases": ["vaporwave", "outrun", "retrowave", "80s"]
+    },
+    {
+      "id": "desert_noon",
+      "desc": "Bleached desert midday, pale horizon, harsh sun",
+      "tags": ["desert", "hot", "dry", "bright"],
+      "aliases": ["hot day", "scorching"]
+    },
+    {
+      "id": "winter_day",
+      "desc": "Pale cold daylight, low sun, thin cloud",
+      "tags": ["winter", "cold", "snow", "pale"],
+      "aliases": ["snowy day", "cold day"]
+    },
+    {
+      "id": "volcanic",
+      "desc": "Ash-black sky lit red from below",
+      "tags": ["volcano", "lava", "hell", "fire", "red", "dark"],
+      "aliases": ["hellscape", "inferno", "lava sky"]
+    },
+    {
+      "id": "candy",
+      "desc": "Pastel pink and baby blue, fluffy white clouds",
+      "tags": ["pastel", "cute", "sweet", "pink", "dream"],
+      "aliases": ["pastel", "cotton candy", "kawaii"]
+    },
+    {
+      "id": "toxic",
+      "desc": "Sickly green haze, heavy and strange",
+      "tags": ["green", "poison", "swamp", "radioactive", "wasteland"],
+      "aliases": ["radioactive", "poison", "acid"]
+    },
+    {
+      "id": "spooky",
+      "desc": "Haunted night: moon behind drifting cloud, purple mist",
+      "tags": ["halloween", "haunted", "creepy", "scary", "night", "ghost"],
+      "aliases": ["haunted", "creepy", "eerie", "halloween night"]
+    },
+    {
+      "id": "dreamy",
+      "desc": "Soft heavenly light above a sea of cloud",
+      "tags": ["heaven", "dream", "soft", "clouds", "peaceful", "white"],
+      "aliases": ["heaven", "dreamscape", "cloud kingdom"]
+    },
+    {
+      "id": "white_room",
+      "desc": "A bright, clean white studio with no horizon",
+      "tags": ["white", "studio", "gallery", "clean", "minimal", "blank"],
+      "aliases": ["white void", "studio", "gallery light", "blank white"]
+    }
+  ],
+  "terrain_types": [
+    {
+      "id": "flat",
+      "desc": "Perfectly level ground",
+      "tags": ["level", "plain", "plaza", "floor"],
+      "aliases": ["level", "plain", "paved"],
+      "material": "grass"
+    },
+    {
+      "id": "rolling",
+      "desc": "Gentle rolling ground",
+      "tags": ["gentle", "meadow", "park", "field"],
+      "aliases": ["gentle hills", "meadow", "fairway"],
+      "material": "grass"
+    },
+    {
+      "id": "hills",
+      "desc": "Big rounded hills",
+      "tags": ["hilly", "highlands", "countryside"],
+      "aliases": ["hilly", "highlands", "downs"],
+      "material": "grass"
+    },
+    {
+      "id": "mountains",
+      "desc": "Open ground ringed by tall peaks",
+      "tags": ["peaks", "alps", "range", "epic"],
+      "aliases": ["mountain range", "alps", "peaks"],
+      "material": "rock"
+    },
+    {
+      "id": "dunes",
+      "desc": "Rippling sand dunes",
+      "tags": ["desert", "sahara", "sand"],
+      "aliases": ["sand dunes", "desert"],
+      "material": "sand"
+    },
+    {
+      "id": "canyon",
+      "desc": "A canyon floor between stepped rock walls",
+      "tags": ["gorge", "ravine", "cliffs", "western"],
+      "aliases": ["gorge", "ravine", "grand canyon"],
+      "material": "mars"
+    },
+    {
+      "id": "valley",
+      "desc": "A wide valley rising to slopes on both sides",
+      "tags": ["vale", "glen", "basin"],
+      "aliases": ["vale", "glen"],
+      "material": "grass"
+    },
+    {
+      "id": "island",
+      "desc": "A small island surrounded by sea",
+      "tags": ["tropical", "sea", "ocean", "atoll"],
+      "aliases": ["tropical island", "atoll", "desert island"],
+      "material": "sand",
+      "water": true
+    },
+    {
+      "id": "beach",
+      "desc": "Shoreline: land behind, sea ahead",
+      "tags": ["coast", "shore", "seaside", "ocean"],
+      "aliases": ["shore", "coast", "seaside"],
+      "material": "sand",
+      "water": true
+    },
+    {
+      "id": "lake",
+      "desc": "Rolling land with a lake ahead",
+      "tags": ["pond", "water", "lakeside"],
+      "aliases": ["pond", "lakeside", "loch"],
+      "material": "grass",
+      "water": true
+    },
+    {
+      "id": "ocean",
+      "desc": "Open water in every direction, a tiny sandbar underfoot",
+      "tags": ["sea", "water", "open water"],
+      "aliases": ["open sea", "sea", "open water"],
+      "material": "sand",
+      "water": true
+    },
+    {
+      "id": "craters",
+      "desc": "Dusty plain pocked with impact craters",
+      "tags": ["moon", "lunar", "asteroid", "space"],
+      "aliases": ["lunar surface", "moonscape"],
+      "material": "moon"
+    },
+    {
+      "id": "plateau",
+      "desc": "The top of a high mesa with the land far below",
+      "tags": ["mesa", "cliff", "summit", "overlook", "epic"],
+      "aliases": ["mesa", "cliff top", "summit", "mountain top"],
+      "material": "rock"
+    },
+    {
+      "id": "none",
+      "desc": "No ground at all: floating in open space or sky",
+      "tags": ["void", "space", "floating", "empty"],
+      "aliases": ["no ground", "nothing", "floating"],
+      "material": "neon"
+    }
+  ],
+  "materials": [
+    {
+      "id": "grass",
+      "desc": "Green lawn, dirt on the slopes",
+      "tags": ["lawn", "turf", "meadow", "field", "green"],
+      "aliases": ["lawn", "turf", "meadow"]
+    },
+    {
+      "id": "dry_grass",
+      "desc": "Yellowed savanna grass",
+      "tags": ["savanna", "prairie", "straw", "yellow"],
+      "aliases": ["savanna", "prairie", "hay"]
+    },
+    {
+      "id": "forest_floor",
+      "desc": "Dark mossy forest ground",
+      "tags": ["moss", "woods", "jungle", "dark green"],
+      "aliases": ["moss", "jungle floor", "undergrowth"]
+    },
+    {
+      "id": "sand",
+      "desc": "Pale beach or desert sand",
+      "tags": ["beach", "desert", "dune", "yellow"],
+      "aliases": ["beach sand", "desert sand"]
+    },
+    {
+      "id": "snow",
+      "desc": "Fresh white snow, grey rock on the slopes",
+      "tags": ["winter", "white", "ice", "arctic"],
+      "aliases": ["snowy", "snowfield"]
+    },
+    {
+      "id": "rock",
+      "desc": "Bare grey stone",
+      "tags": ["stone", "cliff", "mountain", "grey"],
+      "aliases": ["stone", "bedrock"]
+    },
+    {
+      "id": "dirt",
+      "desc": "Brown earth",
+      "tags": ["soil", "earth", "mud", "brown", "path"],
+      "aliases": ["soil", "earth"]
+    },
+    {
+      "id": "asphalt",
+      "desc": "Dark road surface",
+      "tags": ["road", "street", "tarmac", "city", "urban"],
+      "aliases": ["tarmac", "pavement", "road"]
+    },
+    {
+      "id": "concrete",
+      "desc": "Pale grey concrete",
+      "tags": ["plaza", "pavement", "slab", "grey"],
+      "aliases": ["cement", "plaza"]
+    },
+    {
+      "id": "marble",
+      "desc": "Polished pale stone floor",
+      "tags": ["floor", "gallery", "museum", "palace", "white"],
+      "aliases": ["tile", "stone floor", "polished floor"]
+    },
+    {
+      "id": "moon",
+      "desc": "Grey lunar dust",
+      "tags": ["lunar", "regolith", "space", "grey"],
+      "aliases": ["lunar", "regolith", "moon dust"]
+    },
+    {
+      "id": "mars",
+      "desc": "Rust-red planet dust",
+      "tags": ["red", "planet", "rust", "alien"],
+      "aliases": ["martian", "red planet", "rust"]
+    },
+    {
+      "id": "lava_rock",
+      "desc": "Black volcanic rock",
+      "tags": ["volcano", "basalt", "black", "burnt", "hell"],
+      "aliases": ["basalt", "volcanic", "obsidian"]
+    },
+    {
+      "id": "candy",
+      "desc": "Pink and mint pastel ground",
+      "tags": ["pastel", "sweet", "cute", "pink"],
+      "aliases": ["pastel", "sugar", "frosting"]
+    },
+    {
+      "id": "neon",
+      "desc": "Near-black ground for glowing grids",
+      "tags": ["dark", "grid", "retro", "tron", "black"],
+      "aliases": ["tron", "grid floor", "cyber"]
+    },
+    {
+      "id": "ice",
+      "desc": "Pale blue ice",
+      "tags": ["frozen", "glacier", "arctic", "blue"],
+      "aliases": ["frozen", "glacier"]
+    },
+    {
+      "id": "swamp",
+      "desc": "Dark wet mud and moss",
+      "tags": ["mud", "marsh", "bog", "wet"],
+      "aliases": ["marsh", "bog", "mud"]
+    },
+    {
+      "id": "seabed",
+      "desc": "Pale sea floor sand and silt",
+      "tags": ["ocean floor", "underwater", "reef"],
+      "aliases": ["sea floor", "ocean floor"]
+    }
+  ],
+  "kits": [
+    {
+      "id": "golf_course",
+      "desc": "A golf hole: tee at your feet, mown fairway, green with a flag and a real hole, bunkers, trees",
+      "tags": ["golf", "sport", "course", "fairway", "green", "links"],
+      "aliases": ["golf", "golf hole", "links", "country club", "driving range"],
+      "defaults": {
+        "sky": "clear_noon",
+        "terrain": {
+          "type": "rolling",
+          "material": "grass",
+          "height": 0.25
+        },
+        "ambience": "birds_breeze"
+      },
+      "greeting": "Welcome to the first tee. The green is straight ahead."
+    },
+    {
+      "id": "city",
+      "desc": "A downtown street grid: you stand at a crossroads between blocks of towers, with lamps, cars and lit windows at night",
+      "tags": ["urban", "downtown", "street", "buildings", "skyscrapers", "metropolis"],
+      "aliases": ["city", "town", "downtown", "metropolis", "new york", "tokyo", "urban", "streets"],
+      "defaults": {
+        "sky": "night_city",
+        "terrain": {
+          "type": "flat",
+          "material": "asphalt"
+        },
+        "ambience": "city_night"
+      },
+      "greeting": "The city never sleeps. Look up."
+    }
+  ],
+  "assets": [
+    {
+      "id": "pine_tree",
+      "desc": "Tall evergreen pine",
+      "tags": ["tree", "forest", "evergreen", "woods"],
+      "aliases": ["fir", "conifer", "spruce", "evergreen", "redwood", "christmas tree shape"],
+      "category": "nature",
+      "size_m": 7
+    },
+    {
+      "id": "snowy_pine",
+      "desc": "Pine tree heavy with snow",
+      "tags": ["tree", "winter", "snow", "forest"],
+      "aliases": ["snow tree", "winter tree", "frosted pine"],
+      "category": "nature",
+      "size_m": 7
+    },
+    {
+      "id": "oak_tree",
+      "desc": "Broad leafy tree",
+      "tags": ["tree", "forest", "park", "shade", "green"],
+      "aliases": ["tree", "leafy tree", "deciduous", "maple", "elm"],
+      "category": "nature",
+      "size_m": 6.5
+    },
+    {
+      "id": "birch_tree",
+      "desc": "Slender white-barked tree with light leaves",
+      "tags": ["tree", "forest", "pale", "slender"],
+      "aliases": ["aspen", "silver birch"],
+      "category": "nature",
+      "size_m": 6
+    },
+    {
+      "id": "autumn_tree",
+      "desc": "Tree in orange and red autumn colours",
+      "tags": ["tree", "fall", "autumn", "orange", "red"],
+      "aliases": ["fall tree", "maple", "orange tree"],
+      "category": "nature",
+      "size_m": 6
+    },
+    {
+      "id": "cherry_tree",
+      "desc": "Cherry tree covered in pink blossom",
+      "tags": ["tree", "blossom", "pink", "spring", "japan"],
+      "aliases": ["sakura", "blossom tree", "pink tree"],
+      "category": "nature",
+      "size_m": 5
+    },
+    {
+      "id": "dead_tree",
+      "desc": "Bare leafless tree with twisted branches",
+      "tags": ["tree", "spooky", "bare", "winter", "dead"],
+      "aliases": ["bare tree", "leafless tree", "spooky tree"],
+      "category": "nature",
+      "size_m": 5
+    },
+    {
+      "id": "palm_tree",
+      "desc": "Leaning tropical palm with coconuts",
+      "tags": ["tree", "tropical", "beach", "island"],
+      "aliases": ["palm", "coconut tree", "coconut palm"],
+      "category": "nature",
+      "size_m": 7
+    },
+    {
+      "id": "cypress_tree",
+      "desc": "Tall narrow dark-green tree",
+      "tags": ["tree", "tall", "narrow", "italy", "garden"],
+      "aliases": ["cypress", "poplar", "column tree"],
+      "category": "nature",
+      "size_m": 8
+    },
+    {
+      "id": "bamboo",
+      "desc": "Cluster of tall bamboo stalks",
+      "tags": ["plant", "japan", "garden", "green", "asia"],
+      "aliases": ["bamboo grove", "bamboo stalks"],
+      "category": "nature",
+      "size_m": 5
+    },
+    {
+      "id": "bush",
+      "desc": "Round green bush",
+      "tags": ["plant", "shrub", "garden", "hedge"],
+      "aliases": ["shrub", "hedge", "bushes"],
+      "category": "nature",
+      "size_m": 1.2
+    },
+    {
+      "id": "flower_patch",
+      "desc": "Small cluster of mixed wildflowers",
+      "tags": ["flowers", "meadow", "garden", "colourful"],
+      "aliases": ["flowers", "wildflowers", "daisies", "tulips", "flower bed"],
+      "category": "nature",
+      "size_m": 0.4
+    },
+    {
+      "id": "tall_grass",
+      "desc": "Tuft of tall grass",
+      "tags": ["grass", "meadow", "field", "plant"],
+      "aliases": ["grass", "grass tuft", "weeds", "reeds"],
+      "category": "nature",
+      "size_m": 0.6
+    },
+    {
+      "id": "fern",
+      "desc": "Low spreading fern",
+      "tags": ["plant", "forest", "jungle", "green"],
+      "aliases": ["ferns", "undergrowth", "frond"],
+      "category": "nature",
+      "size_m": 0.7
+    },
+    {
+      "id": "cactus",
+      "desc": "Tall desert cactus with arms",
+      "tags": ["desert", "plant", "western", "dry"],
+      "aliases": ["saguaro", "cacti"],
+      "category": "nature",
+      "size_m": 2.6
+    },
+    {
+      "id": "mushroom",
+      "desc": "Red toadstool with white spots",
+      "tags": ["forest", "fungus", "fairy", "small"],
+      "aliases": ["toadstool", "fungus"],
+      "category": "nature",
+      "size_m": 0.35
+    },
+    {
+      "id": "giant_mushroom",
+      "desc": "Towering mushroom with a softly glowing cap",
+      "tags": ["fantasy", "fairy", "alien", "glow", "forest"],
+      "aliases": ["huge mushroom", "fantasy mushroom", "glowing mushroom"],
+      "category": "nature",
+      "size_m": 5
+    },
+    {
+      "id": "rock",
+      "desc": "Small grey rock",
+      "tags": ["stone", "boulder", "grey"],
+      "aliases": ["stone", "pebble", "rocks"],
+      "category": "nature",
+      "size_m": 0.7,
+      "prop": true
+    },
+    {
+      "id": "boulder",
+      "desc": "Large weathered boulder",
+      "tags": ["stone", "rock", "big", "grey"],
+      "aliases": ["big rock", "large rock"],
+      "category": "nature",
+      "size_m": 2.4
+    },
+    {
+      "id": "rock_spire",
+      "desc": "Tall jagged spire of rock",
+      "tags": ["stone", "cliff", "desert", "alien", "canyon"],
+      "aliases": ["rock pillar", "stone spire", "hoodoo", "stalagmite"],
+      "category": "nature",
+      "size_m": 7
+    },
+    {
+      "id": "log",
+      "desc": "Fallen tree trunk lying on the ground",
+      "tags": ["wood", "forest", "camp", "seat"],
+      "aliases": ["fallen log", "tree trunk", "timber"],
+      "category": "nature",
+      "size_m": 0.5,
+      "prop": true
+    },
+    {
+      "id": "tree_stump",
+      "desc": "Cut tree stump",
+      "tags": ["wood", "forest", "seat"],
+      "aliases": ["stump"],
+      "category": "nature",
+      "size_m": 0.5
+    },
+    {
+      "id": "cloud",
+      "desc": "Puffy white cloud",
+      "tags": ["sky", "weather", "white", "fluffy"],
+      "aliases": ["clouds", "puffy cloud"],
+      "category": "sky",
+      "size_m": 4
+    },
+    {
+      "id": "bird",
+      "desc": "Small bird in flight",
+      "tags": ["sky", "animal", "flying", "wings"],
+      "aliases": ["birds", "seagull", "gull", "flock"],
+      "category": "sky",
+      "size_m": 0.4
+    },
+    {
+      "id": "tower",
+      "desc": "Tall office tower with rows of windows",
+      "tags": ["building", "city", "skyscraper", "urban", "downtown"],
+      "aliases": ["office tower", "high rise", "highrise"],
+      "category": "buildings",
+      "size_m": 44
+    },
+    {
+      "id": "skyscraper",
+      "desc": "Very tall stepped skyscraper with a spire",
+      "tags": ["building", "city", "urban", "downtown", "landmark"],
+      "aliases": ["tall building", "super tall", "empire state"],
+      "category": "buildings",
+      "size_m": 78
+    },
+    {
+      "id": "office_block",
+      "desc": "Wide mid-rise office building",
+      "tags": ["building", "city", "urban", "office"],
+      "aliases": ["office", "office building", "mid rise"],
+      "category": "buildings",
+      "size_m": 26
+    },
+    {
+      "id": "apartment_block",
+      "desc": "Brick apartment building",
+      "tags": ["building", "city", "urban", "housing", "flats"],
+      "aliases": ["apartments", "flats", "tenement", "condo"],
+      "category": "buildings",
+      "size_m": 20
+    },
+    {
+      "id": "shop",
+      "desc": "Small street-level shop with an awning",
+      "tags": ["building", "city", "store", "street", "market"],
+      "aliases": ["store", "storefront", "cafe", "bakery", "market stall"],
+      "category": "buildings",
+      "size_m": 5
+    },
+    {
+      "id": "house",
+      "desc": "Family house with a pitched roof and chimney",
+      "tags": ["building", "home", "village", "suburb", "cottage"],
+      "aliases": ["home", "cottage", "suburban house", "village house"],
+      "category": "buildings",
+      "size_m": 6.5
+    },
+    {
+      "id": "street_lamp",
+      "desc": "Street lamp that glows at night",
+      "tags": ["light", "city", "street", "night", "road"],
+      "aliases": ["lamp post", "streetlight", "lamppost", "light pole"],
+      "category": "city",
+      "size_m": 5.2
+    },
+    {
+      "id": "traffic_light",
+      "desc": "Traffic light on a pole",
+      "tags": ["city", "street", "road", "signal"],
+      "aliases": ["stoplight", "traffic signal", "signal"],
+      "category": "city",
+      "size_m": 4
+    },
+    {
+      "id": "bench",
+      "desc": "Wooden park bench",
+      "tags": ["seat", "park", "street", "garden"],
+      "aliases": ["park bench", "seat"],
+      "category": "city",
+      "size_m": 0.9
+    },
+    {
+      "id": "fire_hydrant",
+      "desc": "Red fire hydrant",
+      "tags": ["city", "street", "red"],
+      "aliases": ["hydrant"],
+      "category": "city",
+      "size_m": 0.8,
+      "prop": true
+    },
+    {
+      "id": "trash_can",
+      "desc": "Metal street bin",
+      "tags": ["city", "street", "bin", "garbage"],
+      "aliases": ["bin", "garbage can", "rubbish bin", "dustbin"],
+      "category": "city",
+      "size_m": 1,
+      "prop": true
+    },
+    {
+      "id": "road_cone",
+      "desc": "Orange traffic cone",
+      "tags": ["road", "street", "construction", "orange"],
+      "aliases": ["traffic cone", "cone", "pylon"],
+      "category": "city",
+      "size_m": 0.7,
+      "prop": true
+    },
+    {
+      "id": "stop_sign",
+      "desc": "Red stop sign on a post",
+      "tags": ["road", "street", "sign"],
+      "aliases": ["sign", "road sign", "street sign"],
+      "category": "city",
+      "size_m": 2.4
+    },
+    {
+      "id": "fence",
+      "desc": "Section of wooden picket fence, 3 m long",
+      "tags": ["garden", "farm", "yard", "wood", "boundary"],
+      "aliases": ["picket fence", "railing", "fencing"],
+      "category": "city",
+      "size_m": 1.1
+    },
+    {
+      "id": "car",
+      "desc": "Compact car with headlights",
+      "tags": ["vehicle", "city", "road", "street", "traffic"],
+      "aliases": ["automobile", "sedan", "taxi", "vehicle", "cars"],
+      "category": "vehicles",
+      "size_m": 1.5
+    },
+    {
+      "id": "bus",
+      "desc": "City bus",
+      "tags": ["vehicle", "city", "road", "transport"],
+      "aliases": ["coach", "school bus", "transit"],
+      "category": "vehicles",
+      "size_m": 3.1
+    },
+    {
+      "id": "flag",
+      "desc": "Flag flying on a tall pole",
+      "tags": ["pole", "banner", "marker"],
+      "aliases": ["flagpole", "banner", "pennant"],
+      "category": "props",
+      "size_m": 4
+    },
+    {
+      "id": "golf_flag",
+      "desc": "Golf pin with a red flag, marks the hole",
+      "tags": ["golf", "hole", "green", "pin"],
+      "aliases": ["pin", "golf pin", "hole flag"],
+      "category": "sports",
+      "size_m": 2.2
+    },
+    {
+      "id": "golf_cart",
+      "desc": "Golf buggy with a canopy",
+      "tags": ["golf", "vehicle", "buggy"],
+      "aliases": ["golf buggy", "buggy", "cart"],
+      "category": "vehicles",
+      "size_m": 1.8
+    },
+    {
+      "id": "golf_club",
+      "desc": "Iron golf club. Swing it at a golf ball",
+      "tags": ["golf", "sport", "club", "swing"],
+      "aliases": ["club", "iron", "putter", "driver", "nine iron"],
+      "category": "sports",
+      "size_m": 1.05,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "golf_ball",
+      "desc": "White golf ball",
+      "tags": ["golf", "sport", "ball", "small"],
+      "aliases": ["ball"],
+      "category": "sports",
+      "size_m": 0.045,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "paintbrush",
+      "desc": "Paintbrush that paints ribbons of colour in the air. Trigger paints, B changes colour",
+      "tags": ["art", "paint", "draw", "brush", "creative", "colour"],
+      "aliases": ["brush", "paint brush", "art brush", "pen", "pencil", "marker", "crayon"],
+      "category": "art",
+      "size_m": 0.3,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "beach_ball",
+      "desc": "Big light striped beach ball",
+      "tags": ["ball", "beach", "toy", "bounce", "play"],
+      "aliases": ["ball", "inflatable ball"],
+      "category": "toys",
+      "size_m": 0.5,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "balloon",
+      "desc": "Party balloon that floats away and pops when hit",
+      "tags": ["party", "float", "toy", "birthday", "celebration"],
+      "aliases": ["balloons", "party balloon"],
+      "category": "toys",
+      "size_m": 0.4,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "magic_wand",
+      "desc": "Magic wand. Hold the trigger and point at loose things to levitate them",
+      "tags": ["magic", "wizard", "spell", "fantasy", "levitate"],
+      "aliases": ["wand", "wizard wand", "fairy wand"],
+      "category": "magic",
+      "size_m": 0.4,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "blaster",
+      "desc": "Toy ray gun that fires bouncing balls of light. Pull the trigger",
+      "tags": ["toy", "gun", "sci-fi", "shoot", "laser"],
+      "aliases": ["ray gun", "laser gun", "toy gun", "zapper", "space gun"],
+      "category": "toys",
+      "size_m": 0.28,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "energy_ball",
+      "desc": "Small glowing ball of light that bounces",
+      "tags": ["glow", "light", "magic", "ball", "orb"],
+      "aliases": ["orb", "glowing orb", "light ball", "plasma ball"],
+      "category": "magic",
+      "size_m": 0.12,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "bubble_wand",
+      "desc": "Bubble wand. Hold the trigger and wave it to blow bubbles",
+      "tags": ["bubbles", "toy", "play", "soap"],
+      "aliases": ["bubble blower", "bubbles"],
+      "category": "toys",
+      "size_m": 0.3,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "confetti_popper",
+      "desc": "Party popper. Pull the trigger for a burst of confetti",
+      "tags": ["party", "celebrate", "birthday", "confetti"],
+      "aliases": ["party popper", "confetti cannon", "popper"],
+      "category": "toys",
+      "size_m": 0.22,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "sword",
+      "desc": "Knight's sword",
+      "tags": ["weapon", "knight", "medieval", "fantasy", "blade"],
+      "aliases": ["blade", "longsword", "katana", "saber"],
+      "category": "fantasy",
+      "size_m": 1,
+      "holdable": true,
+      "prop": true
+    }
+  ],
+  "primitives": ["cube", "sphere", "cylinder", "cone", "capsule", "pyramid", "torus", "disc", "wedge", "plank"],
+  "motions": ["none", "bob", "spin", "hover", "sway", "orbit", "drift"],
+  "weather": [
+    {
+      "id": "none",
+      "desc": "Clear air: stops any weather",
+      "tags": ["clear", "stop", "off"],
+      "aliases": ["clear", "nothing", "stop"]
+    },
+    {
+      "id": "rain",
+      "desc": "Falling rain",
+      "tags": ["wet", "storm", "drizzle"],
+      "aliases": ["raining", "rainfall", "downpour", "drizzle"]
+    },
+    {
+      "id": "snow",
+      "desc": "Gently falling snow",
+      "tags": ["winter", "cold", "flakes"],
+      "aliases": ["snowing", "snowfall", "flurry", "blizzard"]
+    },
+    {
+      "id": "fireflies",
+      "desc": "Drifting points of warm light",
+      "tags": ["night", "magic", "glow", "summer"],
+      "aliases": ["lightning bugs", "glowing bugs"]
+    },
+    {
+      "id": "dust",
+      "desc": "Dust or sand blowing past",
+      "tags": ["desert", "sand", "wind", "dry"],
+      "aliases": ["sand", "sandstorm", "dusty", "haze"]
+    },
+    {
+      "id": "embers",
+      "desc": "Glowing sparks rising",
+      "tags": ["fire", "volcano", "sparks", "hot"],
+      "aliases": ["sparks", "cinders", "ash sparks"]
+    },
+    {
+      "id": "leaves",
+      "desc": "Autumn leaves tumbling down",
+      "tags": ["autumn", "fall", "wind", "forest"],
+      "aliases": ["falling leaves", "autumn leaves"]
+    },
+    {
+      "id": "petals",
+      "desc": "Pink blossom petals drifting down",
+      "tags": ["spring", "cherry", "blossom", "romantic"],
+      "aliases": ["cherry blossoms", "sakura", "blossom"]
+    },
+    {
+      "id": "bubbles",
+      "desc": "Bubbles floating upward",
+      "tags": ["underwater", "soap", "sea", "playful"],
+      "aliases": ["soap bubbles", "air bubbles"]
+    },
+    {
+      "id": "sparkles",
+      "desc": "Twinkling motes of light in the air",
+      "tags": ["magic", "fairy", "dream", "glitter"],
+      "aliases": ["magic dust", "glitter", "fairy dust", "twinkles"]
+    },
+    {
+      "id": "ash",
+      "desc": "Grey ash sifting down",
+      "tags": ["volcano", "fire", "apocalypse", "grey"],
+      "aliases": ["ashfall", "soot"]
+    }
+  ],
+  "ambience": [
+    {
+      "id": "birds_breeze",
+      "desc": "Daytime birdsong and a light breeze",
+      "tags": ["day", "outdoor", "calm", "park", "meadow", "golf"],
+      "aliases": ["birdsong", "birds", "nature"]
+    },
+    {
+      "id": "forest",
+      "desc": "Deep forest: many birds, rustling leaves",
+      "tags": ["woods", "jungle", "trees", "nature"],
+      "aliases": ["woods", "woodland", "jungle"]
+    },
+    {
+      "id": "night_crickets",
+      "desc": "Warm night: crickets and stillness",
+      "tags": ["night", "summer", "camp", "calm", "field"],
+      "aliases": ["crickets", "night sounds"]
+    },
+    {
+      "id": "ocean_waves",
+      "desc": "Waves rolling in and drawing back",
+      "tags": ["beach", "sea", "shore", "island", "coast"],
+      "aliases": ["waves", "sea", "surf", "beach"]
+    },
+    {
+      "id": "wind",
+      "desc": "Open wind across a wide empty place",
+      "tags": ["desert", "mountain", "plain", "empty", "arctic"],
+      "aliases": ["breeze", "gusts", "windy"]
+    },
+    {
+      "id": "desert_wind",
+      "desc": "Dry whistling wind over sand",
+      "tags": ["desert", "dunes", "canyon", "dry", "hot"],
+      "aliases": ["sandstorm", "dry wind"]
+    },
+    {
+      "id": "rain",
+      "desc": "Steady rainfall",
+      "tags": ["rainy", "wet", "storm", "grey"],
+      "aliases": ["rainfall", "raining", "drizzle"]
+    },
+    {
+      "id": "storm",
+      "desc": "Heavy rain with rolling thunder",
+      "tags": ["thunder", "rain", "dark", "dramatic"],
+      "aliases": ["thunderstorm", "tempest"]
+    },
+    {
+      "id": "city_night",
+      "desc": "City at night: a low hum and passing traffic",
+      "tags": ["urban", "traffic", "downtown", "street"],
+      "aliases": ["city", "traffic", "urban"]
+    },
+    {
+      "id": "space_hum",
+      "desc": "The deep hum of open space",
+      "tags": ["space", "station", "void", "sci-fi", "moon"],
+      "aliases": ["space", "cosmic", "spaceship"]
+    },
+    {
+      "id": "underwater",
+      "desc": "Muffled deep water and rising bubbles",
+      "tags": ["ocean", "sea", "reef", "deep", "diving"],
+      "aliases": ["under the sea", "submerged"]
+    },
+    {
+      "id": "fire_crackle",
+      "desc": "A crackling fire",
+      "tags": ["campfire", "camp", "cozy", "night", "torch", "volcano"],
+      "aliases": ["campfire", "fireplace", "bonfire"]
+    },
+    {
+      "id": "cave_drips",
+      "desc": "A quiet cave: dripping water and distant echo",
+      "tags": ["cave", "cavern", "underground", "dungeon"],
+      "aliases": ["cave", "cavern", "dripping"]
+    },
+    {
+      "id": "synth_pad",
+      "desc": "A slow warm synthesiser chord",
+      "tags": ["retro", "neon", "dream", "80s", "calm", "music"],
+      "aliases": ["synth", "pad", "vaporwave music"]
+    },
+    {
+      "id": "zen_chimes",
+      "desc": "Soft wind and a few slow chimes",
+      "tags": ["garden", "temple", "japan", "peaceful", "dream", "heaven"],
+      "aliases": ["wind chimes", "chimes", "meditation"]
+    },
+    {
+      "id": "spooky",
+      "desc": "A low uneasy drone with distant moans",
+      "tags": ["haunted", "halloween", "graveyard", "creepy", "horror"],
+      "aliases": ["eerie", "creepy", "haunted"]
+    }
+  ]
+}
