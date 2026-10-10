@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from . import LANGUAGE_VERSION, config, stt, tts, llm
 from .catalog import Catalog
 from .session import SessionStore
-from .turn import run_turn
+from .turn import run_turn, reset_stt_slots
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("imagine")
@@ -62,6 +62,7 @@ async def lifespan(_app: FastAPI):
             "or set IMAGINE_CATALOG."
         )
     load_files(force=True)
+    reset_stt_slots()
     if config.OFFLINE:
         log.warning("no OPENROUTER_API_KEY: running with the offline director (keywords only, no AI)")
     else:

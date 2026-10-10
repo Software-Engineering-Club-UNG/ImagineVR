@@ -2,6 +2,8 @@ import asyncio
 import io
 import json
 import wave
+import subprocess
+import sys
 from pathlib import Path
 
 import httpx
@@ -94,10 +96,12 @@ def test_sessions_reset_and_rate_limit(api):
 
 def test_openrouter_fragmentation_and_failures(monkeypatch):
     async def check():
-        for suffix, succeeds in [('stop', True), ('length', False), ('error', False), (None, False)]:
+        for suffix, has_done, succeeds in [('stop', True, True), ('length', True, False),
+            ('error', True, False), ('content_filter', True, False), (None, False, False),
+            (None, True, True), ('provider_specific', True, True)]:
             frames = [': keepalive', 'data: ' + json.dumps({'choices': [{'delta': {'content': '{"op":"say",'}}]}),
                       'data: ' + json.dumps({'choices': [{'delta': {'content': '"text":"hi"}\n'}, 'finish_reason': suffix}]})]
-            if suffix:
+            if has_done:
                 frames += ['data: [DONE]']
             async def handler(request):
                 assert json.loads(request.content)['stream'] is True
@@ -282,3 +286,63 @@ def test_new_unity_examples_are_validated_without_losing_commands(example):
 def test_backend_and_unity_catalog_versions_match():
     unity_version = Path('../client/Assets/ImagineVR/Resources/CatalogVersion.txt').read_text().strip()
     assert Catalog.load(config.CATALOG_PATH).version == unity_version
+
+
+def test_provider_diagnostics_redact_credentials(monkeypatch):
+    monkeypatch.setattr(config, 'OPENROUTER_API_KEY', 'secret-test-key')
+    detail = llm.error_detail(json.dumps({'error': {'message': 'No credit\nsecret-test-key Bearer token-123 ' + 'x' * 300}}))
+    assert 'No credit' in detail
+    assert 'secret-test-key' not in detail and 'token-123' not in detail
+    assert '\n' not in detail and len(detail) <= 200
+
+
+def test_non_200_includes_actionable_diagnostics(monkeypatch):
+    async def check():
+        async def handler(request):
+            return httpx.Response(402, json={'error': {'message': 'Insufficient credits'}})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            monkeypatch.setattr(llm, '_client', client)
+            with pytest.raises(llm.LLMError, match='HTTP 402: Insufficient credits'):
+                _ = [line async for line in llm.stream_lines('system', 'user')]
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize('provider,expected_parallel', [('elevenlabs', 4), ('local', 1)])
+def test_transcription_concurrency(monkeypatch, provider, expected_parallel):
+    async def check():
+        monkeypatch.setattr(config, 'STT', provider)
+        monkeypatch.setattr(config, 'OFFLINE', True)
+        turn.reset_stt_slots()
+        release, ready = asyncio.Event(), asyncio.Event()
+        active = maximum = 0
+        async def transcribe(_):
+            nonlocal active, maximum
+            active += 1
+            maximum = max(maximum, active)
+            if active == expected_parallel:
+                ready.set()
+            await release.wait()
+            active -= 1
+            return 'forest'
+        monkeypatch.setattr(stt, 'transcribe', transcribe)
+        catalog = Catalog.load(config.CATALOG_PATH)
+        async def run(i):
+            return [s async for s in turn.run_turn(Session(str(i)), catalog, 'system', audio=wav())]
+        tasks = [asyncio.create_task(run(i)) for i in range(5)]
+        try:
+            await asyncio.wait_for(ready.wait(), timeout=2)
+            assert active == expected_parallel
+        finally:
+            release.set()
+            results = await asyncio.gather(*tasks)
+        assert maximum == expected_parallel
+        assert all(result[-1]['op'] == 'done' for result in results)
+    asyncio.run(check())
+
+
+def test_legacy_entrypoint_loads_the_canonical_backend():
+    result = subprocess.run([sys.executable, '-c',
+        'import imagine.main, imagine.script; print(imagine.main.__file__); print(imagine.script.__file__)'],
+        cwd=Path(__file__).resolve().parents[2] / 'server', capture_output=True, text=True, check=True)
+    for line in result.stdout.splitlines():
+        assert Path(line).parent == Path(__file__).resolve().parents[1] / 'imagine'

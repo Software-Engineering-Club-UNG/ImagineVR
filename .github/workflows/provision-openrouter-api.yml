@@ -1,6 +1,12 @@
 name: Provision ImagineVR API host
 on:
   workflow_dispatch:
+    inputs:
+      allow_http_demo:
+        description: 'Allow unencrypted HTTP if TLS issuance fails (trusted-network demo only)'
+        type: boolean
+        default: false
+        required: true
 permissions:
   contents: read
 jobs:
@@ -29,6 +35,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           IMAGINE_APP_TOKEN: ${{ secrets.IMAGINE_APP_TOKEN }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ALLOW_HTTP_DEMO: ${{ inputs.allow_http_demo && '1' || '0' }}
         run: |
           python - <<'PY'
           import os, re
@@ -40,14 +47,14 @@ jobs:
           tar -czf "$RUNNER_TEMP/provision.tar.gz" infra/deploy
           scp -o BatchMode=yes -o StrictHostKeyChecking=yes "$RUNNER_TEMP/provision.tar.gz" ubuntu@64.177.52.162:/tmp/imagine-provision.tar.gz
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes ubuntu@64.177.52.162 \
-            'sudo install -d -m 750 -o root -g openrouter-api /etc/openrouter-api; sudo install -m 600 /dev/null /etc/openrouter-api/environment; sudo tee /etc/openrouter-api/environment >/dev/null' <<EOF
+            "sudo install -d -m 700 /opt/imagine-provision; sudo tar -xzf /tmp/imagine-provision.tar.gz -C /opt/imagine-provision; sudo env ALLOW_HTTP_DEMO='$ALLOW_HTTP_DEMO' bash /opt/imagine-provision/infra/deploy/bootstrap.sh /opt/imagine-provision/infra/deploy/keys/github-actions.pub"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes ubuntu@64.177.52.162 \
+            'sudo bash /opt/imagine-provision/infra/deploy/install-environment.sh' <<EOF
           OPENROUTER_API_KEY=$OPENROUTER_API_KEY
           IMAGINE_APP_TOKEN=$IMAGINE_APP_TOKEN
           ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY
           IMAGINE_STT=elevenlabs
           EOF
-          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes ubuntu@64.177.52.162 \
-            'sudo install -d -m 700 /opt/imagine-provision; sudo tar -xzf /tmp/imagine-provision.tar.gz -C /opt/imagine-provision; sudo bash /opt/imagine-provision/infra/deploy/bootstrap.sh /opt/imagine-provision/infra/deploy/keys/github-actions.pub'
       - name: Remove provisioning key
         if: always()
         run: rm -f ~/.ssh/id_ed25519

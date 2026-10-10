@@ -1,3 +1,3 @@
 """ImagineVR server."""
 
-LANGUAGE_VERSION = 1
+from .version import LANGUAGE_VERSION

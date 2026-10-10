@@ -13,6 +13,11 @@ solid scenery and the maze kit, moving spawn/ride paths, `goal` triggers, and
 counted as world changes. The Unity-exported catalog is authoritative;
 do not edit it by hand. TTS remains off.
 
+`openrouter-api/imagine/` is the single source of backend code. The old
+`server/imagine/` contains only a compatibility import bridge; Israel should
+edit this folder's `prompt.md` and `script.py` directly. Configure local settings
+in `openrouter-api/.env`, not the old `server/.env`.
+
 This follows Israel's latest deployment handoff: keep the 1 CPU / 1 GB VM and
 Python 3.14, with hosted transcription rather than local Whisper. Do not install
 Whisper on production. The optional local adapter requires a separate Python
@@ -39,6 +44,16 @@ run **Test and deploy openrouter-api**. An initial application deployment before
 provisioning will fail safely and retain/restore the prior release.
 
 Point Unity at `https://64.177.52.162.sslip.io` with the matching token and catalog.
+Keep the committed Unity `AppToken` as `dev-token`: set the real token locally
+for the test build and share it privately, never in Git or a PR. Israel's latest
+microphone conversion is included so even 48 kHz devices upload 16 kHz mono WAV.
+
+TLS is required by default. If shared `sslip.io` certificate issuance is refused,
+the provisioning workflow has an explicit `allow_http_demo` opt-in for a
+trusted-network demo only. That fallback exposes voice and the client token in
+transit. Set repository **variable** `IMAGINE_API_URL=http://64.177.52.162` and
+use the same URL in Unity only if deliberately choosing it; restore the HTTPS
+variable/client URL after obtaining a certificate. No automatic downgrade occurs.
 An application token in a shipped client is a demo access control, not a
 substitute for individual-user authentication. Configure provider spending limits.
 Sessions are in memory and are lost on restart/deployment. Audio and transcripts
@@ -55,6 +70,11 @@ Without a key, development retains Israel's labelled keyword fallback.
 Production fails startup if model, transcription, or client-token secrets are
 missing. OpenRouter errors before any output retain the explicit fallback note;
 errors after partial output preserve the world already built and finish failed.
+Streams with `[DONE]` accept missing/provider-specific finish reasons; `length`,
+`error`, `content_filter`, and disconnection before `[DONE]` still fail explicitly.
+Provider-error diagnostics include a bounded, credential-redacted message.
+Hosted transcription permits four concurrent recordings across sessions, while
+turns within a session remain serialized (local Whisper permits only one).
 
 ## Local development
 
@@ -142,6 +162,7 @@ sudo systemctl status openrouter-api
 sudo journalctl -u openrouter-api -n 100 --no-pager
 ```
 
-Future application secrets (such as `OPENROUTER_API_KEY`) belong in the root-owned
+Application secrets (such as `OPENROUTER_API_KEY`) belong in the root-owned
 `/etc/openrouter-api/environment`, never in Git. Restart the service after editing
-that file. No OpenRouter credential is needed for the starter health endpoint.
+that file. Production requires valid configuration before startup; health checks
+do not themselves make provider calls or prove that provider credit is available.

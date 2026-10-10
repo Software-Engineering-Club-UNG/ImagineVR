@@ -46,7 +46,21 @@ if command -v ufw >/dev/null && ufw status | grep -q '^Status: active'; then
   ufw allow 80/tcp comment 'openrouter-api HTTP via nginx'
   ufw allow 443/tcp comment 'openrouter-api HTTPS via nginx'
 fi
-certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email \
-  --redirect -d 64.177.52.162.sslip.io
-systemctl enable --now certbot.timer
+public_url=https://64.177.52.162.sslip.io
+if certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email \
+  --redirect -d 64.177.52.162.sslip.io; then
+  systemctl enable --now certbot.timer
+elif [[ ${ALLOW_HTTP_DEMO:-0} == 1 ]]; then
+  echo 'WARNING: TLS issuance failed. Explicitly enabled HTTP demo fallback is unencrypted.' >&2
+  install -m 644 "$script_dir/nginx.conf" /etc/nginx/sites-available/default
+  nginx -t
+  systemctl reload nginx
+  public_url=http://64.177.52.162
+  echo 'Set repository variable IMAGINE_API_URL=http://64.177.52.162 before deploying; use the same URL in Unity.' >&2
+else
+  echo 'TLS issuance failed. Use a domain you control or explicitly opt into allow_http_demo for a trusted-network demo.' >&2
+  exit 1
+fi
+printf 'IMAGINE_PUBLIC_URL=%s\n' "$public_url" > /etc/openrouter-api/public-url.env
+chmod 600 /etc/openrouter-api/public-url.env
 echo 'Bootstrap complete. Deploy a release to start FastAPI.'

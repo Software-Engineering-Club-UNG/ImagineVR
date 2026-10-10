@@ -38,7 +38,7 @@ jobs:
           python -m pytest -q
       - name: Check deployment scripts
         run: |
-          bash -n infra/deploy/bootstrap.sh infra/deploy/deploy.sh infra/deploy/tests/test-deploy.sh
+          bash -n infra/deploy/bootstrap.sh infra/deploy/install-environment.sh infra/deploy/deploy.sh infra/deploy/tests/test-deploy.sh
           bash infra/deploy/tests/test-deploy.sh
 
   deploy:
@@ -52,6 +52,7 @@ jobs:
     env:
       DEPLOY_HOST: '64.177.52.162'
       DEPLOY_USER: deploy
+      API_URL: ${{ vars.IMAGINE_API_URL || 'https://64.177.52.162.sslip.io' }}
       REVISION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -80,7 +81,7 @@ jobs:
       - name: Verify public API
         run: |
           curl --fail --silent --show-error --retry 5 --retry-delay 2 \
-            --connect-timeout 10 --max-time 20 "https://$DEPLOY_HOST.sslip.io/health" |
+            --connect-timeout 10 --max-time 20 "$API_URL/health" |
             python -c 'import json,os,sys; data=json.load(sys.stdin); assert data["status"] == "ok" and data["revision"] == os.environ["REVISION"], data'
       - name: Remove deployment private key
         if: always()

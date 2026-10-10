@@ -1,5 +1,20 @@
 # Before we can test on the headset
 
+## Review fixes applied
+
+Israel's checklist below is retained as the original review. The integration
+branch now includes microphone conversion commit `9e524b7`, accepts completed
+streams with absent/provider-specific finish reasons, provisions users/groups
+before writing secrets atomically, supports an explicit HTTP-demo opt-in when
+TLS fails, permits four concurrent hosted transcriptions, and logs bounded,
+credential-redacted provider error messages. Backend code now lives only in
+`openrouter-api/imagine/`; `server/imagine/` is a legacy import bridge. Edit the
+canonical prompt and validator directly.
+
+Provisioning secrets, live model/audio smoke checks, and a Quest build are still
+pending. The real Unity token must remain local and private. No live deployment
+or provider-account changes have been made by these review fixes.
+
 Parker: this is the short list from Israel's side, after reviewing this branch at `7c60ab1`
 on 2026-10-10. Your branch is in good shape: it matches `online-ready`, your 42 tests pass,
 and the model path works through your code against a stand-in for OpenRouter. These are the

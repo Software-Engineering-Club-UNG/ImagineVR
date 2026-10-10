@@ -10,6 +10,7 @@ Group=openrouter-api
 WorkingDirectory=/srv/openrouter-api/current
 EnvironmentFile=-/etc/openrouter-api/environment
 EnvironmentFile=/srv/openrouter-api/current/release.env
+EnvironmentFile=-/etc/openrouter-api/public-url.env
 ExecStart=/srv/openrouter-api/current/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=on-failure
 RestartSec=3

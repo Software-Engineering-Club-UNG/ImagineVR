@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import AsyncIterator
 
 import httpx
@@ -14,6 +15,21 @@ URL = config.OPENROUTER_URL
 
 class LLMError(Exception):
     pass
+
+
+def error_detail(body: str) -> str:
+    """Useful provider diagnostics without logging credentials or control characters."""
+    try:
+        payload = json.loads(body)
+        error = payload.get("error", {})
+        detail = str(error.get("message", "")) if isinstance(error, dict) else str(error)
+    except (json.JSONDecodeError, AttributeError):
+        detail = "unreadable provider error"
+    for secret in (config.OPENROUTER_API_KEY, config.ELEVENLABS_API_KEY, config.APP_TOKEN):
+        if secret:
+            detail = detail.replace(secret, "[redacted]")
+    detail = re.sub(r"(?i)bearer\s+[^\s]+|sk-or-[A-Za-z0-9_-]+", "[redacted]", detail)
+    return " ".join(detail.split())[:200]
 
 
 _client: httpx.AsyncClient | None = None
@@ -60,7 +76,8 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
     try:
         async with client().stream("POST", URL, headers=headers, json=body) as response:
             if response.status_code != 200:
-                raise LLMError(f"OpenRouter HTTP {response.status_code}")
+                body_text = (await response.aread()).decode("utf-8", "replace")
+                raise LLMError(f"OpenRouter HTTP {response.status_code}: {error_detail(body_text)}")
             buffer = ""
             finished = False
             reason = None
@@ -91,7 +108,7 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
                     line, buffer = buffer.split("\n", 1)
                     if line.strip():
                         yield line
-            if not finished or reason != "stop":
+            if not finished:
                 raise LLMError("OpenRouter stream ended without successful completion")
             if buffer.strip():
                 yield buffer
