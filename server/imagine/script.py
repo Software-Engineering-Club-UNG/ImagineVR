@@ -14,7 +14,7 @@ from .catalog import Catalog
 
 WORLD_OPS = (
     "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
-    "kit", "spawn", "scatter", "give", "ride", "modify", "remove", "ambience",
+    "kit", "spawn", "scatter", "give", "ride", "goal", "player", "modify", "remove", "ambience",
 )
 STREAM_OPS = ("transcript", "status", "note", "error", "done")
 
@@ -125,6 +125,22 @@ def _rot(v, _c):
     return None
 
 
+def _path(v, _c):
+    """A route: 2 to 24 points, each [x, height above ground, z]."""
+    if not isinstance(v, (list, tuple)):
+        return None
+    points = [p for p in (_vec3(item, _c) for item in v[:24]) if p is not None]
+    return points if len(points) >= 2 else None
+
+
+def _scale1(v, _c):
+    """One number; a [x, y, z] is averaged, since a whole group grows by one factor."""
+    if isinstance(v, (list, tuple)) and len(v) == 3:
+        parts = [to_num(p, 0.05, 60) for p in v]
+        return round(sum(parts) / 3, 4) if None not in parts else None
+    return to_num(v, 0.05, 60)
+
+
 def _range2(lo, hi):
     def f(v, _c):
         if isinstance(v, (int, float)) and not isinstance(v, bool):
@@ -173,7 +189,7 @@ FIELDS: dict[str, dict] = {
         "top": _color, "horizon": _color, "bottom": _color,
         "sun_elevation": _num(-90, 90), "sun_azimuth": _num(0, 360), "sun_color": _color,
         "sun_size": _num(0, 1), "stars": _num(0, 1), "clouds": _num(0, 1), "cloud_color": _color,
-        "moon": _num(0, 1), "aurora": _num(0, 1), "nebula": _num(0, 1), "t": T,
+        "moon": _num(0, 1), "aurora": _num(0, 1), "nebula": _num(0, 1), "t": _num(0.2, 120),
     },
     "light": {"intensity": _num(0, 2), "color": _color, "ambient": _color, "t": T},
     "fog": {"color": _color, "density": _num(0, 1), "t": T},
@@ -190,17 +206,20 @@ FIELDS: dict[str, dict] = {
     "spawn": {
         "at": _vec3, "place": _enum(PLACES), "distance": _num(0, 400), "height": _num(-20, 200),
         "scale": _scale, "rot_y": _num(-720, 720), "rot": _rot, "tint": _color,
-        "motion": _motion, "physics": _bool, "behavior": _enum(BEHAVIORS), "t": T,
+        "motion": _motion, "physics": _bool, "solid": _bool, "behavior": _enum(BEHAVIORS), "t": T,
+        "path": _path, "speed": _num(0.1, 40), "loop": _bool, "start": _num(0, 1),
     },
     "scatter": {
         "count": _int(1, 100000), "area": _enum(AREAS), "radius": _range2(0, 400),
         "height": _range2(-20, 200), "scale": _range2(0.05, 60), "tint": _color, "seed": _int(0, 99999),
-        "motion": _motion, "physics": _bool, "behavior": _enum(BEHAVIORS), "t": T,
+        "motion": _motion, "physics": _bool, "solid": _bool, "behavior": _enum(BEHAVIORS), "t": T,
     },
     "give": {"tint": _color},
-    "ride": {"tint": _color, "speed": _num(0.2, 3)},
+    "ride": {"tint": _color, "speed": _num(0.2, 3), "path": _path, "loop": _bool},
+    "goal": {"at": _vec3, "radius": _num(0.3, 20), "for": _text(30), "text": _text(80)},
+    "player": {"scale": _num(0.05, 20)},
     "modify": {
-        "scale": _num(0.05, 60), "tint": _color, "count": _int(0, 100000),
+        "scale": _scale1, "tint": _color, "count": _int(0, 100000),
         "density": _num(0, 1), "motion": _motion, "t": T,
     },
     "remove": {"t": T},
@@ -290,6 +309,13 @@ class WorldState:
                 # a preset also resets light and fog
                 self.globals.pop("light", None)
                 self.globals.pop("fog", None)
+        elif op == "goal":
+            self.things[stmt["id"]] = dict(stmt)
+        elif op == "player":
+            if stmt.get("scale") == 1:
+                self.globals.pop("player", None)
+            else:
+                self.globals["player"] = dict(stmt)
         elif op == "ride":
             if stmt.get("asset") == "none":
                 self.globals.pop("ride", None)
@@ -326,7 +352,7 @@ class WorldState:
         if self.is_empty():
             return "(empty: the dark room, nothing built yet)"
         lines = []
-        for op in ("sky", "light", "fog", "terrain", "weather", "physics", "ambience", "ride"):
+        for op in ("sky", "light", "fog", "terrain", "weather", "physics", "ambience", "ride", "player"):
             if op in self.globals:
                 lines.append(_compact(self.globals[op]))
         for stmt in self.things.values():
@@ -370,6 +396,23 @@ class Validator:
                             out[field] = value
             world.apply(out)
             return notes + [out]
+
+        # --- a spot that reacts, and the user's own size
+        if op in ("goal", "player"):
+            for field, convert in FIELDS[op].items():
+                if field in raw:
+                    value = convert(raw[field], self.catalog)
+                    if value is not None:
+                        out[field] = value
+            if op == "goal":
+                if "at" not in out:
+                    return []
+                out["for"] = to_id(out.get("for")) or "user"
+                out["id"] = to_id(raw.get("id")) or world.next_id("goal")
+            elif "scale" not in out:
+                return []
+            world.apply(out)
+            return [out]
 
         # --- catalog reference
         if op in REFS:

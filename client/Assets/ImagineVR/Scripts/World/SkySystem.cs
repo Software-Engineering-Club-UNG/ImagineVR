@@ -254,7 +254,7 @@ namespace ImagineVR
             if (s.Has("moon")) target.Moon = Mathf.Clamp01(s.Num("moon"));
             if (s.Has("aurora")) target.Aurora = Mathf.Clamp01(s.Num("aurora"));
             if (s.Has("nebula")) target.Nebula = Mathf.Clamp01(s.Num("nebula"));
-            BlendTo(target, s.T(2.5f));
+            BlendTo(target, s.T(2.5f, 120f));
         }
 
         public void ApplyLight(Statement s)

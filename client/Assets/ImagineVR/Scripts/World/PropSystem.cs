@@ -90,6 +90,7 @@ namespace ImagineVR
         public string Message;
         World _world;
         float _cooldown;
+        int _count;
 
         public static GameObject Create(World world, Vector3 position, float radius, string accepts, string message)
         {
@@ -113,7 +114,41 @@ namespace ImagineVR
             if (prop == null || prop.Def == null || prop.Held) return;
             if (!string.IsNullOrEmpty(Accepts) && !prop.Def.Id.Contains(Accepts) && prop.Def.Behavior != Accepts) return;
             _cooldown = Time.time + 1.5f;
+            _count++;
             Fx.Confetti(transform.position + Vector3.up * 0.3f);
+            Sfx.Play("confetti", transform.position, 0.9f);
+            _world.Emit(_count > 1 ? Message + "  (" + _count + ")" : Message);
+        }
+    }
+
+    /// <summary>A spot that reacts when the user themselves arrives: the way out of a maze, a finish line.</summary>
+    public sealed class Goal : MonoBehaviour
+    {
+        public float Radius = 2f;
+        public string Message;
+        World _world;
+        float _cooldown;
+
+        public static GameObject Create(World world, Vector3 position, float radius, string message)
+        {
+            var go = new GameObject("Goal");
+            go.transform.SetParent(world.transform, false);
+            go.transform.position = position;
+            Goal goal = go.AddComponent<Goal>();
+            goal.Radius = radius;
+            goal.Message = message;
+            goal._world = world;
+            return go;
+        }
+
+        void Update()
+        {
+            if (Time.time < _cooldown || _world.Head == null) return;
+            Vector3 to = _world.Head.position - transform.position;
+            to.y = 0f;
+            if (to.magnitude > Radius) return;
+            _cooldown = Time.time + 8f;
+            Fx.Confetti(transform.position + Vector3.up * 1.5f);
             Sfx.Play("confetti", transform.position, 0.9f);
             _world.Emit(Message);
         }

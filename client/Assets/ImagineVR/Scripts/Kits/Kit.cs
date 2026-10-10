@@ -283,6 +283,12 @@ namespace ImagineVR
             Group.Extras.Add(ScoreZone.Create(World, worldPosition, radius, accepts, message));
         }
 
+        /// <summary>A place where something happens when the user gets there (the end of a maze, a finish line).</summary>
+        public void Finish(float x, float z, float radius, string message)
+        {
+            if (Application.isPlaying) Group.Extras.Add(Goal.Create(World, new Vector3(x, Ground(x, z), z), radius, message));
+        }
+
         /// <summary>An invisible solid box so thrown and rolling things collide with part of the kit.</summary>
         public void Solid(float x, float z, Vector3 size, float yaw = 0f, float lift = 0f, float bounce = 0.2f)
         {

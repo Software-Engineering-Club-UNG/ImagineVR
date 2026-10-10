@@ -18,7 +18,7 @@ namespace ImagineVR
         static readonly HashSet<string> WorldOps = new HashSet<string>
         {
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
-            "kit", "spawn", "scatter", "give", "ride", "modify", "remove", "ambience",
+            "kit", "spawn", "scatter", "give", "ride", "goal", "player", "modify", "remove", "ambience",
         };
 
         public bool IsStream => StreamOps.Contains(Op);
@@ -75,7 +75,19 @@ namespace ImagineVR
         }
 
         /// <summary>Transition time in seconds.</summary>
-        public float T(float fallback = 1.5f) => Mathf.Clamp(Num("t", fallback), 0.2f, 6f);
+        public float T(float fallback = 1.5f, float longest = 6f) => Mathf.Clamp(Num("t", fallback), 0.2f, longest);
+
+        /// <summary>Reads a list of [x, y, z] points. False unless there are at least two.</summary>
+        public bool TryPath(string key, out List<Vector3> points)
+        {
+            points = new List<Vector3>();
+            if (!Fields.TryGetValue(key, out object v) || !(v is List<object> list)) return false;
+            foreach (object item in list)
+            {
+                if (item is List<object> p && p.Count == 3) points.Add(new Vector3(ToFloat(p[0], 0), ToFloat(p[1], 0), ToFloat(p[2], 0)));
+            }
+            return points.Count >= 2;
+        }
 
         public bool TryColor(string key, out Color color)
         {

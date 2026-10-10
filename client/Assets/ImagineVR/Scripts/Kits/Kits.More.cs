@@ -64,7 +64,7 @@ namespace ImagineVR
                 .Defaults(sky: "sunset_pink", terrain: "rolling", material: "grass", height: 0.12f, ambience: "zen_chimes", weather: "petals").Greet("Petals on the wind. Take your time.");
 
             Kit("synthwave", "A retro-future highway: glowing grid to the horizon, a huge low sun, neon palms, purple mountains",
-                "retro,neon,80s,vaporwave,outrun,grid,cyber", "vaporwave,outrun,retrowave,80s,neon grid,tron", Synthwave)
+                "retro,neon,80s,vaporwave,outrun,grid,cyber", "retro,retro world,vaporwave,outrun,retrowave,80s,eighties,neon grid,neon world,tron,arcade", Synthwave)
                 .Defaults(sky: "synthwave", terrain: "flat", material: "neon", ambience: "synth_pad", grid: 0.9f, gridColor: "#FF4FD8").Greet("Welcome to 1986. Sort of.");
 
             Kit("campsite", "A campsite at night: tent, crackling fire ringed with logs, lantern, pines, fireflies",
@@ -79,6 +79,11 @@ namespace ImagineVR
                 "zombie,undead,horror,apocalypse,survival,shoot,fight,battle,enemies,monsters,defend", "zombies,zombie apocalypse,zombie outbreak,zombie horde,zombie shooter,shoot zombies,walking dead,undead,apocalypse,last stand,shooting gallery,invasion,uprising,monster attack", LastStand)
                 .Param("enemy", "any character or animal asset id: zombie (default), robot, alien, skeleton, knight, t_rex ...")
                 .Defaults(sky: "spooky", terrain: "flat", material: "dirt", ambience: "spooky").Greet("They're coming. Grab the blaster and pull the trigger.");
+
+            Kit("maze", "A maze to find your way out of: solid walls you cannot walk through, you start in the middle, and a flag marks the way out. Size sets how big (7 to 15 cells across)",
+                "maze,labyrinth,puzzle,walls,lost,explore,game", "labyrinth,hedge maze,corn maze,maze runner,puzzle", Maze)
+                .Param("walls", "hedge (default), stone, neon or ice")
+                .Defaults(sky: "golden_hour", terrain: "flat", material: "grass", ambience: "birds_breeze").Greet("You're in the middle. The flag is the way out.");
 
             Kit("candyland", "A land made of sweets: giant lollipops, candy canes, cupcakes, doughnuts and a towering cake",
                 "sweet,candy,dessert,pastel,kids,cute", "candy land,candy world,sweet land,sugar land,dessert world", Candyland)
@@ -580,6 +585,83 @@ namespace ImagineVR
                 float a = k.Range(-75f, 75f) * Mathf.Deg2Rad, r = k.Range(8f, 21f);
                 k.Alive(enemy, Mathf.Sin(a) * r, Mathf.Cos(a) * r, "chase", k.Range(0.92f, 1.12f));
             }
+        }
+
+        static void Maze(KitContext k)
+        {
+            int n = Mathf.RoundToInt(Mathf.Lerp(7f, 15f, k.Size)) | 1;      // odd, so there is a middle cell
+            const float cell = 3.4f, thick = 0.35f;
+            string style = k.ParamStr("walls", "hedge");
+            float tall = style == "hedge" ? 2.5f : 2.9f;
+            Color colour = style == "stone" ? Pal.Hex("#8C8C94") : style == "neon" ? Pal.Hex("#FF4FD8") : style == "ice" ? Pal.Hex("#BFE6F5") : Pal.Hex("#3F7A3A");
+            float emit = style == "neon" ? 0.9f : 0f;
+
+            // carve passages with a depth-first walk from the middle; open[x, y, 0] is the wall to +x, [.., 1] to +y
+            var open = new bool[n, n, 2];
+            var seen = new bool[n, n];
+            var depth = new int[n, n];
+            var stack = new Stack<Vector2Int>();
+            int mid = n / 2;
+            stack.Push(new Vector2Int(mid, mid));
+            seen[mid, mid] = true;
+            Vector2Int far = new Vector2Int(mid, mid);
+            Vector2Int[] dirs = { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1) };
+            while (stack.Count > 0)
+            {
+                Vector2Int at = stack.Peek();
+                var ways = new List<Vector2Int>();
+                foreach (Vector2Int d in dirs)
+                {
+                    Vector2Int to = at + d;
+                    if (to.x >= 0 && to.y >= 0 && to.x < n && to.y < n && !seen[to.x, to.y]) ways.Add(d);
+                }
+                if (ways.Count == 0) { stack.Pop(); continue; }
+                Vector2Int step = ways[k.RangeInt(0, ways.Count)], next = at + step;
+                if (step.x != 0) open[Mathf.Min(at.x, next.x), at.y, 0] = true; else open[at.x, Mathf.Min(at.y, next.y), 1] = true;
+                seen[next.x, next.y] = true;
+                depth[next.x, next.y] = depth[at.x, at.y] + 1;
+                // the way out is the edge cell that takes longest to reach
+                bool edge = next.x == 0 || next.y == 0 || next.x == n - 1 || next.y == n - 1;
+                bool farEdge = far.x == 0 || far.y == 0 || far.x == n - 1 || far.y == n - 1;
+                if (edge && (!farEdge || depth[next.x, next.y] > depth[far.x, far.y])) far = next;
+                stack.Push(next);
+            }
+
+            float origin = -n * cell * 0.5f;   // the middle cell is centred on the user
+            var mb = new MeshBuilder();
+            mb.Col(colour).Emit(emit);
+            void Wall(float x, float z, bool alongX)
+            {
+                Vector3 size = alongX ? new Vector3(cell + thick, tall, thick) : new Vector3(thick, tall, cell + thick);
+                mb.Box(new Vector3(x, k.Ground(x, z) + tall * 0.5f, z), size);
+                k.Solid(x, z, size);
+            }
+            // which outer wall of the exit cell to leave out
+            int gapSide = far.x == n - 1 ? 0 : far.x == 0 ? 1 : far.y == n - 1 ? 2 : 3;
+            for (int x = 0; x < n; x++)
+            {
+                for (int y = 0; y < n; y++)
+                {
+                    float cx = origin + (x + 0.5f) * cell, cz = origin + (y + 0.5f) * cell;
+                    bool exit = x == far.x && y == far.y;
+                    if (!(x < n - 1 && open[x, y, 0]) && !(x == n - 1 && exit && gapSide == 0)) Wall(cx + cell * 0.5f, cz, false);
+                    if (!(y < n - 1 && open[x, y, 1]) && !(y == n - 1 && exit && gapSide == 2)) Wall(cx, cz + cell * 0.5f, true);
+                    if (x == 0 && !(exit && gapSide == 1)) Wall(cx - cell * 0.5f, cz, false);
+                    if (y == 0 && !(exit && gapSide == 3)) Wall(cx, cz - cell * 0.5f, true);
+                }
+            }
+            k.AddOwn(mb.Build("maze"));
+
+            // the way out: a flag you can see over the walls, and a welcome when you get there
+            Vector2 outward = gapSide == 0 ? Vector2.right : gapSide == 1 ? Vector2.left : gapSide == 2 ? Vector2.up : Vector2.down;
+            float ex = origin + (far.x + 0.5f) * cell + outward.x * cell, ez = origin + (far.y + 0.5f) * cell + outward.y * cell;
+            k.Put("flag", ex + outward.y * 1.2f, ez + outward.x * 1.2f, 0f, 1.6f, Pal.Red);
+            k.Finish(ex, ez, 1.6f, "You made it out of the maze");
+            float half = n * cell * 0.5f + 3f;
+            bool Outside(float x, float z) => Mathf.Max(Mathf.Abs(x), Mathf.Abs(z)) > half;
+            k.Scatter("oak_tree", k.N(24), half, half + 45f, 0.9f, 1.6f, null, Outside);
+            k.Scatter("bush", k.N(30), half, half + 30f, 0.8f, 1.4f, null, Outside);
+            k.Scatter("flower_patch", k.N(30), half, half + 25f, 0.8f, 1.25f, null, Outside);
         }
 
         static void Candyland(KitContext k)

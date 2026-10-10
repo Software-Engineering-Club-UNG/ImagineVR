@@ -18,7 +18,9 @@ namespace ImagineVR
         Terminal _terminal;
         GameObject _visual;
         AssetDef _def;
-        float _speed, _top, _seat, _height, _altitude;
+        float _speed, _top, _seat, _height, _altitude, _size = 1f, _travelled;
+        Route _route;
+        float _railHeight, _lastYaw;
 
         /// <summary>Stick input from code rather than a hand: x steers, y is throttle. For demos and checks.</summary>
         public Vector2 Autopilot;
@@ -39,6 +41,17 @@ namespace ImagineVR
             AssetDef def = name == "none" ? null : Library.FindAsset(name);
             if (def == null) { Dismount(); return; }
             Mount(def, s.TryColor("tint", out Color tint) ? tint : Color.white, Mathf.Clamp(s.Num("speed", 1f), 0.2f, 3f));
+            // on rails: a roller coaster, a guided tour, a boat ride. The route does the steering.
+            _route = s.TryPath("path", out System.Collections.Generic.List<Vector3> points) ? new Route(points, s.Flag("loop", true)) : null;
+            _travelled = 0f;
+        }
+
+        /// <summary>How big the user is. 1 is life size; 0.1 makes a kitchen a canyon, 10 makes a city a model.</summary>
+        public void Resize(float scale)
+        {
+            _size = Mathf.Clamp(scale, 0.05f, 20f);
+            _rig.transform.GetChild(0).localScale = Vector3.one * _size;
+            _rig.Cam.nearClipPlane = Mathf.Clamp(0.05f * _size, 0.004f, 0.5f);
         }
 
         void Mount(AssetDef def, Color tint, float speed)
@@ -78,6 +91,7 @@ namespace ImagineVR
             if (_visual != null) Destroy(_visual);
             _visual = null;
             _def = null;
+            _route = null;
             _speed = 0f;
         }
 
@@ -92,6 +106,47 @@ namespace ImagineVR
             _speed = 0f;
         }
 
+        static readonly Collider[] Touching = new Collider[24];
+
+        /// <summary>
+        /// The part of a step that solid scenery allows: all of it, a slide along a wall, or nothing.
+        /// Only still, solid things count (walls, things made solid); creatures, props and the ground do not.
+        /// </summary>
+        Vector3 Blocked(Vector3 rigPosition, Vector3 step)
+        {
+            if (step.sqrMagnitude < 1e-8f || _altitude > 3f) return step;
+            float radius = Riding ? Mathf.Clamp(_def.Bounds.extents.x, 0.5f, 1.4f) : 0.3f;
+            Vector3 body = Riding ? rigPosition : new Vector3(_rig.Head.position.x, rigPosition.y, _rig.Head.position.z);
+            body.y = _world.Terrain.HeightAt(body.x, body.z) + radius + 0.45f;
+            if (!Hit(body, radius, step, out Vector3 normal)) return step;
+            normal.y = 0f;
+            if (normal.sqrMagnitude < 1e-6f) return Vector3.zero;
+            Vector3 slide = step - normal.normalized * Vector3.Dot(step, normal.normalized);
+            return slide.sqrMagnitude > 1e-8f && !Hit(body, radius, slide, out _) ? slide : Vector3.zero;
+        }
+
+        /// <summary>
+        /// Would this step push the body into something solid? A body that is already inside one (the
+        /// world was built around it) may always move out, never further in.
+        /// </summary>
+        static bool Hit(Vector3 from, float radius, Vector3 step, out Vector3 normal)
+        {
+            normal = Vector3.zero;
+            Vector3 to = from + step;
+            int n = Physics.OverlapSphereNonAlloc(to, radius, Touching, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                Collider c = Touching[i];
+                if (c.attachedRigidbody != null || c is MeshCollider) continue;
+                Vector3 nearNow = c.ClosestPoint(from), nearThen = c.ClosestPoint(to);
+                float now = Vector3.Distance(from, nearNow), then = Vector3.Distance(to, nearThen);
+                if (now < radius && then >= now - 1e-4f) continue;   // inside already, and not going deeper
+                normal = then > 1e-4f ? (to - nearThen) / then : -step.normalized;
+                return true;
+            }
+            return false;
+        }
+
         void Update()
         {
             if (_rig == null) return;
@@ -100,8 +155,20 @@ namespace ImagineVR
             Vector3 before = p;
             float turn = 0f, dt = Time.deltaTime;
 
+            if (Riding && _route != null)
+            {
+                _speed = Mathf.MoveTowards(_speed, _top * 0.7f, 5f * dt);
+                _travelled += _speed * dt;
+                Vector3 at = _route.At(_travelled, out Vector3 heading);
+                heading.y = 0f;
+                if (heading.sqrMagnitude > 0.0001f) rig.rotation = Quaternion.Slerp(rig.rotation, Quaternion.LookRotation(heading), 1f - Mathf.Exp(-dt * 4f));
+                turn = Mathf.DeltaAngle(0f, rig.eulerAngles.y - _lastYaw);
+                p = new Vector3(at.x, p.y, at.z);
+                _railHeight = at.y;
+                if (!_route.Loop && _travelled >= _route.Length) _route = null;   // end of the line: the controls come back
+            }
             // on foot the same controls walk, so the world can be explored without asking for a ride
-            if (Riding || !_world.IsDark)
+            else if (Riding || !_world.IsDark)
             {
                 Vector2 stick = _rig.Stick + Autopilot;
                 Keyboard kb = Keyboard.current;
@@ -115,13 +182,15 @@ namespace ImagineVR
                 stick = Vector2.ClampMagnitude(stick, 1f);
                 if (stick.magnitude < 0.15f) stick = Vector2.zero;
 
-                float top = Riding ? _top : WalkSpeed;
+                float top = Riding ? _top : WalkSpeed * Mathf.Clamp(_size, 0.25f, 6f);
                 float wanted = stick.y >= 0f ? stick.y * top : stick.y * top * (Riding ? 0.4f : 1f);
                 _speed = Mathf.MoveTowards(_speed, wanted, (Mathf.Abs(wanted) > Mathf.Abs(_speed) ? 6f : 10f) * dt);
                 // steers like a car once it is rolling, and can still be turned on the spot
                 turn = stick.x * 70f * Mathf.Clamp(Mathf.Abs(_speed) / 3f, 0.4f, 1f) * (_speed < -0.1f ? -1f : 1f) * dt;
                 rig.Rotate(0f, turn, 0f, Space.World);
-                p += rig.forward * (_speed * dt);
+                Vector3 step = Blocked(p, rig.forward * (_speed * dt));
+                if (step == Vector3.zero && Riding) _speed *= 0.5f;
+                p += step;
                 float edge = World.Radius - 8f;
                 Vector2 flat = new Vector2(p.x, p.z);
                 if (flat.magnitude > edge) { flat = flat.normalized * edge; p.x = flat.x; p.z = flat.y; }
@@ -137,7 +206,9 @@ namespace ImagineVR
                 if (!float.IsNaN(water)) target = Mathf.Max(target, water);
             }
             _altitude = Mathf.MoveTowards(_altitude, Riding && _def.Airborne ? Cruise : 0f, 4f * dt);
-            target += _altitude + (Riding ? _seat : 0f);
+            if (_route == null) _railHeight = Mathf.MoveTowards(_railHeight, 0f, 6f * dt);
+            target += _altitude + _railHeight + (Riding ? _seat : 0f);
+            _lastYaw = rig.eulerAngles.y;
             _height = Mathf.Lerp(_height, target, 1f - Mathf.Exp(-dt * 8f));
             p.y = _height;
             rig.position = p;

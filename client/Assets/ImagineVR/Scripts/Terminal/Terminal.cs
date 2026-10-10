@@ -607,7 +607,7 @@ namespace ImagineVR
             string tool = op;
             if (op == "light" || op == "fog") tool = "sky";
             else if (op == "ambience" || op == "physics") tool = "weather";
-            else if (op == "modify" || op == "remove" || op == "clear" || op == "ride") tool = "spawn";
+            else if (op == "modify" || op == "remove" || op == "clear" || op == "ride" || op == "goal" || op == "player") tool = "spawn";
             for (int i = 0; i < Tools.Length; i++) if (Tools[i] == tool) _heat[i] = 1f;
         }
 
