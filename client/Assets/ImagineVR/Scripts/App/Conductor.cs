@@ -29,6 +29,13 @@ namespace ImagineVR
         int _worldStatements;
 
         public bool Busy => _current != null || _turns.Count > 0;
+        public bool IsCurrent(Turn turn) => _current == turn;
+        public void CancelPending()
+        {
+            if (_current != null) _current.Closed = true;
+            foreach (Turn turn in _turns) turn.Closed = true;
+            _turns.Clear(); _current = null; _nextAt = 0;
+        }
 
         /// <summary>A turn finished. True when it changed the world.</summary>
         public event System.Action<bool> TurnEnded;
@@ -36,8 +43,7 @@ namespace ImagineVR
         /// <summary>Stops everything in hand: nothing queued or half played is carried on with.</summary>
         public void Abort()
         {
-            _turns.Clear();
-            _current = null;
+            CancelPending();
             _problem = false;
             StopAllCoroutines();
             _voice.Stop();

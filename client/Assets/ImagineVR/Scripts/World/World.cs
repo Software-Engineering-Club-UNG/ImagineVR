@@ -23,6 +23,7 @@ namespace ImagineVR
         public PropSystem Props { get; private set; }
         public WeatherSystem Weather { get; private set; }
         public AmbienceSystem Ambience { get; private set; }
+        public RuleEngine Rules { get; private set; }
 
         /// <summary>The user's head. Used to place things in reach and to aim sounds.</summary>
         public Transform Head;
@@ -84,6 +85,7 @@ namespace ImagineVR
             Props = new PropSystem(this);
             Weather = new WeatherSystem(this);
             Ambience = new AmbienceSystem(this);
+            Rules = new RuleEngine(this);
             Terrain.Changed += OnGroundChanged;
         }
 
@@ -129,10 +131,12 @@ namespace ImagineVR
                 case "goal": Objects.Goal(s); break;
                 case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
                 case "modify": Objects.Modify(s); Props.Modify(s); break;
-                case "remove": Objects.Remove(s); Props.Remove(s.Str("id")); break;
+                case "remove": Rules.RemovingGroup(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
                 case "clear": Clear(s); break;
+                case "rule": case "rule_remove": Rules.SyncEntities(); Rules.Install(s); break;
             }
+            Rules.SyncEntities();
         }
 
         static bool Builds(string op)
@@ -158,6 +162,7 @@ namespace ImagineVR
                 return;
             }
             List<string> keep = s.StrList("keep");
+            Rules.Reset(keep.Contains("rules"));
             Objects.Clear(t);
             Kits.Forget();
             Props.ClearLoose();
@@ -192,6 +197,8 @@ namespace ImagineVR
         /// <summary>Back to the dark room.</summary>
         public void ResetToDark(float seconds)
         {
+            Rules.Reset();
+            Rules.PlayerEffectsEnabled = false;
             Objects.Clear(seconds);
             Kits.Forget();
             Props.ClearLoose();
@@ -202,6 +209,7 @@ namespace ImagineVR
             Sky.Reset(seconds);
             _clearGroundAtTurnEnd = _clearSkyAtTurnEnd = false;
             if (Vehicle != null) { Vehicle.Dismount(); Vehicle.Resize(1f); Vehicle.Home(); }
+            Rules.SyncEntities();
         }
 
         /// <summary>
@@ -212,6 +220,7 @@ namespace ImagineVR
         {
             ResetToDark(seconds);
             Props.ClearAll();
+            Rules.SyncEntities();
             SessionLog.Write("reset", "what", "world");
             Emptied?.Invoke();
         }
@@ -248,6 +257,7 @@ namespace ImagineVR
             // In a headset that can show the real room, the dark room is the user's own room.
             _real = Mathf.MoveTowards(_real, QuestFeature.Passthrough && IsDark ? 1f : 0f, dt / 2.5f);
             Shader.SetGlobalFloat(RealId, _real);
+            Rules.Tick(dt);
         }
 
         static readonly int RealId = Shader.PropertyToID("_ImReal");

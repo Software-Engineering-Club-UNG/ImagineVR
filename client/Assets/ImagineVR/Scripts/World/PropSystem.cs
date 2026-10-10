@@ -118,6 +118,7 @@ namespace ImagineVR
             Fx.Confetti(transform.position + Vector3.up * 0.3f);
             Sfx.Play("confetti", transform.position, 0.9f);
             _world.Emit(_count > 1 ? Message + "  (" + _count + ")" : Message);
+            _world.Rules.Broadcast("goal_reached", Message);
         }
     }
 
@@ -151,6 +152,7 @@ namespace ImagineVR
             Fx.Confetti(transform.position + Vector3.up * 1.5f);
             Sfx.Play("confetti", transform.position, 0.9f);
             _world.Emit(Message);
+            _world.Rules.Broadcast("goal_reached", Message);
         }
     }
 
@@ -204,7 +206,7 @@ namespace ImagineVR
 
         // ------------------------------------------------------------------ creation
 
-        Prop Create(AssetDef def, string groupId, Vector3 position, Quaternion rotation, Vector3 scale, Color tint)
+        Prop Create(AssetDef def, string groupId, Vector3 position, Quaternion rotation, Vector3 scale, Color tint, bool registerRules = true)
         {
             var go = new GameObject("Prop_" + def.Id);
             go.transform.SetParent(_root, false);
@@ -267,6 +269,7 @@ namespace ImagineVR
             prop.Length = Mathf.Max(0.1f, b.max.y * scale.y);
             prop.SetTint(tint);
             _props.Add(prop);
+            if (registerRules) _world.Rules?.RegisterProp(prop);
             Trim();
             return prop;
         }
@@ -299,9 +302,9 @@ namespace ImagineVR
         }
 
         /// <summary>A physics prop made by a kit. It is removed with the kit.</summary>
-        public Prop SpawnLoose(string groupId, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale, Color tint)
+        public Prop SpawnLoose(string groupId, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale, Color tint, bool registerRules = true)
         {
-            return Create(def, groupId, position, rotation, scale, tint);
+            return Create(def, groupId, position, rotation, scale, tint, registerRules);
         }
 
         public void RemoveQuietly(string id)
@@ -502,6 +505,10 @@ namespace ImagineVR
 
         public void OnHit(Prop prop, Collision collision, float speed)
         {
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            Prop source = collision.collider.GetComponentInParent<Prop>();
+            if (rule != null && rule.Hit(source != null ? rule.Engine.Find(source.gameObject) : null,
+                source != null && source.GroupId == "shot" ? "projectile" : source != null ? "thrown" : "collision", speed)) return;
             Vector3 point = collision.contactCount > 0 ? collision.GetContact(0).point : prop.transform.position;
             float volume = Mathf.Clamp01(speed / 8f);
             switch (prop.Def.Behavior)

@@ -58,8 +58,8 @@ use the same URL in Unity only if deliberately choosing it; restore the HTTPS
 variable/client URL after obtaining a certificate. No automatic downgrade occurs.
 An application token in a shipped client is a demo access control, not a
 substitute for individual-user authentication. Configure provider spending limits.
-Sessions are in memory and are lost on restart/deployment. Audio and transcripts
-are not intentionally persisted or included in application logs.
+Sessions are in memory and are lost on restart/deployment. Audio is not intentionally persisted. Turn diagnostics include bounded transcript/request
+text; headset session logs also include what the user said. Tokens are not logged.
 
 From `openrouter-api`, run `python scripts/smoke.py` with `IMAGINE_URL` and
 `IMAGINE_APP_TOKEN` set. This is Israel's twelve-scenario acceptance check;
@@ -175,3 +175,12 @@ Application secrets (such as `OPENROUTER_API_KEY`) belong in the root-owned
 `/etc/openrouter-api/environment`, never in Git. Restart the service after editing
 that file. Production requires valid configuration before startup; health checks
 do not themselves make provider calls or prove that provider credit is available.
+## Runtime rules (new, not production activated)
+
+The event-and-action extension adds validated `rule`/`rule_remove` commands and
+authenticated `POST /v1/session/runtime` snapshots. It is negotiated through
+`X-Client-Capabilities: runtime-rules-v1`; legacy clients remain scene-only.
+See [the integration and acceptance guide](../specs/002-runtime-rules/README.md).
+The updated Unity client requires the matching backend extension. Native Unity,
+Android and headset acceptance remain a release gate; do not assume this feature
+is live merely because the source is present.

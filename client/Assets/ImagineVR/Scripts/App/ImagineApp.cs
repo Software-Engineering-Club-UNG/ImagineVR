@@ -84,6 +84,7 @@ namespace ImagineVR
             Client = gameObject.AddComponent<TurnClient>();
             Client.Settings = _settings;
             Client.Pose = UserPose;
+            Client.World = World;
             TextAsset version = Resources.Load<TextAsset>("CatalogVersion");
             if (version != null) Client.CatalogVersion = version.text.Trim();
 
@@ -234,8 +235,19 @@ namespace ImagineVR
             // X (or R): a tap recentres the terminal, and holding it down resets everything
             if (Rig.MenuPressed && !Typing)
             {
-                Terminal.Recenter(false);
-                _holdSince = Time.unscaledTime;
+                if (Rig.Grip(true) > .9f && Rig.Grip(false) > .9f)
+                {
+                    _holdSince = -1f; // this entire X press belongs to the opt-in gesture
+                    Terminal.SetOverride(null);
+                    World.Rules.PlayerEffectsEnabled = !World.Rules.PlayerEffectsEnabled;
+                    Terminal.Note("Automatic player movement " + (World.Rules.PlayerEffectsEnabled ? "enabled" : "disabled") + " for this session");
+                    SessionLog.Write("rules", "player_effects", World.Rules.PlayerEffectsEnabled);
+                }
+                else
+                {
+                    Terminal.Recenter(false);
+                    _holdSince = Time.unscaledTime;
+                }
             }
             if (_holdSince >= 0f)
             {
@@ -316,6 +328,7 @@ namespace ImagineVR
         /// </summary>
         public void ResetEverything(string why)
         {
+            _holdSince = -1f;
             SessionLog.Write("reset", "what", "everything", "why", why);
             Voice.Cancel();
             Conductor.Abort();
@@ -369,6 +382,7 @@ namespace ImagineVR
         void OnGUI()
         {
             if (Rig == null || Rig.XrActive || Quiet) return;
+            World.Rules.PlayerEffectsEnabled = GUI.Toggle(new Rect(12, 12, 280, 25), World.Rules.PlayerEffectsEnabled, "Allow rule-driven player effects (this session)");
             const string fieldName = "ImaginePrompt";
             float w = Mathf.Min(Screen.width - 40f, 720f), h = 30f;
             var rect = new Rect((Screen.width - w) * 0.5f, Screen.height - h - 16f, w, h);

@@ -66,8 +66,8 @@ Things to know:
 - WAV is decoded by hand in `stt.py` because faster-whisper's decoder breaks with the current
   PyAV.
 - On Windows use `127.0.0.1`, not `localhost` (two-second IPv6 delay).
-- The world-building backend is not deployed yet. Activation and secrets are documented
-  in `openrouter-api/README.md`; deployments continue to use that folder.
+- The hosted backend is at `https://64.177.52.162.sslip.io`. Deployment and configuration
+  are documented in `openrouter-api/README.md`; `/health` reports the deployed revision.
 - `python scripts/smoke.py` checks a running server against the things people actually say.
   Run it after adding an OpenRouter key and after changing `prompt.md`.
 
@@ -96,6 +96,19 @@ headset, server or keys are needed for the built-in demos.
 
 The server URL and app token are in the `ImagineSettings` asset
 (`client/Assets/ImagineVR/Resources/`). The token must match `IMAGINE_APP_TOKEN`.
+
+### Runtime rules
+
+Ask for behavior as well as objects: “Give me a blaster and two sheep; when I shoot a
+sheep, make just that sheep burst into confetti and disappear.” Then “Turn them blue
+instead when I shoot them.” The server writes bounded event/action rules; changing a
+rule replaces its old actions, including delayed ones. Current live instances, rules,
+scores, and failures are synchronized before each new request.
+
+Automatic player movement is disabled initially. Hold both grips and tap **X** to toggle
+it for the session; that X press cannot trigger the hold-to-reset countdown. Desktop has
+an opt-in checkbox. Reset disables it again. See [the runtime rule reference](RUNTIME_EFFECTS_AND_TRIGGERS.md)
+for supported triggers/actions and limitations, including basic particle presets.
 
 ### Session logs
 
@@ -235,10 +248,11 @@ openrouter-api/imagine/ main (routes), turn (one turn), script (validation, Worl
 | Unknown assets, stand-in state, sculpt retry, pose frames, full clear | Server tests pass; sculpt retry uses a fake model |
 | A-button ring position, folded strip height, Y/held-X bindings, reset passthrough | **Not tested on Quest**; button-ring position is an estimate |
 | Throwing and score zones | **Not tested** |
-| Android build | **Not attempted** |
+| Combined runtime-rule PlayMode tests | 7 passed in native Unity 6000.3.26f1; individual sheep hits/replacement, future spawns, invalid updates, reset, queued-turn cancellation, registry cleanup |
+| Android build | See PR #5 validation for the integrated Quest build |
 | Microphone capture in the app | **Not tested** |
 | ElevenLabs speech | **Not tested** |
-| Vultr deployment | **Not written** |
+| Vultr deployment | GitHub Actions deployment and TLS are configured; `/health` exposes the deployed revision |
 
 ## Different from the plan, on purpose
 

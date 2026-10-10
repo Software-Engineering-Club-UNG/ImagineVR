@@ -7,6 +7,7 @@ replaced by the nearest entry. Nothing here raises on model output.
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import re
@@ -21,7 +22,7 @@ STREAM_OPS = ("transcript", "status", "note", "error", "done")
 
 PLACES = ("front", "left", "right", "behind", "center", "above")
 AREAS = ("around", "front", "behind", "left", "right", "ring", "edges", "everywhere", "sky")
-KEEP = ("sky", "terrain", "ambience", "weather")
+KEEP = ("sky", "terrain", "ambience", "weather", "rules")
 BEHAVIORS = ("chase", "wander", "flee", "still")
 NO_RIDE = ("none", "off", "stop", "exit", "out", "walk", "nothing", "foot", "on_foot")
 
@@ -102,6 +103,12 @@ def _bool(v, _c):
 
 def _enum(options):
     return lambda v, _c: v.lower() if isinstance(v, str) and v.lower() in options else None
+
+
+def _tags(v, _c):
+    if isinstance(v, list) and len(v) <= 8 and all(isinstance(tag, str) and re.fullmatch(r'[a-zA-Z0-9_.-]{1,80}', tag) for tag in v):
+        return v
+    return None
 
 
 def _vec3(v, _c):
@@ -206,12 +213,14 @@ FIELDS: dict[str, dict] = {
         "tint": _color, "params": _obj, "t": T,
     },
     "spawn": {
+        "tags": _tags,
         "at": _vec3, "place": _enum(PLACES), "distance": _num(0, 400), "height": _num(-20, 200),
         "scale": _scale, "rot_y": _num(-720, 720), "rot": _rot, "tint": _color,
         "motion": _motion, "physics": _bool, "solid": _bool, "behavior": _enum(BEHAVIORS), "t": T,
         "path": _path, "speed": _num(0.1, 40), "loop": _bool, "start": _num(0, 1),
     },
     "scatter": {
+        "tags": _tags,
         "count": _int(1, 100000), "area": _enum(AREAS), "radius": _range2(0, 400),
         "height": _range2(-20, 200), "scale": _range2(0.05, 60), "tint": _color, "seed": _int(0, 99999),
         "motion": _motion, "physics": _bool, "solid": _bool, "behavior": _enum(BEHAVIORS), "t": T,
@@ -280,6 +289,8 @@ def _from_world(p: list, frame: list | None) -> list:
 
 def _seen_from(stmt: dict, now: list | None) -> dict:
     """A remembered statement as the user would describe it from where they stand now."""
+    if stmt["op"] == "rule":
+        return _rule_coordinates(stmt, now, inverse=True)
     was = stmt.get("frame")
     out = {k: v for k, v in stmt.items() if k not in ("t", "frame")}
     if was == now:
@@ -327,6 +338,8 @@ class WorldState:
     def __init__(self):
         self.globals: dict[str, dict] = {}  # sky, light, fog, terrain, weather, physics, ambience
         self.things: dict[str, dict] = {}  # id -> the statement that made it
+        self.rules: dict[str, dict] = {}
+        self.runtime: dict | None = None
         self._auto = 0
 
     def is_empty(self) -> bool:
@@ -362,6 +375,12 @@ class WorldState:
 
     def apply(self, stmt: dict) -> None:
         op = stmt["op"]
+        if op == "rule":
+            self.rules[stmt['id']] = dict(stmt)
+            return
+        if op == "rule_remove":
+            self.rules.pop(stmt['id'], None)
+            return
         if op in ("sky", "terrain"):
             ref = "preset" if op == "sky" else "type"
             if ref in stmt or op not in self.globals:
@@ -405,8 +424,13 @@ class WorldState:
                 # back to the dark room: nothing left, not even what they were holding
                 self.globals.clear()
                 self.things.clear()
+                self.rules.clear()
+                self.runtime = None
                 return
             keep = set(stmt.get("keep", []))
+            if 'rules' not in keep:
+                self.rules.clear()
+            self.runtime = None
             # things the user was given stay with them; `remove` takes those away
             self.things = {k: v for k, v in self.things.items() if v["op"] == "give"}
             for g in ("sky", "terrain", "ambience", "weather"):
@@ -418,7 +442,7 @@ class WorldState:
 
     def render(self, frame: list | None = None) -> str:
         """The world as ImagineScript, with positions relative to a user standing at `frame`."""
-        if self.is_empty():
+        if self.is_empty() and not self.rules and self.runtime is None:
             return "(empty: the dark room, nothing built yet)"
         lines = []
         for op in ("sky", "light", "fog", "terrain", "weather", "physics", "ambience", "ride", "player"):
@@ -426,7 +450,43 @@ class WorldState:
                 lines.append(_compact(self.globals[op], frame))
         for stmt in self.things.values():
             lines.append(_compact(stmt, frame))
+        lines.extend(_compact(rule, frame) for rule in self.rules.values())
+        if self.runtime is not None:
+            lines.append('CLIENT RUNTIME (authoritative live instances; scene statements above are spawn templates):')
+            summary = dict(self.runtime)
+            live = self.runtime['entities']
+            groups = {}
+            for entity in live:
+                key = entity['group'] + '/' + entity['asset']
+                groups[key] = groups.get(key, 0) + 1
+            summary['live_counts'] = groups
+            summary['entities'] = [dict(e, position=[round(v, 2) for v in _from_world(e['position'], frame)])
+                                   if 'position' in e else dict(e) for e in live[:128]]
+            if 'player' in summary:
+                summary['player'] = [round(v, 2) for v in _from_world(summary['player'], frame)]
+            summary['entities_truncated'] = len(live) > 128
+            summary.pop('rules', None)  # installed rules already appear above
+            lines.append(json.dumps(summary, separators=(',', ':')))
         return "\n".join(lines)
+
+
+def _rule_coordinates(rule: dict, frame: list | None, inverse: bool = False) -> dict:
+    """Rules are stored/executed in world space; the model sees the current user frame."""
+    out = copy.deepcopy(rule)
+    if not frame:
+        return out
+    transform = _from_world if inverse else _to_world
+    for action in out.get("actions", []):
+        if "position" in action:
+            action["position"] = [round(v, 4) for v in transform(action["position"], frame)]
+        if "path" in action:
+            action["path"] = [[round(v, 4) for v in transform(p, frame)] for p in action["path"]]
+        for key in ("offset", "vector"):
+            if key in action:
+                action[key] = [round(v, 4) for v in transform(action[key], [0, 0, frame[2]])]
+        if "rotation" in action:
+            action["rotation"][1] = (action["rotation"][1] + (-1 if inverse else 1) * frame[2] + 180) % 360 - 180
+    return out
 
 
 def _compact(stmt: dict, frame: list | None = None) -> str:
@@ -434,7 +494,7 @@ def _compact(stmt: dict, frame: list | None = None) -> str:
 
 
 class Validator:
-    def __init__(self, catalog: Catalog, frame: list | None = None, hold_unknown: bool = False):
+    def __init__(self, catalog: Catalog, frame: list | None = None, hold_unknown: bool = False, allow_rules: bool = True):
         self.catalog = catalog
         # where the user stands; placed statements are stamped with it so the headset builds
         # them around the user and not around the middle of the world
@@ -443,6 +503,7 @@ class Validator:
         # `missing` (as the model wrote it) for the caller to have made from shapes
         self.hold_unknown = hold_unknown
         self.missing: list[dict] = []
+        self.allow_rules = allow_rules
 
     def check(self, raw: dict, world: WorldState) -> list[dict]:
         """Validate one model statement. Returns the statements to send (notes first)."""
@@ -458,6 +519,27 @@ class Validator:
 
     def _check(self, raw: dict, world: WorldState) -> list[dict]:
         op = str(raw.get("op", "")).lower()
+        if op in ('rule', 'rule_remove'):
+            if not self.allow_rules:
+                return [_note('This client does not support runtime rules; update the Unity app.')]
+            from .rules import validate_rule, RuleError, identifier, strict
+            try:
+                if op == 'rule':
+                    out = validate_rule(raw)
+                    out = validate_rule(_rule_coordinates(out, self.frame))
+                    for action in out['actions']:
+                        if action['action'] in ('spawn', 'mount') and not self.catalog.has('asset', action['asset']):
+                            raise RuleError('action references an unknown asset')
+                    if out['id'] not in world.rules and len(world.rules) >= 64:
+                        raise RuleError('rule limit reached')
+                else:
+                    strict(raw, ('op', 'id'), ('op', 'id'))
+                    identifier(raw['id'])
+                    out = dict(raw)
+                world.apply(out)
+                return [out]
+            except RuleError as exc:
+                return [_note(f'Rule rejected: {exc}; previous rule unchanged.')]
         if op not in WORLD_OPS:
             return []  # includes stream ops, which the model may not write
         notes: list[dict] = []

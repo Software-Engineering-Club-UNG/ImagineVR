@@ -31,6 +31,7 @@ server/.venv/
 server/.cache/
 __pycache__/
 *.pyc
+.cache/
 
 # Pulled headset session logs contain spoken/typed requests.
 headset-logs/

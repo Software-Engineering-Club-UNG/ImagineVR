@@ -467,3 +467,20 @@ def test_clear_everything_forgets_the_whole_world_including_what_was_given():
     assert 'club' in world.things and 'ride' in world.globals
     assert validator.check({'op': 'clear', 'everything': True}, world) == [{'op': 'clear', 'everything': True}]
     assert world.is_empty()
+
+
+def test_rule_capability_and_pose_are_combined_on_streamed_turns(api, monkeypatch):
+    async def model(system, content, *args):
+        assert 'Runtime event-and-action rules' in system
+        yield '{"op":"rule","id":"sheep.move","selector":{"asset":"sheep"},"event":"hit","actions":[{"action":"move_to","position":[0,0,8]}]}'
+        yield '{"op":"spawn","id":"sheep","asset":"sheep","at":[0,0,4]}'
+    monkeypatch.setattr(config, 'OFFLINE', False)
+    monkeypatch.setattr(llm, 'stream_lines', model)
+    result = statements(api.post('/v1/turn', headers={**HEADERS,
+        'X-User-Pose': '30,0,90', 'X-Client-Capabilities': 'runtime-rules-v1'},
+        json={'text': 'make a sheep that moves when hit'}))
+    rule = next(s for s in result if s['op'] == 'rule')
+    spawn = next(s for s in result if s['op'] == 'spawn')
+    assert rule['actions'][0]['position'] == [38, 0, 0]
+    assert spawn['frame'] == [30, 0, 90]
+    assert result[-1]['outcome'] == 'world_changed'

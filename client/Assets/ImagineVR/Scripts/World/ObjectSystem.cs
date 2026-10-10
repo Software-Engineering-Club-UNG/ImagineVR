@@ -14,11 +14,13 @@ namespace ImagineVR
         public Color Tint;
         public bool Grounded;
         public bool OnWater;
+        public bool AbsoluteTint;
 
         public Placement(Mesh mesh, Vector3 position, float yaw, float scale, Color tint, bool grounded = true)
         {
             Mesh = mesh; Position = position; Rotation = Quaternion.Euler(0f, yaw, 0f);
             Scale = new Vector3(scale, scale, scale); Tint = tint; Grounded = grounded; OnWater = false;
+            AbsoluteTint = false;
         }
     }
 
@@ -54,6 +56,7 @@ namespace ImagineVR
             public int Count;
             public Bounds Bounds;
             public Color Tint;
+            public bool AbsoluteTint;
             public MaterialPropertyBlock Props = new MaterialPropertyBlock();
         }
 
@@ -343,6 +346,7 @@ namespace ImagineVR
         /// <summary>Fills a scatter. The same seed always gives the same first N positions, so raising the count only adds.</summary>
         void Populate(Group g, Statement s, AssetDef def, int count)
         {
+            _world.Rules?.ForgetGroup(g);
             g.Items.Clear();
             foreach (GameObject extra in g.Extras) if (extra != null && (extra.name == "Solid" || extra.GetComponent<Creature>() != null)) UnityEngine.Object.Destroy(extra);
             g.Extras.RemoveAll(extra => extra == null || extra.name == "Solid" || extra.GetComponent<Creature>() != null);
@@ -453,8 +457,8 @@ namespace ImagineVR
 
         struct BatchKey : IEquatable<BatchKey>
         {
-            public Mesh Mesh; public Color32 Tint; public int Sector;
-            public bool Equals(BatchKey o) => Mesh == o.Mesh && Sector == o.Sector && Tint.r == o.Tint.r && Tint.g == o.Tint.g && Tint.b == o.Tint.b;
+            public Mesh Mesh; public Color32 Tint; public int Sector; public bool AbsoluteTint;
+            public bool Equals(BatchKey o) => Mesh == o.Mesh && Sector == o.Sector && AbsoluteTint == o.AbsoluteTint && Tint.r == o.Tint.r && Tint.g == o.Tint.g && Tint.b == o.Tint.b;
             public override bool Equals(object obj) => obj is BatchKey k && Equals(k);
             public override int GetHashCode() => (Mesh != null ? Mesh.GetHashCode() : 0) ^ (Tint.r << 16 | Tint.g << 8 | Tint.b) ^ (Sector * 7919);
         }
@@ -483,7 +487,7 @@ namespace ImagineVR
                 }
                 // split by quadrant so groups behind the user can be culled as a whole
                 int sector = moving ? 0 : (pos.x >= 0f ? 1 : 0) | (pos.z >= 0f ? 2 : 0);
-                var key = new BatchKey { Mesh = p.Mesh, Tint = p.Tint, Sector = sector };
+                var key = new BatchKey { Mesh = p.Mesh, Tint = p.Tint, Sector = sector, AbsoluteTint = p.AbsoluteTint };
                 if (!_scratch.TryGetValue(key, out List<Matrix4x4> list))
                 {
                     list = new List<Matrix4x4>();
@@ -511,7 +515,7 @@ namespace ImagineVR
                 for (int start = 0; start < list.Count; start += 500)
                 {
                     int n = Mathf.Min(500, list.Count - start);
-                    var batch = new Group.Batch { Mesh = pair.Key.Mesh, Count = n, Matrices = new Matrix4x4[n], Tint = pair.Key.Tint };
+                    var batch = new Group.Batch { Mesh = pair.Key.Mesh, Count = n, Matrices = new Matrix4x4[n], Tint = pair.Key.Tint, AbsoluteTint = pair.Key.AbsoluteTint };
                     Bounds mb = pair.Key.Mesh.bounds;
                     var bounds = new Bounds();
                     for (int i = 0; i < n; i++)
@@ -566,7 +570,7 @@ namespace ImagineVR
             foreach (Matrix4x4[] run in g.Shadows) Shadows.Draw(run, run.Length, g.ShadowBounds, shade);
             foreach (Group.Batch b in g.Batches)
             {
-                Color tint = g.Tint * (Color)b.Tint;
+                Color tint = b.AbsoluteTint ? b.Tint : g.Tint * (Color)b.Tint;
                 b.Props.SetFloat(AppearId, g.Appear);
                 b.Props.SetColor(TintId, tint);
                 b.Props.SetVector(MotionId, g.Motion);

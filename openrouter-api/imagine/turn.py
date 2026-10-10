@@ -85,6 +85,7 @@ async def _run_turn(
     audio: bytes | None = None,
     base_url: str = "",
     frame: list | None = None,
+    allow_rules: bool = False,
 ) -> AsyncIterator[dict]:
     started = time.perf_counter()
 
@@ -110,7 +111,7 @@ async def _run_turn(
     yield {"op": "status", "state": "thinking"}
 
     # Only the model can sculpt, so only then is an unknown asset worth holding back for it.
-    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE)
+    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE, allow_rules=allow_rules)
     building = False
     changed = False
     gave = False

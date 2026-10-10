@@ -177,3 +177,19 @@ implementation through `e5f8c5a`, including the exported catalog and prompt.
   and embedded in the catalog.
 - Adding an operation or an optional field does not change the version. Changing the meaning
   of an existing field or removing one does.
+
+## Runtime rules (capability `runtime-rules-v1`)
+
+`rule` installs or replaces an ID with a selector (instance/group/asset/tag), event,
+optional filters/conditions, and up to eight actions. `rule_remove` removes its ID.
+The shared contract is `shared/runtime-rules.json`; the full reference and examples
+are in `RUNTIME_EFFECTS_AND_TRIGGERS.md` and `shared/rule-examples/`.
+
+Rules execute bounded data-only actions; no generated code is evaluated. Position/path
+coordinates are authored relative to the current user and transformed by the server
+once on installation; offsets and vectors rotate with the user's heading. The stored
+and transmitted rules use world coordinates. Rule heights are absolute world heights.
+
+Ordinary clear drops rules unless `keep` includes `rules`; full clear ignores that
+exception. Full reset also cancels delayed actions/timers/effects, clears scores/state,
+removes held items and registry entries, and disables automatic player movement.

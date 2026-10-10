@@ -299,6 +299,7 @@ namespace ImagineVR
         Prop _held, _near;
         bool _gripDown, _triggerDown;
         bool _latched;        // stays in the hand without the grip being held
+        bool _using, _replaceUse;
         bool _waitTrigger;    // the trigger pull that took it must not also fire it
         Vector3 _lastPos, _velocity, _angular;
         Quaternion _lastRot = Quaternion.identity;
@@ -354,6 +355,7 @@ namespace ImagineVR
             }
             if (!trig) _waitTrigger = false;
             if (_held != null && !_waitTrigger) Use(trig, trigger);
+            if (_held != null && !trig) EndUse(_held);
             _triggerDown = trig;
 
             if (_held != null && _held.Def.Behavior == "paint" && _rig.AltPressed && _right)
@@ -435,6 +437,8 @@ namespace ImagineVR
         {
             Near(null);
             SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "took", "asset", prop.Def.Id, "id", prop.GroupId, "how", how, "given", prop.Given);
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            if (rule != null) rule.Engine.Emit("grab", rule.Entity);
             _held = prop;
             prop.Holder = this;
             prop.Floating = false;
@@ -487,6 +491,8 @@ namespace ImagineVR
                 prop.Body.linearVelocity = _velocity * 1.25f;
                 prop.Body.angularVelocity = _angular;
             }
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            if (rule != null) rule.Released(thrown);
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }
@@ -521,6 +527,13 @@ namespace ImagineVR
         void Use(bool pressed, float amount)
         {
             Prop prop = _held;
+            if (pressed && !_using)
+            {
+                _using = true;
+                RuleBody rule = prop.GetComponent<RuleBody>();
+                _replaceUse = rule != null && rule.Engine.Emit("use_start", rule.Entity);
+            }
+            if (_replaceUse) return;
             Vector3 tipPosition = TargetPosition + (TargetRotation * Vector3.up) * prop.Length;
             Vector3 aim = TargetRotation * Vector3.up;
             switch (prop.Def.Behavior)
@@ -581,6 +594,9 @@ namespace ImagineVR
 
         void EndUse(Prop prop)
         {
+            RuleBody rule = prop != null ? prop.GetComponent<RuleBody>() : null;
+            if (_using && rule != null) rule.Engine.Emit("use_end", rule.Entity);
+            _using = _replaceUse = false;
             if (_stroke != null && prop != null) prop.System.EndStroke(_stroke);
             _stroke = null;
         }

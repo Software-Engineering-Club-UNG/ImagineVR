@@ -10,6 +10,7 @@ example `https://imagine.example.com`.
 | `X-App-Token` | yes | Shared app token. Wrong or missing → `401`. |
 | `X-Session-Id` | yes on `/v1/turn` and `/v1/session/reset` | Random ID the app generates at launch. |
 | `X-Catalog-Version` | no | The catalog version embedded in the app. |
+| `X-Client-Capabilities` | no | Comma-separated capabilities; `runtime-rules-v1` opts into runtime rule output. Legacy clients retain scene-only replies. |
 | `X-User-Pose` | no | On `/v1/turn`, `x,z,yaw`: world-space horizontal head position in metres and heading in degrees (+Z = 0, +X = 90). `home` means the next build starts at the origin facing +Z. |
 
 The server accepts finite pose values with x/z within ±400 m, normalizes yaw, and rounds
@@ -64,6 +65,21 @@ within 4 s; `done` within 20 s for a typical place.
 Forgets the session's world and history. Returns `204`. The app calls it at launch.
 For a full controller reset the app also cancels pending work and generates a new session
 ID immediately; cleanup of the old session cannot repopulate the new conversation.
+
+## `POST /v1/session/runtime`
+
+Before each turn, capable clients upload an authoritative snapshot after previous
+statements have finished playing. Requires app token and session headers. Body fields:
+`generation`, increasing `sequence`, `entities`, `rules`, `counters`, `states`, `player`,
+and `failures`. See `shared/runtime-rules.json` for limits. Positions in snapshots are
+world-space; the server re-expresses them in the request pose for the model.
+
+Returns 200 on acceptance, 400 for invalid data, 413 above 512,000 bytes, and 409 for a
+stale generation or non-increasing sequence. Session reset returns the new generation
+in `X-Session-Generation`. A fresh session ID begins at generation 0; scene `clear`
+operations do not increment it. Old-session cleanup responses must not update the
+current client's generation. The client cancels queued turns and in-progress sync
+when starting a new conversation.
 
 ## `GET /v1/audio/{id}`
 

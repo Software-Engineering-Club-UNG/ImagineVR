@@ -130,7 +130,7 @@ namespace ImagineVR
             return ps;
         }
 
-        public static void Burst(Vector3 position, Color a, Color b, int count, float speed, float size, float life, float gravity, bool additive)
+        public static ParticleSystem Burst(Vector3 position, Color a, Color b, int count, float speed, float size, float life, float gravity, bool additive)
         {
             ParticleSystem ps = Make("Burst", position, additive, count);
             ParticleSystem.MainModule main = ps.main;
@@ -149,16 +149,17 @@ namespace ImagineVR
             FadeOut(ps);
             ps.Play();
             Object.Destroy(ps.gameObject, life + 0.5f);
+            return ps;
         }
 
-        public static void Confetti(Vector3 position)
+        public static ParticleSystem Confetti(Vector3 position, int count = 80, float life = 2.6f, float size = .06f, Color? tint = null)
         {
-            ParticleSystem ps = Make("Confetti", position, false, 90);
+            ParticleSystem ps = Make("Confetti", position, false, count);
             ParticleSystem.MainModule main = ps.main;
             main.duration = 1f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 2.6f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(life * .6f, life);
             main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 5.5f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.03f, 0.06f);
+            main.startSize = new ParticleSystem.MinMaxCurve(size * .5f, size);
             var g = new Gradient();
             g.SetKeys(new[]
             {
@@ -166,10 +167,11 @@ namespace ImagineVR
                 new GradientColorKey(Pal.Cyan, 0.75f), new GradientColorKey(Pal.Pink, 1f),
             }, new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) });
             main.startColor = new ParticleSystem.MinMaxGradient(g) { mode = ParticleSystemGradientMode.RandomColor };
+            if (tint.HasValue) main.startColor = tint.Value;
             main.gravityModifier = 0.7f;
             ParticleSystem.EmissionModule em = ps.emission;
             em.rateOverTime = 0f;
-            em.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)80) });
+            em.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)count) });
             ParticleSystem.ShapeModule sh = ps.shape;
             sh.shapeType = ParticleSystemShapeType.Cone;
             sh.angle = 35f;
@@ -177,7 +179,8 @@ namespace ImagineVR
             ps.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
             FadeOut(ps);
             ps.Play();
-            Object.Destroy(ps.gameObject, 3.2f);
+            Object.Destroy(ps.gameObject, life + .6f);
+            return ps;
         }
     }
 

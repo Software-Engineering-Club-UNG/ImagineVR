@@ -1,0 +1,3 @@
+{"op":"rule","id":"crate.break","selector":{"asset":"crate"},"event":"break","actions":[{"action":"particles","preset":"dust"},{"action":"counter_add","name":"score","value":1,"target":"world"},{"action":"remove"}]}
+{"op":"scatter","id":"crates","asset":"crate","count":5,"area":"front","radius":[6,12]}
+{"op":"give","id":"toy","asset":"blaster"}
