@@ -132,11 +132,17 @@ namespace ImagineVR
             g.Extras.Clear();
         }
 
+        /// <summary>How many things of a kind there are. The pieces of one sculpture ("robot.head", "robot.body") are one thing.</summary>
         public int CountKind(string kind)
         {
-            int n = 0;
-            foreach (Group g in _order) if (g.Kind == kind) n++;
-            return n;
+            var roots = new HashSet<string>();
+            foreach (Group g in _order)
+            {
+                if (g.Kind != kind) continue;
+                int dot = g.Id.IndexOf('.');
+                roots.Add(dot > 0 ? g.Id.Substring(0, dot) : g.Id);
+            }
+            return roots.Count;
         }
 
         public int ScatterTotal()
@@ -209,6 +215,7 @@ namespace ImagineVR
         public void Goal(Statement s)
         {
             if (!s.TryVec3("at", out Vector3 at)) return;
+            at = Statement.InWorld(s.Frame(), at);
             Group g = Begin(s.Str("id"), "goal", s, 0.3f);
             if (!Application.isPlaying) return;
             float radius = Mathf.Clamp(s.Num("radius", 2f), 0.3f, 20f);
@@ -230,7 +237,12 @@ namespace ImagineVR
             AssetDef def = Library.FindAsset(name);
             bool standIn = def == null;
             if (standIn) def = Library.Asset("cube");
-            if (CountKind("spawn") >= MaxSpawned && Get(s.Str("id")) == null) { _world.Note("object limit reached, skipped one"); return null; }
+            if (CountKind("spawn") >= MaxSpawned && Matching(RootOf(s.Str("id"))).Count == 0)
+            {
+                _world.Note("object limit reached, skipped one");
+                _world.Placed(s, name, null, false, Vector3.zero, "skipped: object limit");
+                return null;
+            }
 
             Vector3 scale = s.Scale("scale", 1f);
             float footprint = Fit(def) * Mathf.Max(scale.x, scale.z);
@@ -263,6 +275,12 @@ namespace ImagineVR
             Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
             if (s.TryVec3("rot", out Vector3 euler)) rot = Quaternion.Euler(euler.x, yaw + euler.y, euler.z);
 
+            // all of that was worked out around the user; now put it where they actually are
+            Pose frame = s.Frame();
+            pos = Statement.InWorld(frame, pos);
+            rot = frame.rotation * rot;
+            _world.Placed(s, name, def, standIn, pos, null);
+
             if (s.Flag("physics") && _world.Props != null && (def.Prop || def.Primitive))
             {
                 _world.Props.SpawnPhysics(s, def, pos, rot, scale);
@@ -287,10 +305,18 @@ namespace ImagineVR
             return g;
         }
 
+        static string RootOf(string id)
+        {
+            int dot = id != null ? id.IndexOf('.') : -1;
+            return dot > 0 ? id.Substring(0, dot) : id;
+        }
+
         public Group Scatter(Statement s)
         {
             string name = s.Str("asset", "cube");
-            AssetDef def = Library.FindAsset(name) ?? Library.Asset("cube");
+            AssetDef def = Library.FindAsset(name);
+            _world.Placed(s, name, def, def == null, s.Frame().position, null);
+            if (def == null) def = Library.Asset("cube");
             int count = Mathf.Clamp(s.Int("count", 12), 1, MaxScatterCount);
 
             if (s.Flag("physics") && _world.Props != null && (def.Prop || def.Primitive))
@@ -324,6 +350,7 @@ namespace ImagineVR
             int seed = s.Has("seed") ? s.Int("seed") : (g.Id.GetHashCode() & 0x7FFFFFFF);
             var rng = new System.Random(seed);
             float footprint = Fit(def);
+            Pose frame = s.Frame();   // scattered around where the user was standing when they asked
 
             float rMin, rMax, arcCenter = 0f, arcHalf = 180f;
             switch (area)
@@ -366,7 +393,7 @@ namespace ImagineVR
                         radius = Mathf.Lerp(rMin, rMax, Mathf.Pow((float)rng.NextDouble(), 0.75f));
                     }
                     float rad = angle * Mathf.Deg2Rad;
-                    pos = new Vector3(Mathf.Sin(rad) * radius, 0f, Mathf.Cos(rad) * radius);
+                    pos = Statement.InWorld(frame, new Vector3(Mathf.Sin(rad) * radius, 0f, Mathf.Cos(rad) * radius));
                     if (!hasWater || sky) break;
                     bool wet = _world.Terrain.HeightAt(pos.x, pos.z) < waterY + 0.15f;
                     if (wet == def.OnWater) break;   // floating things want water, everything else wants land

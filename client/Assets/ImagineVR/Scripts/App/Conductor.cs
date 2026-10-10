@@ -30,6 +30,19 @@ namespace ImagineVR
 
         public bool Busy => _current != null || _turns.Count > 0;
 
+        /// <summary>A turn finished. True when it changed the world.</summary>
+        public event System.Action<bool> TurnEnded;
+
+        /// <summary>Stops everything in hand: nothing queued or half played is carried on with.</summary>
+        public void Abort()
+        {
+            _turns.Clear();
+            _current = null;
+            _problem = false;
+            StopAllCoroutines();
+            _voice.Stop();
+        }
+
         void Awake()
         {
             var go = new GameObject("Voiceover");
@@ -61,6 +74,7 @@ namespace ImagineVR
         public Turn SubmitScript(string ndjson, string label = null)
         {
             var turn = new Turn { StartedAt = Time.time };
+            SessionLog.Write("demo", "label", label);
             if (label != null) turn.PromptHandle = Terminal.Prompt(label);
             turn.Push(Statement.Make("status", "state", "building"));
             foreach (string line in ndjson.Split('\n'))
@@ -103,6 +117,7 @@ namespace ImagineVR
 
         void Play(Statement s, bool world)
         {
+            if (s.Op != "status") SessionLog.Write("play", "op", s.Op, "statement", MiniJson.Serialize(s.Fields));
             switch (s.Op)
             {
                 case "transcript":
@@ -137,6 +152,7 @@ namespace ImagineVR
                         if (_worldStatements > 0) Sfx.Play("done", Terminal.transform.position, 0.5f);
                     }
                     _current = null;
+                    TurnEnded?.Invoke(_worldStatements > 0 && !_problem);
                     return;
                 case "say":
                     Terminal.Say(s.Str("text", ""));

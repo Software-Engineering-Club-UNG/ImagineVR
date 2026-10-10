@@ -330,11 +330,13 @@ namespace ImagineVR
             if (area == "left") arcCenter = -90f; else if (area == "right") arcCenter = 90f; else if (area == "behind") arcCenter = 180f;
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
             bool hasTint = s.Has("tint");
+            Pose frame = s.Frame();
             for (int i = 0; i < count; i++)
             {
                 float angle = (arcCenter + ((float)rng.NextDouble() * 2f - 1f) * arcHalf) * Mathf.Deg2Rad;
                 float radius = Mathf.Lerp(rMin, rMax, (float)rng.NextDouble());
-                float x = Mathf.Sin(angle) * radius, z = Mathf.Cos(angle) * radius;
+                Vector3 spot = Statement.InWorld(frame, new Vector3(Mathf.Sin(angle) * radius, 0f, Mathf.Cos(angle) * radius));
+                float x = spot.x, z = spot.z;
                 // dropped from a little way up so they tumble into place
                 float y = _world.Terrain.HeightAt(x, z) + 0.4f + i * 0.12f + (float)rng.NextDouble() * 0.5f;
                 float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
@@ -379,6 +381,8 @@ namespace ImagineVR
             Sfx.Play("sparkle", position, 0.5f);
             Fx.Burst(position, new Color(1f, 0.9f, 0.6f), Color.white, 16, 0.8f, 0.03f, 0.7f, 0f, true);
             if (standIn && _world.Font != null) AddLabel(prop, name.Replace('_', ' '));
+            _world.Placed(s, name, def, standIn, position, null);
+            _world.OnGiven(prop);
         }
 
         void AddLabel(Prop prop, string text)
@@ -430,6 +434,26 @@ namespace ImagineVR
             }
         }
 
+        /// <summary>The user was moved (brought back to the middle): what is waiting in the air for them comes along.</summary>
+        public void Carry(Vector3 from, Vector3 to, Quaternion turn)
+        {
+            foreach (Prop p in _props)
+                if (p != null && p.Floating && !p.Held) p.FloatAt(to + turn * (p.transform.position - from));
+        }
+
+        /// <summary>Removes every prop there is, loose, given or in a hand, and every stroke of paint.</summary>
+        public void ClearAll()
+        {
+            foreach (Prop p in _props)
+            {
+                if (p == null) continue;
+                if (p.Holder != null) p.Holder.ForceRelease();
+                Object.Destroy(p.gameObject);
+            }
+            _props.Clear();
+            ClearLoose();
+        }
+
         /// <summary>Removes loose physics props. Things the user was given stay.</summary>
         public void ClearLoose()
         {
@@ -462,6 +486,8 @@ namespace ImagineVR
                         p.Body.linearVelocity = Vector3.zero;
                         p.Body.angularVelocity = Vector3.zero;
                         p.FloatAt(back);
+                        SessionLog.Write("recover", "asset", p.Def.Id, "id", p.GroupId, "from", pos, "to", back,
+                            "why", "given item left world bounds");
                     }
                     else
                     {

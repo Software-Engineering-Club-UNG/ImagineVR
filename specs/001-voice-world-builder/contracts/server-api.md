@@ -10,6 +10,13 @@ example `https://imagine.example.com`.
 | `X-App-Token` | yes | Shared app token. Wrong or missing → `401`. |
 | `X-Session-Id` | yes on `/v1/turn` and `/v1/session/reset` | Random ID the app generates at launch. |
 | `X-Catalog-Version` | no | The catalog version embedded in the app. |
+| `X-User-Pose` | no | On `/v1/turn`, `x,z,yaw`: world-space horizontal head position in metres and heading in degrees (+Z = 0, +X = 90). `home` means the next build starts at the origin facing +Z. |
+
+The server accepts finite pose values with x/z within ±400 m, normalizes yaw, and rounds
+position to two decimals and yaw to one. Missing, invalid, `home`, or effectively zero
+poses use the world origin. The server stamps positional scene statements with `frame`
+and describes remembered positions to the model relative to the supplied pose. A `clear`
+resets the frame for subsequent statements because the client homes the user.
 
 ## `GET /v1/health`
 
@@ -55,6 +62,8 @@ within 4 s; `done` within 20 s for a typical place.
 ## `POST /v1/session/reset`
 
 Forgets the session's world and history. Returns `204`. The app calls it at launch.
+For a full controller reset the app also cancels pending work and generates a new session
+ID immediately; cleanup of the old session cannot repopulate the new conversation.
 
 ## `GET /v1/audio/{id}`
 

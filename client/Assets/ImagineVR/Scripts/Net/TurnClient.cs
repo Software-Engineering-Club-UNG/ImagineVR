@@ -41,18 +41,36 @@ namespace ImagineVR
         public ImagineSettings Settings;
         public string SessionId { get; private set; }
         public string CatalogVersion = "";
+        /// <summary>
+        /// Says where the user is standing and facing, as "x,z,yaw", or "home" in the dark room.
+        /// Sent with each turn so the server can have things built around the user.
+        /// </summary>
+        public Func<string> Pose;
+
+        readonly List<Turn> _open = new List<Turn>();
+        int _count;
 
         void Awake()
         {
+            NewSession();
+        }
+
+        /// <summary>Starts a conversation the server has never seen, and drops whatever was still on its way.</summary>
+        public string NewSession()
+        {
+            string old = SessionId;
+            foreach (Turn turn in _open) turn.Closed = true;   // their requests stop on the next frame
+            _open.Clear();
             SessionId = Guid.NewGuid().ToString("N");
+            return old;
         }
 
         string Url(string path) => Settings.ServerUrl.TrimEnd('/') + path;
 
-        void Headers(UnityWebRequest request)
+        void Headers(UnityWebRequest request, string session = null)
         {
             request.SetRequestHeader("X-App-Token", Settings.AppToken);
-            request.SetRequestHeader("X-Session-Id", SessionId);
+            request.SetRequestHeader("X-Session-Id", session ?? SessionId);
             if (!string.IsNullOrEmpty(CatalogVersion)) request.SetRequestHeader("X-Catalog-Version", CatalogVersion);
         }
 
@@ -76,6 +94,7 @@ namespace ImagineVR
             readonly Turn _turn;
             readonly List<byte> _pending = new List<byte>(512);
             public float LastData;
+            public int Number, Lines;
 
             public LineHandler(Turn turn) : base(new byte[4096])
             {
@@ -102,7 +121,11 @@ namespace ImagineVR
                 if (_pending.Count == 0) return;
                 string line = Encoding.UTF8.GetString(_pending.ToArray());
                 _pending.Clear();
-                if (Statement.TryParse(line, out Statement s)) _turn.Push(s);
+                if (line.Trim().Length == 0) return;   // the server's keep-alive
+                Lines++;
+                bool ok = Statement.TryParse(line, out Statement s);
+                SessionLog.Write("recv", "turn", Number, "line", line, "understood", ok);
+                if (ok) _turn.Push(s);
             }
         }
 
@@ -110,12 +133,17 @@ namespace ImagineVR
         {
             using (var request = new UnityWebRequest(Url("/v1/turn"), UnityWebRequest.kHttpVerbPOST))
             {
-                var handler = new LineHandler(turn);
+                var handler = new LineHandler(turn) { Number = ++_count };
+                string pose = Pose != null ? Pose() : null;
                 request.uploadHandler = new UploadHandlerRaw(body) { contentType = contentType };
                 request.downloadHandler = handler;
                 Headers(request);
                 request.SetRequestHeader("Content-Type", contentType);
                 request.SetRequestHeader("Accept", "application/x-ndjson");
+                if (!string.IsNullOrEmpty(pose)) request.SetRequestHeader("X-User-Pose", pose);
+                _open.Add(turn);
+                SessionLog.Write("send", "turn", handler.Number, "type", contentType, "bytes", body.Length, "pose", pose,
+                    "text", contentType == "application/json" ? Encoding.UTF8.GetString(body) : null, "session", SessionId);
                 float started = Time.realtimeSinceStartup;
                 UnityWebRequestAsyncOperation op = request.SendWebRequest();
                 while (!op.isDone)
@@ -125,11 +153,16 @@ namespace ImagineVR
                     if (now - handler.LastData > Settings.LineTimeout || now - started > Settings.TotalTimeout)
                     {
                         request.Abort();
+                        _open.Remove(turn);
+                        SessionLog.Write("reply", "turn", handler.Number, "result", "timed out", "seconds", now - started, "lines", handler.Lines);
                         turn.Fail("The server stopped answering. What's built so far stays; try again.");
                         yield break;
                     }
                     yield return null;
                 }
+                _open.Remove(turn);
+                SessionLog.Write("reply", "turn", handler.Number, "result", request.result.ToString(), "status", (int)request.responseCode,
+                    "error", request.error, "seconds", Time.realtimeSinceStartup - started, "lines", handler.Lines, "finished", turn.SawDone);
                 if (turn.Closed) yield break;
 
                 if (request.result == UnityWebRequest.Result.ConnectionError)
@@ -168,12 +201,13 @@ namespace ImagineVR
             }
         }
 
-        public IEnumerator ResetSession()
+        /// <summary>Tells the server to forget a conversation: this one, or an old one that was replaced.</summary>
+        public IEnumerator ResetSession(string session = null)
         {
             using (var request = new UnityWebRequest(Url("/v1/session/reset"), UnityWebRequest.kHttpVerbPOST))
             {
                 request.downloadHandler = new DownloadHandlerBuffer();
-                Headers(request);
+                Headers(request, session);
                 request.timeout = 5;
                 yield return request.SendWebRequest();
             }

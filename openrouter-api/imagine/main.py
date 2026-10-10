@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import LANGUAGE_VERSION, config, stt, tts, llm
 from .catalog import Catalog
+from .script import to_frame
 from .session import SessionStore
 from .turn import run_turn, reset_stt_slots
 
@@ -107,6 +108,7 @@ async def turn(
     x_app_token: str | None = Header(default=None),
     x_session_id: str | None = Header(default=None),
     x_catalog_version: str | None = Header(default=None),
+    x_user_pose: str | None = Header(default=None),
 ):
     check_token(x_app_token)
     if not x_session_id:
@@ -150,7 +152,8 @@ async def turn(
 
     async def stream():
         statements = run_turn(
-            session, state.catalog, state.system_prompt, text=text, audio=audio, base_url=base_url
+            session, state.catalog, state.system_prompt, text=text, audio=audio, base_url=base_url,
+            frame=to_frame(x_user_pose),  # "x,z,yaw"; absent or unreadable means the middle of the world
         )
         pending = None
         try:

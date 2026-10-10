@@ -8,6 +8,7 @@ replaced by the nearest entry. Nothing here raises on model output.
 from __future__ import annotations
 
 import json
+import math
 import re
 
 from .catalog import Catalog
@@ -185,7 +186,7 @@ T = _num(0.2, 6)
 FIELDS: dict[str, dict] = {
     "think": {"text": _text(220)},
     "say": {"text": _text(400)},
-    "clear": {"keep": _keep, "t": T},
+    "clear": {"keep": _keep, "everything": _bool, "t": T},
     "sky": {
         "top": _color, "horizon": _color, "bottom": _color,
         "sun_elevation": _num(-90, 90), "sun_azimuth": _num(0, 360), "sun_color": _color,
@@ -239,6 +240,66 @@ REFS = {
     "ambience": ("loop", "ambience"),
 }
 NEEDS_ID = ("kit", "spawn", "scatter", "give")
+# Statements that put something at a position. The model writes those positions relative to the
+# user (who it is told stands at the origin facing +Z); `frame` says where the user really was.
+PLACED = ("spawn", "scatter", "goal", "ride")
+
+
+def to_frame(value) -> list[float] | None:
+    """[x, z, yaw in degrees]: where the user stands in the world and which way they face."""
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, (list, tuple)) or len(value) != 3:
+        return None
+    try:
+        x, z, yaw = (float(v) for v in value)
+    except (TypeError, ValueError):
+        return None
+    if not all(math.isfinite(v) for v in (x, z, yaw)) or abs(x) > 400 or abs(z) > 400:
+        return None
+    yaw = -((180.0 - yaw) % 360.0 - 180.0)  # -180 < yaw <= 180
+    if abs(x) < 0.05 and abs(z) < 0.05 and abs(yaw) < 0.5:
+        return None  # at the origin facing +Z: the world's own frame
+    return [round(x, 2), round(z, 2), round(yaw, 1)]
+
+
+def _to_world(p: list, frame: list | None) -> list:
+    if not frame:
+        return list(p)
+    a = math.radians(frame[2])
+    return [p[0] * math.cos(a) + p[2] * math.sin(a) + frame[0], p[1], -p[0] * math.sin(a) + p[2] * math.cos(a) + frame[1]]
+
+
+def _from_world(p: list, frame: list | None) -> list:
+    if not frame:
+        return list(p)
+    a = math.radians(frame[2])
+    dx, dz = p[0] - frame[0], p[2] - frame[1]
+    return [dx * math.cos(a) - dz * math.sin(a), p[1], dx * math.sin(a) + dz * math.cos(a)]
+
+
+def _seen_from(stmt: dict, now: list | None) -> dict:
+    """A remembered statement as the user would describe it from where they stand now."""
+    was = stmt.get("frame")
+    out = {k: v for k, v in stmt.items() if k not in ("t", "frame")}
+    if was == now:
+        return out
+
+    def move(p):
+        return [round(v, 1) for v in _from_world(_to_world(p, was), now)]
+
+    if "at" in out:
+        out["at"] = move(out["at"])
+    elif out["op"] == "spawn" and "path" not in out:
+        # "4 m in front" was true where they stood then; say where that is from here
+        d, h = out.pop("distance", 4), out.pop("height", 0)
+        place = out.pop("place", "front")
+        local = {"left": [-d, h, 0], "right": [d, h, 0], "behind": [0, h, -d],
+                 "center": [0, h, 0], "above": [0, max(d, 3) + h, 0]}.get(place, [0, h, d])
+        out["at"] = move(local)
+    if "path" in out:
+        out["path"] = [move(p) for p in out["path"]]
+    return out
 
 
 def parse_line(line: str) -> dict | None:
@@ -280,7 +341,8 @@ class WorldState:
                 return candidate
 
     def count(self, op: str) -> int:
-        return sum(1 for s in self.things.values() if s["op"] == op)
+        # the pieces of one sculpture ("robot.head", "robot.body") are one thing
+        return len({tid.split(".")[0] for tid, s in self.things.items() if s["op"] == op})
 
     def scatter_total(self) -> int:
         return sum(int(s.get("count", 0)) for s in self.things.values() if s["op"] == "scatter")
@@ -339,6 +401,11 @@ class WorldState:
             for tid in self.matching(stmt.get("id", "")):
                 self.things.pop(tid, None)
         elif op == "clear":
+            if stmt.get("everything"):
+                # back to the dark room: nothing left, not even what they were holding
+                self.globals.clear()
+                self.things.clear()
+                return
             keep = set(stmt.get("keep", []))
             # things the user was given stay with them; `remove` takes those away
             self.things = {k: v for k, v in self.things.items() if v["op"] == "give"}
@@ -349,28 +416,47 @@ class WorldState:
                 self.globals.pop("light", None)
                 self.globals.pop("fog", None)
 
-    def render(self) -> str:
+    def render(self, frame: list | None = None) -> str:
+        """The world as ImagineScript, with positions relative to a user standing at `frame`."""
         if self.is_empty():
             return "(empty: the dark room, nothing built yet)"
         lines = []
         for op in ("sky", "light", "fog", "terrain", "weather", "physics", "ambience", "ride", "player"):
             if op in self.globals:
-                lines.append(_compact(self.globals[op]))
+                lines.append(_compact(self.globals[op], frame))
         for stmt in self.things.values():
-            lines.append(_compact(stmt))
+            lines.append(_compact(stmt, frame))
         return "\n".join(lines)
 
 
-def _compact(stmt: dict) -> str:
-    return json.dumps({k: v for k, v in stmt.items() if k != "t"}, separators=(",", ":"))
+def _compact(stmt: dict, frame: list | None = None) -> str:
+    return json.dumps(_seen_from(stmt, frame), separators=(",", ":"))
 
 
 class Validator:
-    def __init__(self, catalog: Catalog):
+    def __init__(self, catalog: Catalog, frame: list | None = None, hold_unknown: bool = False):
         self.catalog = catalog
+        # where the user stands; placed statements are stamped with it so the headset builds
+        # them around the user and not around the middle of the world
+        self.frame = frame
+        # with hold_unknown, a spawn or scatter of something the catalog lacks is kept back in
+        # `missing` (as the model wrote it) for the caller to have made from shapes
+        self.hold_unknown = hold_unknown
+        self.missing: list[dict] = []
 
     def check(self, raw: dict, world: WorldState) -> list[dict]:
         """Validate one model statement. Returns the statements to send (notes first)."""
+        out = self._check(raw, world)
+        if out and out[-1]["op"] == "clear":
+            self.frame = None  # the headset brings the user back to the middle, facing +Z
+        return out
+
+    def _stamp(self, out: dict) -> dict:
+        if self.frame and (out["op"] != "ride" or "path" in out):
+            out["frame"] = list(self.frame)
+        return out
+
+    def _check(self, raw: dict, world: WorldState) -> list[dict]:
         op = str(raw.get("op", "")).lower()
         if op not in WORLD_OPS:
             return []  # includes stream ops, which the model may not write
@@ -395,7 +481,7 @@ class Validator:
                         value = convert(raw[field], self.catalog)
                         if value is not None:
                             out[field] = value
-            world.apply(out)
+            world.apply(self._stamp(out))
             return notes + [out]
 
         # --- a spot that reacts, and the user's own size
@@ -410,6 +496,7 @@ class Validator:
                     return []
                 out["for"] = to_id(out.get("for")) or "user"
                 out["id"] = to_id(raw.get("id")) or world.next_id("goal")
+                self._stamp(out)
             elif "scale" not in out:
                 return []
             world.apply(out)
@@ -425,8 +512,13 @@ class Validator:
                 resolved, _ = self.catalog.resolve(kind, wanted)
                 if resolved is None:
                     if kind == "asset":
-                        # keep the name: the headset shows a labelled stand-in shape
+                        if self.hold_unknown and op in ("spawn", "scatter"):
+                            self.missing.append(dict(raw))
+                            return []
+                        # keep the name: the headset shows a labelled stand-in shape. It is
+                        # marked, so the model is never told that the real thing is there.
                         out[field] = wanted
+                        out["stand_in"] = True
                         notes.append(_note(f"no '{_pretty(wanted)}' in the library yet, using a stand-in shape"))
                     elif op in ("kit", "ambience", "weather"):
                         notes.append(_note(f"no {op} called '{_pretty(wanted)}', skipped"))
@@ -511,6 +603,8 @@ class Validator:
                     notes.append(_note(f"capped {_pretty(out.get('asset', 'scatter'))} at {allowed} to keep things smooth"))
                 out["count"] = allowed
 
+        if op in PLACED:
+            self._stamp(out)
         world.apply(out)
         return notes + [out]
 

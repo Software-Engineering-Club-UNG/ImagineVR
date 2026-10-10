@@ -11,6 +11,10 @@ namespace ImagineVR
     /// The floating terminal: a window that looks and behaves like an agentic command-line
     /// assistant. Prompts, tool calls and replies stream in as lines; a status line at the bottom
     /// always shows exactly one state; a tool strip on the left lights up the tool in use.
+    ///
+    /// Once a world is built the window is in the way, so it can be tucked away: it folds down
+    /// to its status line, a small strip low in view that still shows listening, thinking and
+    /// building, and unfolds again with the same button.
     /// </summary>
     public sealed class Terminal : MonoBehaviour
     {
@@ -20,6 +24,7 @@ namespace ImagineVR
 
         const float Width = 1.62f, Height = 1.06f, TitleHeight = 0.066f, Margin = 0.05f, ToolStrip = 0.08f;
         const float FontSize = 0.36f;
+        const float StripWidth = 0.86f, StripHeight = 0.082f, FoldSeconds = 0.28f, StripDrop = 0.34f;
 
         sealed class Line
         {
@@ -47,6 +52,18 @@ namespace ImagineVR
         readonly float[] _micHistory = new float[14];
         bool _dirty = true;
 
+        // folding down to the status line
+        Transform _panelQuad, _body;
+        float _fold, _statusY, _left, _right;
+        string _override;
+        string _foldKey = "Y";
+
+        /// <summary>True while the terminal is tucked away as a strip.</summary>
+        public bool Collapsed { get; private set; }
+
+        /// <summary>Where a hint about folding sits: just under the window's bottom right corner (local space).</summary>
+        public Vector3 FoldHintAnchor => new Vector3(Width * 0.5f - 0.36f, -Height * 0.5f - 0.07f, -0.01f);
+
         // glyphs, chosen at startup from what the font actually contains
         public string Dot = "*", Elbow = "L", Spark = "*", Cross = "x", Star = "*", Ellipsis = "...", Times = "x";
         string[] _spinner = { "|", "/", "-", "\\" };
@@ -73,6 +90,7 @@ namespace ImagineVR
             Destroy(panelGo.GetComponent<Collider>());
             panelGo.transform.SetParent(transform, false);
             panelGo.transform.localScale = new Vector3(Width, Height, 1f);
+            _panelQuad = panelGo.transform;
             _panel = new Material(Shader.Find("ImagineVR/Panel")) { name = "TerminalPanel" };
             _panel.SetVector("_Size", new Vector4(Width, Height, 0f, 0f));
             _panel.SetFloat("_TitleHeight", TitleHeight);
@@ -118,6 +136,17 @@ namespace ImagineVR
             strip.transform.localPosition = new Vector3(-Width * 0.5f + Margin * 0.5f + ToolStrip * 0.42f, (bodyTop + bodyBottom) * 0.5f, -0.004f);
             _toolbar = strip.AddComponent<TerminalToolbar>();
             _toolbar.Build(bodyTop - bodyBottom);
+
+            // everything but the status line lives under one object, so folding can put it all away at once
+            _body = new GameObject("Body").transform;
+            _body.SetParent(transform, false);
+            foreach (TextMeshPro row in _rows) row.transform.SetParent(_body, false);
+            _title.transform.SetParent(_body, false);
+            _titleRight.transform.SetParent(_body, false);
+            strip.transform.SetParent(_body, false);
+            _statusY = statusY;
+            _left = left;
+            _right = right;
 
             SetState(TerminalState.Ready);
         }
@@ -360,6 +389,34 @@ namespace ImagineVR
 
         public void SetHint(string hint) { _hintText = hint ?? ""; }
 
+        /// <summary>The name of the button that folds the terminal, as the user knows it ("Y", "C").</summary>
+        public void SetFoldKey(string key) { _foldKey = key; }
+
+        /// <summary>Takes over the status line for a moment (a countdown, say). Null gives it back.</summary>
+        public void SetOverride(string rich) { _override = rich; }
+
+        public void SetCollapsed(bool collapsed)
+        {
+            if (collapsed == Collapsed) return;
+            Collapsed = collapsed;
+            if (_placed) Recenter(false);   // the strip sits higher than the window's own status line did
+            Sfx.Play("whoosh", transform.position, 0.25f, collapsed ? 1.5f : 1.2f);
+            SessionLog.Write("terminal", "collapsed", collapsed);
+        }
+
+        public void Toggle() { SetCollapsed(!Collapsed); }
+
+        /// <summary>Wipes everything printed so far, as when the app has just started.</summary>
+        public void Clear()
+        {
+            _lines.Clear();
+            _revealing = 0;
+            _scroll = 0f;
+            _override = null;
+            _dirty = true;
+            foreach (TextMeshPro row in _rows) row.text = "";
+        }
+
         /// <summary>Microphone level 0..1 while listening.</summary>
         public void SetMic(float level) { _mic = Mathf.Clamp01(level); }
 
@@ -396,8 +453,32 @@ namespace ImagineVR
                     text = Tag(Green, Dot) + " " + Tag(Dim, "Ready");
                     break;
             }
-            _status.text = text;
-            _hint.text = Tag(Faint, _hintText);
+            _status.text = _override ?? text;
+            // the right of the status line always says how to fold or unfold, in few words
+            if (_override != null) _hint.text = "";
+            else if (Collapsed) _hint.text = _state == TerminalState.Listening ? "" : Tag(Dim, _foldKey) + Tag(Faint, " opens");
+            else _hint.text = Tag(Faint, _hintText + (_hintText.Length > 0 ? "  ·  " : "") + _foldKey + " tucks away");
+        }
+
+        /// <summary>Folds the window down around its status line, or opens it out again.</summary>
+        void Fold(float dt)
+        {
+            float target = Collapsed ? 1f : 0f;
+            if (_fold == target && _body.gameObject.activeSelf != Collapsed) return;
+            _fold = Mathf.MoveTowards(_fold, target, dt / FoldSeconds);
+            float e = Ease.InOutCubic(_fold);
+            float w = Mathf.Lerp(Width, StripWidth, e), h = Mathf.Lerp(Height, StripHeight, e);
+            _panelQuad.localScale = new Vector3(w, h, 1f);
+            _panelQuad.localPosition = new Vector3(0f, Mathf.Lerp(0f, _statusY, e), 0f);
+            _panel.SetVector("_Size", new Vector4(w, h, 0f, 0f));
+            _panel.SetFloat("_TitleHeight", TitleHeight * (1f - e));
+            // the lines go first when folding and come back last when opening, so they never spill out of the window
+            bool body = _fold < 0.05f;
+            if (_body.gameObject.activeSelf != body) { _body.gameObject.SetActive(body); _dirty = true; }
+            Vector3 p = _status.transform.localPosition;
+            _status.transform.localPosition = new Vector3(Mathf.Lerp(_left, -StripWidth * 0.5f + 0.035f, e), p.y, p.z);
+            p = _hint.transform.localPosition;
+            _hint.transform.localPosition = new Vector3(Mathf.Lerp(_right, StripWidth * 0.5f - 0.035f, e), p.y, p.z);
         }
 
         // ------------------------------------------------------------------ frame
@@ -444,6 +525,7 @@ namespace ImagineVR
                 _micHistory[_micHistory.Length - 1] = _mic;
             }
             UpdateStatus();
+            Fold(dt);
 
             float glowTarget = _state == TerminalState.Thinking || _state == TerminalState.Building ? 0.55f + 0.25f * Mathf.Sin(Time.time * 3f)
                 : _state == TerminalState.Listening ? 0.35f + _mic * 0.6f : 0f;
@@ -495,7 +577,11 @@ namespace ImagineVR
             Vector3 forward = _head.forward;
             forward.y = 0f;
             forward = forward.sqrMagnitude > 0.01f ? forward.normalized : Vector3.forward;
-            _targetPos = new Vector3(_head.position.x, Mathf.Max(_head.position.y - 0.12f, 0.9f), _head.position.z) + forward * 1.55f;
+            // Open, the window is centred just below eye level. Folded, the strip is all there is, and it
+            // sits a little below the line of sight: low enough to be out of the way, high enough to
+            // clear the bonnet of a car or the neck of a horse.
+            float height = Collapsed ? _head.position.y - StripDrop - _statusY : Mathf.Max(_head.position.y - 0.12f, 0.9f);
+            _targetPos = new Vector3(_head.position.x, height, _head.position.z) + forward * 1.55f;
             _targetRot = Quaternion.LookRotation(forward);
             _placed = true;
             _offAxisTime = 0f;

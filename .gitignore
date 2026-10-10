@@ -32,6 +32,9 @@ server/.cache/
 __pycache__/
 *.pyc
 
+# Pulled headset session logs contain spoken/typed requests.
+headset-logs/
+
 # OS / editors
 .DS_Store
 Thumbs.db

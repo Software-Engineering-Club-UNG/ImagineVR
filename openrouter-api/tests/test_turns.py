@@ -346,3 +346,124 @@ def test_legacy_entrypoint_loads_the_canonical_backend():
         cwd=Path(__file__).resolve().parents[2] / 'server', capture_output=True, text=True, check=True)
     for line in result.stdout.splitlines():
         assert Path(line).parent == Path(__file__).resolve().parents[1] / 'imagine'
+
+
+# ---------------------------------------------------------------- things that did not appear
+
+def _catalog():
+    return Catalog.load(config.CATALOG_PATH)
+
+
+@pytest.mark.parametrize('wanted,expected', [
+    ('spider_man', 'person'), ('bat_man', 'person'), ('cat_woman', 'woman'),   # the thing, not the describer
+    ('fire_truck', None), ('monster_truck', None), ('batman', None),          # nothing like it: sculpt
+    ('red_car', 'car'), ('big_oak_tree', 'oak_tree'), ('zombies', 'zombie'), ('pistol', 'blaster'),
+])
+def test_an_asset_is_never_swapped_for_something_that_only_shares_a_word(wanted, expected):
+    assert _catalog().resolve('asset', wanted)[0] == expected
+
+
+def test_things_are_placed_around_the_user_wherever_they_stand():
+    frame = [30.0, -12.0, 90.0]   # 30 m right of the middle, 12 m back, facing +X
+    validator, world = Validator(_catalog(), frame), WorldState()
+    spawn = validator.check({'op': 'spawn', 'id': 'oak', 'asset': 'oak_tree', 'at': [0, 0, 4]}, world)[-1]
+    assert spawn['frame'] == frame and spawn['at'] == [0, 0, 4]
+    assert validator.check({'op': 'scatter', 'id': 'herd', 'asset': 'sheep', 'count': 4}, world)[-1]['frame'] == frame
+    assert validator.check({'op': 'goal', 'at': [0, 0, 9]}, world)[-1]['frame'] == frame
+    assert 'frame' not in validator.check({'op': 'sky', 'preset': 'morning'}, world)[-1]
+    assert 'frame' not in validator.check({'op': 'kit', 'id': 'town', 'kit': 'city'}, world)[-1]
+    assert 'frame' not in validator.check({'op': 'ride', 'asset': 'car'}, world)[-1]
+
+    seen = {s.get('id'): s for s in map(json.loads, world.render(frame).splitlines())}
+    assert seen['oak']['at'] == [0, 0, 4] and 'frame' not in seen['oak']
+    # the user turns round and walks: the same oak is now described from the new spot
+    moved = {s.get('id'): s for s in map(json.loads, world.render([30.0, -12.0, -90.0]).splitlines())}
+    assert moved['oak']['at'] == [0, 0, -4]
+    home = {s.get('id'): s for s in map(json.loads, world.render(None).splitlines())}
+    assert home['oak']['at'] == [34, 0, -12]
+
+    # `clear` brings the user back to the middle, so what follows is built there
+    validator.check({'op': 'clear'}, world)
+    assert 'frame' not in validator.check({'op': 'spawn', 'asset': 'oak_tree'}, world)[-1]
+
+
+def test_a_spawn_by_place_is_remembered_where_it_really_went():
+    validator, world = Validator(_catalog(), [10.0, 0.0, 0.0]), WorldState()
+    validator.check({'op': 'spawn', 'id': 'car', 'asset': 'car', 'place': 'left', 'distance': 6}, world)
+    seen = json.loads(world.render(None))
+    assert seen['at'] == [4, 0, 0] and 'place' not in seen and 'distance' not in seen
+
+
+@pytest.mark.parametrize('pose,frame', [('30,-12,90', [30, -12, 90]), ('0,0,0', None), ('home', None),
+                                        ('1,2', None), ('nan,0,0', None), ('9999,0,0', None), ('0,5,-270', [0, 5, 90])])
+def test_user_pose_header(pose, frame):
+    from imagine.script import to_frame
+    assert to_frame(pose) == frame
+
+
+def test_sculpture_pieces_count_as_one_object():
+    catalog = _catalog()
+    validator, world = Validator(catalog), WorldState()
+    for i in range(catalog.limits['max_spawned'] - 1):
+        validator.check({'op': 'spawn', 'id': f'robot.part{i}', 'asset': 'cube'}, world)
+    assert world.count('spawn') == 1
+    assert validator.check({'op': 'spawn', 'id': 'tree', 'asset': 'oak_tree'}, world)[-1]['op'] == 'spawn'
+
+
+def test_an_unknown_asset_is_marked_as_a_stand_in():
+    validator, world = Validator(_catalog()), WorldState()
+    note, spawn = validator.check({'op': 'spawn', 'id': 'hero', 'asset': 'batman'}, world)
+    assert note['op'] == 'note' and spawn['asset'] == 'batman' and spawn['stand_in'] is True
+    assert '"stand_in":true' in world.render()
+
+
+def test_something_not_in_the_library_is_sculpted_instead_of_claimed(api, monkeypatch):
+    calls = []
+
+    async def model(system, content, *args):
+        calls.append(content)
+        if len(calls) == 1:
+            yield '{"op":"spawn","id":"batman","asset":"batman","place":"front"}'
+            yield '{"op":"say","text":"Batman is here."}'
+        else:
+            assert 'NOT in the CATALOG' in content and '"asset":"batman"' in content
+            yield '{"op":"spawn","id":"batman.body","asset":"cube","at":[0,0,4],"tint":"#111111"}'
+            yield '{"op":"spawn","id":"batman.head","asset":"sphere","at":[0,1.5,4],"scale":0.3}'
+            yield '{"op":"say","text":"not wanted"}'
+    monkeypatch.setattr(config, 'OFFLINE', False)
+    monkeypatch.setattr(llm, 'stream_lines', model)
+    result = statements(api.post('/v1/turn', headers={**HEADERS, 'X-User-Pose': '20,5,180'}, json={'text': 'make batman appear'}))
+    assert [s['op'] for s in result] == ['status', 'note', 'status', 'spawn', 'spawn', 'say', 'done']
+    assert [s['asset'] for s in result if s['op'] == 'spawn'] == ['cube', 'sphere']
+    assert all(s['frame'] == [20, 5, 180] for s in result if s['op'] == 'spawn')
+    assert result[-2]['text'] == 'Batman is here.' and result[-1]['outcome'] == 'world_changed'
+    world = main.state.sessions.get('test-session').world
+    assert set(world.things) == {'batman.body', 'batman.head'} and world.count('spawn') == 1
+
+
+def test_a_failed_sculpt_still_leaves_a_marked_stand_in(api, monkeypatch):
+    calls = []
+
+    async def model(*args):
+        calls.append(1)
+        if len(calls) > 1:
+            raise llm.LLMError('provider went away')
+        yield '{"op":"spawn","id":"hero","asset":"batman"}'
+        yield '{"op":"say","text":"Here he is."}'
+    monkeypatch.setattr(config, 'OFFLINE', False)
+    monkeypatch.setattr(llm, 'stream_lines', model)
+    result = statements(api.post('/v1/turn', headers=HEADERS, json={'text': 'make batman appear'}))
+    spawn = next(s for s in result if s['op'] == 'spawn')
+    assert spawn['asset'] == 'batman' and spawn['stand_in'] is True
+    assert [s['op'] for s in result][-2:] == ['say', 'done'] and result[-1]['outcome'] == 'world_changed'
+
+
+def test_clear_everything_forgets_the_whole_world_including_what_was_given():
+    validator, world = Validator(_catalog()), WorldState()
+    for raw in ({'op': 'sky', 'preset': 'morning'}, {'op': 'give', 'id': 'club', 'asset': 'golf_club'},
+                {'op': 'ride', 'asset': 'car'}, {'op': 'player', 'scale': 3}):
+        validator.check(raw, world)
+    validator.check({'op': 'clear'}, world)
+    assert 'club' in world.things and 'ride' in world.globals
+    assert validator.check({'op': 'clear', 'everything': True}, world) == [{'op': 'clear', 'everything': True}]
+    assert world.is_empty()

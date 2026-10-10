@@ -27,6 +27,7 @@ namespace ImagineVR
         TerminalState _stateBefore;
         readonly float[] _meter = new float[512];
         bool _warned;
+        float _peak;   // loudest level heard in this recording: 0 means the microphone gave silence
 
         public bool HasMicrophone => Microphone.devices != null && Microphone.devices.Length > 0;
 
@@ -50,8 +51,10 @@ namespace ImagineVR
 
         void Begin()
         {
+            _peak = 0f;
             if (!HasMicrophone)
             {
+                SessionLog.Write("voice", "what", "no microphone");
                 if (!_warned)
                 {
                     _warned = true;
@@ -64,6 +67,7 @@ namespace ImagineVR
             if (_clip == null) return;
             _recording = true;
             _startedAt = Time.time;
+            SessionLog.Write("voice", "what", "listening", "microphone", _device);
             _stateBefore = Terminal.State == TerminalState.Listening ? TerminalState.Ready : Terminal.State;
             Terminal.SetState(TerminalState.Listening);
             Terminal.SetHint("release to send");
@@ -83,15 +87,29 @@ namespace ImagineVR
 
             if (_clip == null || seconds < MinSeconds || position <= 0)
             {
+                SessionLog.Write("voice", "what", "dropped", "seconds", seconds, "samples", position,
+                    "why", seconds < MinSeconds ? "too short" : "nothing recorded");
                 Terminal.SetState(_stateBefore == TerminalState.Problem ? TerminalState.Ready : _stateBefore);
                 return;
             }
+            SessionLog.Write("voice", "what", "sent", "seconds", seconds, "samples", position, "rate", _clip.frequency, "loudest", _peak);
             var samples = new float[Mathf.Min(position, _clip.samples) * _clip.channels];
             _clip.GetData(samples, 0);
             // the server takes 16 kHz mono only; some microphones ignore the rate they were asked for
             byte[] wav = EncodeWav(ToMono16k(samples, _clip.channels, _clip.frequency), 1, SampleRate);
             Terminal.SetState(TerminalState.Thinking);   // acknowledge straight away
             Conductor.SubmitAudio(wav);
+        }
+
+        /// <summary>Stops listening and throws the recording away.</summary>
+        public void Cancel()
+        {
+            if (!_recording) return;
+            _recording = false;
+            Microphone.End(_device);
+            Terminal.SetMic(0f);
+            Terminal.SetHint(HintText());
+            SessionLog.Write("voice", "what", "cancelled");
         }
 
         public string HintText()
@@ -110,6 +128,7 @@ namespace ImagineVR
             float sum = 0f;
             for (int i = 0; i < _meter.Length; i++) sum += _meter[i] * _meter[i];
             float rms = Mathf.Sqrt(sum / _meter.Length);
+            _peak = Mathf.Max(_peak, Mathf.Clamp01(rms * 9f));
             return Mathf.Clamp01(rms * 9f);
         }
 
