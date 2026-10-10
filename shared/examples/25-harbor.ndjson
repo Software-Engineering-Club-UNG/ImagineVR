@@ -1,0 +1,7 @@
+# A quiet fishing harbour
+{"op":"clear"}
+{"op":"sky","preset":"morning","t":4}
+{"op":"terrain","type":"beach","material":"rock","t":3}
+{"op":"kit","id":"harbor","kit":"harbor","density":0.7,"size":0.7}
+{"op":"ambience","loop":"ocean_waves"}
+{"op":"say","text":"The tide is in and the boats are ready."}

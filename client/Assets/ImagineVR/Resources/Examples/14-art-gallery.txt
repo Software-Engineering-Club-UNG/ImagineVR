@@ -1,0 +1,7 @@
+# I want to paint. Give me an art studio
+{"op":"clear"}
+{"op":"sky","preset":"white_room","t":3}
+{"op":"terrain","type":"flat","material":"marble","t":2}
+{"op":"kit","id":"gallery","kit":"art_gallery","density":0.7}
+{"op":"give","id":"brush","asset":"paintbrush"}
+{"op":"say","text":"The gallery is yours. Take the brush, hold the trigger, and draw in the air."}

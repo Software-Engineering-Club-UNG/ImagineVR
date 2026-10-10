@@ -1,0 +1,9 @@
+# I want a gun and I want to shoot zombies
+{"op":"clear"}
+{"op":"sky","preset":"spooky","t":4}
+{"op":"terrain","type":"flat","material":"dirt","t":3}
+{"op":"kit","id":"stand","kit":"last_stand","density":0.6}
+{"op":"give","id":"blaster","asset":"blaster"}
+{"op":"weather","type":"ash","intensity":0.3}
+{"op":"ambience","loop":"spooky"}
+{"op":"say","text":"They're coming. Grab the blaster and pull the trigger."}

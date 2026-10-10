@@ -1,0 +1,10 @@
+# Put me in a car and let me drive around a farm
+{"op":"clear"}
+{"op":"sky","preset":"golden_hour","t":4}
+{"op":"terrain","type":"rolling","material":"grass","height":0.2,"t":3}
+{"op":"kit","id":"farm","kit":"farm","density":0.6,"size":0.7}
+{"op":"scatter","id":"flock","asset":"sheep","count":8,"area":"front","radius":[10,26],"behavior":"wander"}
+{"op":"scatter","id":"herd","asset":"deer","count":5,"area":"left","radius":[14,30],"behavior":"flee"}
+{"op":"ride","asset":"car","tint":"#D9463D"}
+{"op":"ambience","loop":"birds_breeze"}
+{"op":"say","text":"The car is yours. Push the stick to drive."}

@@ -1,0 +1,8 @@
+# Take me to outer space
+{"op":"clear"}
+{"op":"sky","preset":"deep_space","t":4}
+{"op":"terrain","type":"none"}
+{"op":"physics","gravity":0}
+{"op":"kit","id":"space","kit":"deep_space","density":0.7,"size":0.8}
+{"op":"ambience","loop":"space_hum"}
+{"op":"say","text":"No gravity out here. Give those rocks a push."}

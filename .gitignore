@@ -1,3 +1,42 @@
+# Unity (project lives in client/)
+client/[Ll]ibrary/
+client/[Tt]emp/
+client/[Oo]bj/
+client/[Ll]ogs/
+client/[Uu]ser[Ss]ettings/
+client/[Bb]uild/
+client/[Bb]uilds/
+client/[Mm]emoryCaptures/
+client/[Rr]ecordings/
+client/Snapshots/
+client/*.csproj
+client/*.sln
+client/*.slnx
+client/*.suo
+client/*.user
+client/*.pidb
+client/*.booproj
+client/.vs/
+client/.vscode/
+client/.idea/
+client/.utmp/
+*.apk
+*.aab
+*.unitypackage
+crashlytics-build.properties
+
+# Server
+server/.env
+server/.venv/
+server/.cache/
+__pycache__/
+*.pyc
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.swp
+
 # Terraform state and plans can contain passwords and other credentials.
 **/.terraform/
 *.tfstate

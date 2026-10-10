@@ -1,0 +1,8 @@
+# I want to float above the clouds
+{"op":"clear"}
+{"op":"sky","preset":"dreamy","t":4}
+{"op":"terrain","type":"none"}
+{"op":"physics","gravity":0.4}
+{"op":"kit","id":"clouds","kit":"cloud_kingdom","density":0.7,"size":0.8}
+{"op":"ambience","loop":"zen_chimes"}
+{"op":"say","text":"Nothing below you but cloud."}

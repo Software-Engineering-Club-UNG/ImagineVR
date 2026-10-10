@@ -1,0 +1,6 @@
+# Let us go bowling
+{"op":"clear"}
+{"op":"sky","preset":"night_city","t":3}
+{"op":"terrain","type":"flat","material":"concrete","t":2}
+{"op":"kit","id":"lane","kit":"bowling_alley"}
+{"op":"say","text":"Ten pins, sixteen metres. Grab a ball and let it go."}

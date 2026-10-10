@@ -1,0 +1,7 @@
+# A world made of candy
+{"op":"clear"}
+{"op":"sky","preset":"candy","t":4}
+{"op":"terrain","type":"rolling","material":"candy","height":0.25,"t":3}
+{"op":"kit","id":"candy","kit":"candyland","density":0.7,"size":0.7}
+{"op":"weather","type":"sparkles","intensity":0.4}
+{"op":"say","text":"Everything here is edible. Probably."}
