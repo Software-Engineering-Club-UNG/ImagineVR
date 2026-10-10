@@ -1,6 +1,6 @@
 {
   "language_version": 1,
-  "catalog_version": "1.242.cf185c0d",
+  "catalog_version": "1.242.7e663205",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
@@ -615,7 +615,7 @@
       "id": "synthwave",
       "desc": "A retro-future highway: glowing grid to the horizon, a huge low sun, neon palms, purple mountains",
       "tags": ["retro", "neon", "80s", "vaporwave", "outrun", "grid", "cyber"],
-      "aliases": ["vaporwave", "outrun", "retrowave", "80s", "neon grid", "tron"],
+      "aliases": ["retro", "retro world", "vaporwave", "outrun", "retrowave", "80s", "eighties", "neon grid", "neon world", "tron", "arcade"],
       "defaults": {
         "sky": "synthwave",
         "terrain": {
@@ -678,6 +678,24 @@
         "enemy": "any character or animal asset id: zombie (default), robot, alien, skeleton, knight, t_rex ..."
       },
       "greeting": "They're coming. Grab the blaster and pull the trigger."
+    },
+    {
+      "id": "maze",
+      "desc": "A maze to find your way out of: solid walls you cannot walk through, you start in the middle, and a flag marks the way out. Size sets how big (7 to 15 cells across)",
+      "tags": ["maze", "labyrinth", "puzzle", "walls", "lost", "explore", "game"],
+      "aliases": ["labyrinth", "hedge maze", "corn maze", "maze runner", "puzzle"],
+      "defaults": {
+        "sky": "golden_hour",
+        "terrain": {
+          "type": "flat",
+          "material": "grass"
+        },
+        "ambience": "birds_breeze"
+      },
+      "params": {
+        "walls": "hedge (default), stone, neon or ice"
+      },
+      "greeting": "You're in the middle. The flag is the way out."
     },
     {
       "id": "candyland",

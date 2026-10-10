@@ -42,6 +42,7 @@ namespace ImagineVR
         int _revealing;                // index of the line currently being typed
         TerminalState _state = TerminalState.Ready;
         string _verb = "Ready", _hintText = "", _detail = "";
+        int _verbStart;
         float _stateSince, _mic, _glow, _lastTick;
         readonly float[] _micHistory = new float[14];
         bool _dirty = true;
@@ -306,6 +307,15 @@ namespace ImagineVR
             if (_toolbar != null) _toolbar.Highlight("say");
         }
 
+        /// <summary>The model's plan, said to itself before it starts building: dim, slanted, typed out.</summary>
+        public void Think(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            List<string> parts = Wrap(Plain(text), _cols - 2);
+            for (int i = 0; i < parts.Count; i++)
+                Add((i == 0 ? Tag(Dim, Spark) + " " : "  ") + Tag(Dim, "<i>" + parts[i] + "</i>"), 2 + parts[i].Length, 70f, true);
+        }
+
         public void Note(string text)
         {
             AddWrapped("  " + Tag(Faint, Elbow) + " ", 4, Dim, text, 300f);
@@ -337,6 +347,7 @@ namespace ImagineVR
             if (state != _state || detail != null) _stateSince = Time.time;
             _state = state;
             _detail = detail ?? "";
+            _verbStart = Random.Range(0, 7);
             switch (state)
             {
                 case TerminalState.Thinking: _verb = ThinkingVerbs[Random.Range(0, ThinkingVerbs.Length)]; break;
@@ -372,8 +383,12 @@ namespace ImagineVR
                 }
                 case TerminalState.Thinking:
                 case TerminalState.Building:
+                {
+                    string[] verbs = _state == TerminalState.Thinking ? ThinkingVerbs : BuildingVerbs;
+                    _verb = verbs[(_verbStart + Mathf.FloorToInt(elapsed / 3.5f)) % verbs.Length];
                     text = Tag(Accent, spin) + " " + Tag(Accent, _verb + Ellipsis) + Tag(Dim, " (" + Mathf.FloorToInt(elapsed) + "s)");
                     break;
+                }
                 case TerminalState.Problem:
                     text = Tag(Red, Cross) + " " + Tag(Red, _detail.Length > 0 ? Plain(_detail) : "Something went wrong");
                     break;
@@ -607,7 +622,7 @@ namespace ImagineVR
             string tool = op;
             if (op == "light" || op == "fog") tool = "sky";
             else if (op == "ambience" || op == "physics") tool = "weather";
-            else if (op == "modify" || op == "remove" || op == "clear" || op == "ride") tool = "spawn";
+            else if (op == "modify" || op == "remove" || op == "clear" || op == "ride" || op == "goal" || op == "player") tool = "spawn";
             for (int i = 0; i < Tools.Length; i++) if (Tools[i] == tool) _heat[i] = 1f;
         }
 

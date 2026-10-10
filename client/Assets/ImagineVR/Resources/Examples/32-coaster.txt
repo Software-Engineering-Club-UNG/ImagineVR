@@ -1,0 +1,9 @@
+# Build me a roller coaster through a canyon
+{"op":"clear"}
+{"op":"sky","preset":"golden_hour","t":4}
+{"op":"terrain","type":"canyon","material":"rock","height":0.6,"t":3}
+{"op":"scatter","id":"cacti","asset":"cactus","count":40,"area":"around","radius":[10,80]}
+{"op":"spawn","id":"balloon","asset":"hot_air_balloon","path":[[-40,30,60],[40,36,80],[60,28,-20],[-50,34,-40]],"speed":3}
+{"op":"ride","asset":"car","tint":"#E5484D","speed":1.4,"path":[[0,1,0],[0,6,20],[14,16,38],[36,22,44],[54,10,30],[58,3,6],[44,14,-18],[18,24,-30],[-10,12,-26],[-24,4,-10],[-14,1,2]]}
+{"op":"ambience","loop":"wind"}
+{"op":"say","text":"Hold on. First drop's the big one."}

@@ -176,6 +176,46 @@ namespace ImagineVR
             return true;
         }
 
+        public const int MaxSolids = 240;
+
+        /// <summary>
+        /// Gives one placement a body, so the user cannot walk or drive through it and thrown things
+        /// bounce off it. Scenery has none by default: a forest of colliders would cost too much.
+        /// </summary>
+        public void Solidify(Group g, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale)
+        {
+            if (!Application.isPlaying) return;
+            int solids = 0;
+            foreach (Group other in _order) foreach (GameObject extra in other.Extras) if (extra != null && extra.name == "Solid") solids++;
+            if (solids >= MaxSolids) return;
+            Bounds b = def.Bounds;
+            var go = new GameObject("Solid");
+            go.transform.SetParent(_world.transform, false);
+            go.transform.SetPositionAndRotation(new Vector3(position.x, _world.Terrain.HeightAt(position.x, position.z) + position.y, position.z), rotation);
+            go.transform.localScale = scale;
+            BoxCollider box = go.AddComponent<BoxCollider>();
+            box.center = b.center;
+            box.size = Vector3.Max(b.size, Vector3.one * 0.05f);
+            box.sharedMaterial = PropSystem.Bouncy(0.2f);
+            g.Extras.Add(go);
+        }
+
+        /// <summary>
+        /// A spot where something happens: the user arriving (a finish line), or the right thing
+        /// landing there (a ball in a goal). It has no look of its own; put a flag or a net beside it.
+        /// </summary>
+        public void Goal(Statement s)
+        {
+            if (!s.TryVec3("at", out Vector3 at)) return;
+            Group g = Begin(s.Str("id"), "goal", s, 0.3f);
+            if (!Application.isPlaying) return;
+            float radius = Mathf.Clamp(s.Num("radius", 2f), 0.3f, 20f);
+            string who = s.Str("for", "user"), text = s.Str("text", "Made it");
+            var position = new Vector3(at.x, _world.Terrain.HeightAt(at.x, at.z) + at.y, at.z);
+            g.Extras.Add(who == "user" ? ImagineVR.Goal.Create(_world, position, radius, text)
+                : ScoreZone.Create(_world, position, radius, who == "any" ? "" : who, text));
+        }
+
         static float Fit(AssetDef def)
         {
             Bounds b = def.Bounds;
@@ -230,8 +270,17 @@ namespace ImagineVR
             Group g = Begin(s.Str("id"), "spawn", s, s.T(0.9f));
             if (s.TryColor("tint", out Color tint)) g.Tint = tint;
             g.Motion = MotionFor(s.Str("motion", "none"), def);
-            if (!Enliven(g, def, pos, scale.y, s.Str("behavior")))
+            if (Application.isPlaying && s.TryPath("path", out List<Vector3> points))
+            {
+                // it travels: a car in traffic, a rival on a track, a ship crossing the bay
+                var route = new Route(points, s.Flag("loop", true));
+                g.Extras.Add(Mover.Create(_world, def, route, Mathf.Clamp(s.Num("speed", 4f), 0.1f, 40f), s.Num("start", 0f), scale, g.Tint));
+            }
+            else if (!Enliven(g, def, pos, scale.y, s.Str("behavior")))
+            {
                 g.Add(new Placement { Mesh = def.Mesh, Position = pos, Rotation = rot, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
+                if (s.Flag("solid")) Solidify(g, def, pos, rot, scale);
+            }
             if (standIn) _world.AddLabel(g, name.Replace('_', ' '), pos, def.Bounds.size.y * scale.y + 0.35f);
             return g;
         }
@@ -267,8 +316,8 @@ namespace ImagineVR
         void Populate(Group g, Statement s, AssetDef def, int count)
         {
             g.Items.Clear();
-            foreach (GameObject extra in g.Extras) if (extra != null && extra.GetComponent<Creature>() != null) UnityEngine.Object.Destroy(extra);
-            g.Extras.RemoveAll(extra => extra == null || extra.GetComponent<Creature>() != null);
+            foreach (GameObject extra in g.Extras) if (extra != null && (extra.name == "Solid" || extra.GetComponent<Creature>() != null)) UnityEngine.Object.Destroy(extra);
+            g.Extras.RemoveAll(extra => extra == null || extra.name == "Solid" || extra.GetComponent<Creature>() != null);
             string area = s.Str("area", def.Airborne ? "sky" : "around");
             int seed = s.Has("seed") ? s.Int("seed") : (g.Id.GetHashCode() & 0x7FFFFFFF);
             var rng = new System.Random(seed);
@@ -325,6 +374,7 @@ namespace ImagineVR
                 float yaw = (float)rng.NextDouble() * 360f;
                 if (Enliven(g, def, pos, scale, s.Str("behavior"))) continue;
                 var p = new Placement(def.Mesh, pos, yaw, scale, Color.white) { OnWater = def.OnWater };
+                if (s.Flag("solid") && !sky) Solidify(g, def, pos, p.Rotation, p.Scale);
                 g.Items.Add(p);
             }
             g.Dirty = true;

@@ -27,8 +27,8 @@ scripts/  unity.ps1, a Windows wrapper for Unity command-line runs
 
 The contracts between the two halves are in `specs/001-voice-world-builder/contracts/`
 (`server-api.md`, `scene-language.md`, `catalog.md`). `scene-language.md` and `catalog.md` lag
-the code: they do not yet describe `weather`, `physics`, `ride`, `behavior`, vector `scale` and `rot`, or
-dotted ids.
+the code: they do not yet describe `weather`, `physics`, `ride`, `goal`, `player`, `behavior`, `solid`, `path`, vector `scale`
+and `rot`, or dotted ids. `server/imagine/prompt.md` is the current reference.
 
 ## Setting up a machine
 
@@ -63,19 +63,23 @@ Things to know:
 - WAV is decoded by hand in `stt.py` because faster-whisper's decoder breaks with the current
   PyAV.
 - On Windows use `127.0.0.1`, not `localhost` (two-second IPv6 delay).
-- `server/deploy/` is empty. Deployment to Vultr is not written yet.
+- This server is not deployed yet. The Vultr pipeline currently ships the starter in
+  `openrouter-api/`; `server/DEPLOY.md` says how to point it at this server instead.
+- `uv run scripts/smoke.py` checks a running server against the things people actually say.
+  Run it after adding an OpenRouter key and after changing `prompt.md`.
 
 ## Client
 
 Open `client/` in Unity 6000.3.26f1, open `Assets/ImagineVR/Scenes/Main`, press Play. No
 headset, server or keys are needed for the built-in demos.
 
-- **F1** to **F8** play built-in demos, **B** cycles through all 30, **F12** returns to the
+- **F1** to **F8** play built-in demos, **B** cycles through all 32, **F12** returns to the
   dark room.
 - Hold the **right mouse button** to look around.
 - **Enter** types a request and **Space** speaks one (both need the server), **E** grabs,
   **left click** uses the held thing, **R** recentres the terminal.
-- **W A S D** drives whatever you are riding (the right thumbstick in the headset).
+- **W A S D** walks you around, or drives whatever you are riding (the right thumbstick in
+  the headset).
 
 The server URL and app token are in the `ImagineSettings` asset
 (`client/Assets/ImagineVR/Resources/`). The token must match `IMAGINE_APP_TOKEN`.
@@ -140,7 +144,8 @@ client/Assets/ImagineVR/
     World/      World (dispatches statements), SkySystem, TerrainSystem, ObjectSystem
                 (instanced groups: spawn, scatter, modify, remove), PropSystem (physics props,
                 give, paint strokes, ScoreZone), Creature (`behavior`: living things that
-                chase, wander or flee and fall when hit), WeatherSystem
+                chase, wander or flee and fall when hit), Mover (`path`: things that travel
+                a route), WeatherSystem
     Audio/      Sfx (synthesised effects), AmbienceSystem
     Library/    MeshBuilder (the modelling toolkit), Library (registry, lookup, colours),
                 Assets.*.cs (recipes)

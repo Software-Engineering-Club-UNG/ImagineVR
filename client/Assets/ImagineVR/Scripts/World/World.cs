@@ -93,6 +93,8 @@ namespace ImagineVR
                 case "scatter": EnsureLight(); Objects.Scatter(s); break;
                 case "give": Props.Give(s); break;
                 case "ride": EnsureLight(); if (Vehicle != null) Vehicle.Apply(s); break;
+                case "goal": Objects.Goal(s); break;
+                case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
                 case "modify": Objects.Modify(s); Props.Modify(s); break;
                 case "remove": Objects.Remove(s); Props.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
@@ -146,7 +148,7 @@ namespace ImagineVR
             Terrain.Clear(seconds);
             Sky.Reset(seconds);
             _clearGroundAtTurnEnd = false;
-            if (Vehicle != null) { Vehicle.Dismount(); Vehicle.Home(); }
+            if (Vehicle != null) { Vehicle.Dismount(); Vehicle.Resize(1f); Vehicle.Home(); }
         }
 
         /// <summary>A floating name tag, used above stand-in shapes.</summary>

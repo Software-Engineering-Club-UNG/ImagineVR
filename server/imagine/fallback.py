@@ -28,6 +28,8 @@ SKY_WORDS = [
     (("aurora", "northern lights"), ("aurora_night", "night_stars")),
     (("alien", "another planet"), ("alien_dusk",)),
     (("spooky", "creepy", "scary", "eerie", "haunted"), ("spooky", "moonlit")),
+    (("fog", "foggy", "mist", "misty"), ("foggy_morning", "overcast")),
+    (("kill the lights", "kill the light", "lights off", "turn off the lights", "turn the lights off", "lights out"), ("night_stars", "moonlit")),
 ]
 
 WEATHER_WORDS = [
@@ -49,7 +51,7 @@ GRAVITY_WORDS = [
 ]
 
 NEW_PLACE = re.compile(r"\b(put me|take me|i want to (see|be|go)|i'd like to (see|be|go)|show me|bring me|go to|now a|let's go|teleport|transport|i wanna (see|be|go))\b")
-GIVE = re.compile(r"\b(give me|hand me|make me|i want to hold|let me hold|i need|can i have|can i get|i want)\b")
+GIVE = re.compile(r"\b(give me|hand me|make me|i want to hold|let me hold|i need|can i have|can i get|could i have|could i get|gib me|i want)\b")
 MORE = re.compile(r"\b(more|add|another|some|lots of|a few|many|bunch of)\b")
 REMOVE = re.compile(r"\b(remove|delete|get rid of|take away|no more|without)\b")
 CLEAR = re.compile(r"\b(clear (it|everything|the world|all)|start over|start again|reset|back to (the )?dark|empty (it|the world)|(get rid of|remove|delete|erase|wipe) (everything|it all|all of it|the world))\b")
@@ -57,13 +59,13 @@ SEVERAL = re.compile(r"\b(more|some|lots of|a few|many|bunch of|several|loads of
 BIGGER = re.compile(r"\b(bigger|larger|huge|giant|enormous|taller|grow)\b")
 SMALLER = re.compile(r"\b(smaller|tiny|little|shorter|shrink)\b")
 FEWER = re.compile(r"\b(fewer|less|not so many|too many)\b")
-ADJUST = re.compile(r"^(now |please |can you |could you )?(make|turn|let) it\b")
+ADJUST = re.compile(r"\b(make|turn|let) it\b|\b(change|make|turn|set) the sky\b|\blights? (off|out)\b|\bthe lights?\b")
 ABOUT_LIMITS = re.compile(r"\b(save|load|undo|redo|a limit|how (much|many)|multiplayer|my friends? join)\b")
 DECLINE = re.compile(r"\b(bomb|bombs|explosive|explosives|blow up|naked|nude|porn|sex|sexy|hitler|nazi|nazis|kkk|suicide|terrorist|rape|torture|behead|drugs|cocaine|meth)\b")
 EVERYDAY = frozenset("""hello there where their about would could should think thing things going really around
     something please right great other these those which while world every never always maybe still again being
     doing having looks stuff place little night light today sound sounds first three seven eight front behind
-    under above after before whole build create remove change bigger smaller fewer quiet scary happy""".split())
+    under above after before whole stairs outside middle video honestly maybe build create remove change bigger smaller fewer quiet scary happy""".split())
 THANKS = re.compile(r"^(thanks|thank you|cheers|ta|nice one|good job|well done|perfect|love it)\b")
 SPOKEN = ("snowing", "raining", "sunset", "sunrise", "night", "morning", "gravity", "bigger", "smaller", "remove", "zombie", "zombies")
 
@@ -71,8 +73,8 @@ SPOKEN = ("snowing", "raining", "sunset", "sunrise", "night", "morning", "gravit
 GREETING = re.compile(r"^(hi|hello|hey|heya|hiya|yo|sup|howdy|greetings|good (morning|afternoon|evening|night)|thanks|thank you|cheers|bye|goodbye|see you|what s up|whats up|how are you|how s it going|hows it going|how is it going|nice to meet you)\b")
 ABOUT = re.compile(r"\b(what can (you|i) (do|say|ask|make|build)|what do you do|who are you|what are you|what is this|how does this work|how do i|can you hear me|are you there|what should i (say|do))\b|^help( me)?$")
 QUESTION = re.compile(r"^(what|why|how|who|when|where|which|is|are|am|do|does|did|was|were|will|would|should|have|has)\b")
-INTENT = re.compile(r"\b(i want|i wanna|i d like|i would like|i need|give me|hand me|get me|make|show me|put|take me|bring|build|create|add|spawn|let s|lets|let me|can i|can you|could you|will you|please|more|another|some|lots of|go to|teleport|change|turn|set|remove|delete|get rid|drive|ride|fly|sail|imagine|picture|how about|what about|now|place|drop|generate|surround|fill|i m in|im in|stop|start|reset|clear)\b")
-CHATTER = re.compile(r"\b(my|he|she|they|we|you|your|his|her|their|our|yesterday|tomorrow|last (week|night|year|time)|did|was|were|said|says|told|think|thought|remember|went|guess|know|knew|heard|saw|feel|felt|should have|supposed)\b")
+INTENT = re.compile(r"\b(i want|i wanna|i d like|i would like|i need|give me|hand me|get me|make|show me|put|take me|bring|build|create|add|spawn|let s|lets|let me|can i|can you|can we|could you|could i|could we|will you|please|more|another|some|lots of|go to|teleport|remove|delete|get rid|drive|ride|fly|sail|imagine|picture|how about|what about|generate|surround|fill|i m in|im in|start over|reset|clear)\b")
+CHATTER = re.compile(r"\b(my|he|she|they|we|you|your|his|her|their|our|yesterday|tomorrow|today|last (week|night|year|time)|did|was|were|said|says|told|think|thought|remember|went|guess|know|knew|heard|saw|feel|felt|should have|supposed|i m|im|i am|gonna|talking|listen|that s|dude|bro|haha|lol|ugh|dang|shh|no way|look|looked|looks|video)\b")
 FILLER = frozenset("""um uh er erm hmm hm mm oh ah aha wow whoa woah cool nice awesome amazing sick dope lol haha ha hehe ok okay
     yeah yep yes yup no nope nah wait so well this that is it s its really very pretty great good neat sweet man dude
     bro wild crazy insane incredible beautiful gorgeous love i like alright right one sec second hold on hang test
@@ -80,11 +82,11 @@ FILLER = frozenset("""um uh er erm hmm hm mm oh ah aha wow whoa woah cool nice a
     huh what hm fine sure whatever sorry oops nothing here there we go all done yay""".split())
 
 # --- getting about, and picking a fight
-RIDE = re.compile(r"\b(drive|driving|ride|riding|get in|get into|hop in|hop on|jump in|get on|climb (in|on|into|onto)|pilot|steer|race|racing|cruise|(i|me|us|we) (want to |wanna |can |could |get to |d like to |would like to )?fly|let (me|us|s) fly|fly (a|an|the|my|me|around|over|through|away|up)|sail|sailing|behind the wheel|take a (drive|ride|spin|flight)|go for a (drive|ride|spin|flight))\b")
-STOP_RIDE = re.compile(r"\b(get out|get off|hop out|hop off|climb (out|off)|stop (driving|riding|flying|sailing|the car)|park (it|the car|here)|on foot|i want to walk|let me walk|dismount)\b")
+RIDE = re.compile(r"\b(take me for a (spin|ride|drive|flight)|drive|driving|ride|riding|get in|get into|hop in|hop on|jump in|get on|climb (in|on|into|onto)|pilot|steer|race|racing|cruise|(i|me|us|we) (want to |wanna |can |could |get to |d like to |would like to )?fly|let (me|us|s) fly|fly (a|an|the|my|me|around|over|through|away|up)|sail|sailing|behind the wheel|take a (drive|ride|spin|flight)|go for a (drive|ride|spin|flight))\b")
+STOP_RIDE = re.compile(r"\b(let me (out|off)|i want (out|off)|get me out|get out|get off|hop out|hop off|climb (out|off)|stop (driving|riding|flying|sailing|the car)|park (it|the car|here)|on foot|i want to walk|let me walk|dismount)\b")
 FIGHT = re.compile(r"\b(shoot|shooting|fight|fighting|battle|kill|slay|defend|blast|attack|attacked|attacking|survive|hunt|hunting|destroy|defeat|take on)\b")
 CREATURES = ("people", "animals")
-RIDEABLE = ("vehicles", "animals")
+RIDEABLE = ("vehicles", "animals", "sea")
 
 NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
@@ -151,11 +153,14 @@ _VOCAB: dict[int, set[str]] = {}
 
 def _heard(t: str, catalog: Catalog) -> str:
     """Nudges misheard or misspelt words onto words the catalog knows ("gitar" -> "guitar")."""
-    vocab = _VOCAB.setdefault(id(catalog), catalog.vocabulary() | set(SPOKEN))
+    vocab = _VOCAB.get(id(catalog))
+    if vocab is None:
+        spoken = {w for phrases, _ in SKY_WORDS + WEATHER_WORDS for phrase in phrases for w in phrase.split()}
+        vocab = _VOCAB[id(catalog)] = catalog.vocabulary() | set(SPOKEN) | spoken
     fixed = []
     for w in t.split():
         if len(w) >= 5 and w not in EVERYDAY and w not in vocab and w.rstrip("s") not in vocab and not INTENT.fullmatch(w) and w not in FILLER:
-            close = difflib.get_close_matches(w, vocab, n=1, cutoff=0.8)
+            close = difflib.get_close_matches(w, [v for v in vocab if v[0] == w[0]], n=1, cutoff=0.84)
             w = close[0] if close else w
         fixed.append(w)
     return " ".join(fixed)
@@ -191,6 +196,8 @@ def _place(catalog: Catalog, t: str, world: WorldState, rng: random.Random, sky_
     out: list[dict] = []
     entry = catalog.get("kit", kit_id) or {}
     defaults = entry.get("defaults") or {}
+    plan = str(entry.get("desc", kit_id.replace("_", " "))).split(": ")[0].split(". ")[0].rstrip(".")
+    out.append({"op": "think", "text": plan[:1].upper() + plan[1:] + ". Sky first, then the ground, then the rest."})
     if not world.is_empty():
         out.append({"op": "clear"})
     out.append({"op": "sky", "preset": sky_preset or defaults.get("sky") or _first_existing(catalog, "sky", ("clear_noon",)) or catalog.ids("sky")[0], "t": 3})
@@ -242,7 +249,7 @@ def compose(text: str, catalog: Catalog, world: WorldState) -> list[dict]:
 
     # --- weather and gravity
     weather = next((w for phrases, w in WEATHER_WORDS if _has(t, phrases) and catalog.has("weather", w)), None)
-    stop_weather = bool(re.search(r"\b(stop|no more|clear up)\b.*\b(rain|snow|weather)\b", t))
+    stop_weather = bool(re.search(r"\b(stop|no more|clear up|remove|get rid of|take away)\b.*\b(rain|raining|snow|snowing|weather)\b", t))
     gravity = next((g for phrases, g in GRAVITY_WORDS if _has(t, phrases)), None)
 
     # --- remove something already in the world
@@ -289,11 +296,23 @@ def compose(text: str, catalog: Catalog, world: WorldState) -> list[dict]:
     if STOP_RIDE.search(t) and "ride" in world.globals:
         return [{"op": "ride", "asset": "none"}, {"op": "say", "text": "Back on your feet."}]
 
+    riding = world.globals.get("ride")
+    if riding:
+        pace = 1.6 if re.search(r"\b(faster|speed up|floor it|hurry)\b", t) else 0.6 if re.search(r"\b(slower|slow down)\b", t) else None
+        if pace:
+            speed = max(0.2, min(3.0, round(float(riding.get("speed", 1.0)) * pace, 2)))
+            return [{**{k: v for k, v in riding.items() if k != "t"}, "speed": speed}, {"op": "say", "text": "Faster it is." if pace > 1 else "Easing off."}]
+        swap = _named(catalog, t, RIDEABLE) if re.search(r"\b(change|switch|swap|trade)\b", t) else None
+        if swap:
+            return [{"op": "ride", "asset": swap}, {"op": "say", "text": f"Swapped for the {swap.replace('_', ' ')}."}]
+
     # --- driving, riding, flying: optionally somewhere new ("drive a car through the desert")
-    if RIDE.search(t):
+    # "put me in a car" is a ride; "put me in a city" is a place
+    if RIDE.search(t) or (re.search(r"\bput me (in|on)\b", t) and _named(catalog, t, RIDEABLE)):
         vehicle = _named(catalog, t, RIDEABLE)
-        if vehicle is None:
-            vehicle = next((v for v in ("airplane", "hot_air_balloon") if _named(catalog, t, ("sky",)) == v), None)
+        if vehicle is None:   # a few things from other shelves that are plainly for riding
+            vehicle = next((v for v in ("airplane", "hot_air_balloon", "rocket", "ufo", "skateboard")
+                            if re.search(rf"\b{v.replace('_', ' ')}s?\b", t) and catalog.has("asset", v)), None)
         if vehicle is None:
             flying = re.search(r"\b(fly|flying|flight|pilot)\b", t)
             vehicle = _first_existing(catalog, "asset", ("airplane",) if flying else ("car",)) or "car"
@@ -308,6 +327,11 @@ def compose(text: str, catalog: Catalog, world: WorldState) -> list[dict]:
         out.append({"op": "ride", "asset": vehicle})
         out.append({"op": "say", "text": f"The {vehicle.replace('_', ' ')} is yours. Push the stick to drive, or use W A S D."})
         return out
+
+    if re.search(r"\b(make|tell) (them|it|him|her) stop\b|\bcall (them|it) off\b", t):
+        horde = [tid for tid, stmt in world.things.items() if stmt.get("behavior") or stmt.get("kit") == "last_stand"]
+        if horde:
+            return [{"op": "remove", "id": tid} for tid in horde] + [{"op": "say", "text": "They're gone."}]
 
     # --- something to fight: creatures that come at the user, and something to fight them with
     enemy = _named(catalog, t, CREATURES) if FIGHT.search(t) else None
@@ -356,11 +380,15 @@ def compose(text: str, catalog: Catalog, world: WorldState) -> list[dict]:
             return out
 
     # --- a whole place
-    adjusting = bool(ADJUST.search(t)) and not world.is_empty() and bool(sky_preset or weather or gravity is not None)
+    tweak = bool(sky_preset or weather or gravity is not None)
+    adjusting = stop_weather or (bool(ADJUST.search(t)) and tweak and (not world.is_empty() or "light" in t))
     if best_kit and (best_kit[1] >= 3.0) and not adjusting and not (MORE.search(t) and best_asset and best_asset[1] > best_kit[1]):
         kit_id = best_kit[0]
         entry = catalog.get("kit", kit_id) or {}
         out += _place(catalog, t, world, rng, sky_preset, weather, gravity, kit_id)
+        blaster = _first_existing(catalog, "asset", ("blaster",))
+        if kit_id == "last_stand" and blaster and not any(s["op"] == "give" for s in world.things.values()):
+            out.append({"op": "give", "id": world.next_id("give", blaster), "asset": blaster})
         out.append({"op": "say", "text": entry.get("greeting") or f"Here is your {kit_id.replace('_', ' ')}."})
         return out
 
@@ -390,14 +418,15 @@ def compose(text: str, catalog: Catalog, world: WorldState) -> list[dict]:
                     "place": "front", "distance": max(4.0, float(entry.get("size_m", 1)) * 1.5)}
         if entry.get("prop") and re.search(r"\b(throw|kick|hit|push|play|bounce|knock|stack)\b", t):
             stmt["physics"] = True
-        if entry.get("category") in CREATURES and re.search(r"\b(wander\w*|roam\w*|walk\w*|run|runs|running|moving|move|alive|graz\w*|follow\w*|chas\w*|come|comes|coming)\b", t):
-            stmt["behavior"] = "chase" if re.search(r"\b(follow\w*|chas\w*|come|comes|coming)\b", t) else "wander"
+        if entry.get("category") in CREATURES and re.search(r"\b(away|scared|shy|flee\w*|wander\w*|roam\w*|walk\w*|run|runs|running|moving|move|alive|graz\w*|follow\w*|chas\w*|come|comes|coming)\b", t):
+            stmt["behavior"] = ("flee" if re.search(r"\b(run(s|ning)? away|stay(s)? away|keep(s)? away|scared|shy|flee\w*|bolt\w*)\b", t)
+                                else "chase" if re.search(r"\b(follow\w*|chas\w*|come|comes|coming)\b", t) else "wander")
         if color:
             stmt["tint"] = color
         out.append(stmt)
 
-    if not out and not re.search(r"\b(i want|i wanna|i d like|i would like|i need|give me|hand me|get me|make|show me|put|take me|build|create|add|spawn|can you|could you)\b", t):
-        return [{"op": "outcome", "value": "ignored"}]   # nothing was asked for, so nothing is the answer
+    if not out and len(t.split()) > 4 and not re.search(r"\b(i want|i wanna|i d like|i would like|i need|give me|hand me|get me|make|show me|put|take me|build|create|add|spawn|can you|could you)\b", t):
+        return [{"op": "outcome", "value": "ignored"}]   # a long remark with no request in it: nothing is the answer
     if not out:
         return [{"op": "say", "text": "I'm running without my AI model right now, so I only understand simple "
                                       "requests. Try naming a place, like a city, a forest, or a golf course."},

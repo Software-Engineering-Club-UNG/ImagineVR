@@ -35,7 +35,8 @@ _WORD = re.compile(r"[a-z0-9]+")
 
 
 # words too common to say anything about what was asked for ("the woods" must not match every "the")
-_STOP = frozenset("a an the of in on at to by for with and or it is me my i you some this that be do can".split())
+_STOP = frozenset("a an the of in on at to by for with and or it is me my i you some this that be do can "
+                  "just should there stand stands them they so too".split())
 
 
 def words(text: str) -> list[str]:
@@ -43,11 +44,17 @@ def words(text: str) -> list[str]:
 
 
 def _stem(word: str) -> str:
-    if len(word) > 4 and word.endswith("ie"):  # "zombie" must meet "zombies" (-> "zomby")
+    """Singular and plural must land on the same string; it need not be a real word."""
+    if len(word) > 4 and word.endswith("ie"):  # zombie = zombies (-> "zomby")
         return word[:-2] + "y"
-    for suffix in ("ies", "es", "s"):
-        if len(word) > len(suffix) + 2 and word.endswith(suffix):
-            return word[: -len(suffix)] + ("y" if suffix == "ies" else "")
+    if len(word) > 5 and word.endswith("ies"):  # berries -> berry
+        return word[:-3] + "y"
+    if len(word) > 4 and word.endswith("ves"):  # wolves -> wolf
+        return word[:-3] + "f"
+    if len(word) > 4 and word.endswith(("ses", "xes", "zes", "ches", "shes")):  # boxes -> box
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):  # pirates -> pirate, trees -> tree
+        return word[:-1]
     return word
 
 
@@ -134,7 +141,7 @@ class Catalog:
         spaced = " " + " ".join(words(text)) + " "  # whole words only: "hell" is not in "hello"
         scored = []
         for eid, id_words, aliases, other_words in self._index[kind]:
-            alias_hit = any(f" {p} " in spaced or f" {p}s " in spaced for p in (a.replace("_", " ") for a in aliases))
+            alias_hit = any(f" {p} " in spaced or f" {p}s " in spaced for p in [a.replace("_", " ") for a in aliases] + [eid.replace("_", " ")])
             score = 3.0 * len(query & id_words) + 1.5 * len(query & other_words) + (4.0 if alias_hit else 0.0)
             if id_words and id_words <= query:
                 score += 3.0

@@ -104,7 +104,7 @@ async def run_turn(
                         said.append(stmt["text"])
                         if tts.enabled():
                             stmt["audio"] = f"{base_url}/v1/audio/{tts.start(stmt['text'])}"
-                    elif kind != "note":
+                    elif kind not in ("note", "think"):
                         if not building:
                             building = True
                             first_at = time.perf_counter() - started
@@ -129,10 +129,11 @@ async def run_turn(
             yield {"op": "say", "text": "I couldn't work out how to build that. Try saying it another way."}
             hinted = hinted or "not_understood"
 
-        session.history.append((text, " ".join(said)[:300]))
+        outcome = hinted or ("world_changed" if changed else "object_given" if gave else "answered")
+        if outcome != "ignored":  # chatter that was not for us should not colour the next request
+            session.history.append((text, " ".join(said)[:300]))
         session.touch()
 
-        outcome = hinted or ("world_changed" if changed else "object_given" if gave else "answered")
         log.info(
             "turn %r -> %s, %d statements, first change %s, total %.2fs",
             text, outcome, emitted,
