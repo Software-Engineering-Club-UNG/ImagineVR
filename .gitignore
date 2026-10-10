@@ -1,0 +1,23 @@
+# Terraform state and plans can contain passwords and other credentials.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local credentials and private keys.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python development files.
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
