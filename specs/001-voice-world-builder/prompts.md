@@ -106,8 +106,8 @@ Follow the Build order in plan.md so main is always demoable. No automated test 
 
 ### `/speckit-implement`
 
-Not run as a command. The implementation was done directly from `tasks.md`; see `STATUS.md`
-at the repository root for what was built and where it stopped.
+Not run as a command. The implementation was done directly from `tasks.md`; see `README.md`
+at the repository root for what was built and what has been tested.
 
 ## Part 3: Redoing it from scratch
 
