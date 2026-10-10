@@ -1,0 +1,8 @@
+# Build me a medieval castle
+{"op":"clear"}
+{"op":"sky","preset":"golden_hour","t":4}
+{"op":"terrain","type":"rolling","material":"grass","height":0.15,"t":3}
+{"op":"kit","id":"castle","kit":"castle","density":0.6,"size":0.8}
+{"op":"scatter","id":"birds","asset":"bird","count":8,"area":"sky","motion":"orbit"}
+{"op":"ambience","loop":"wind","volume":0.4}
+{"op":"say","text":"The gates are open. The keep is straight ahead."}

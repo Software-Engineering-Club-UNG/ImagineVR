@@ -22,6 +22,17 @@ The MacBook needs, before any of this runs:
 `client/Library/`, `client/Temp/`, `client/Logs/`, `client/Snapshots/` and `server/.venv/` are
 caches. They do not need to be copied; Unity and `uv` rebuild them.
 
+## Do this first: export the catalog
+
+`shared/catalog.json` is **out of date**. It lists 54 assets and 2 kits; the code now has 251
+assets and 30 kits. The last export failed because Unity Hub had been closed and the editor
+could not find its licence. Until it is re-exported, the server (and so the AI) only knows the
+old, small vocabulary.
+
+Open the project in Unity and choose **ImagineVR > Export Catalog**. Commit the result and
+restart the server. The 28 demo scripts were copied into the app by hand, so the F-key demos
+work without this step.
+
 ## Try it in two minutes (no headset, no server, no keys)
 
 1. Open `client/` in Unity 6000.3.26f1, open `Assets/ImagineVR/Scenes/Main`, press Play.

@@ -1,0 +1,7 @@
+# Give me an 80s synthwave world
+{"op":"clear"}
+{"op":"sky","preset":"synthwave","t":4}
+{"op":"terrain","type":"flat","material":"neon","grid":0.9,"grid_color":"#FF4FD8","t":2}
+{"op":"kit","id":"synth","kit":"synthwave","density":0.7,"size":0.9}
+{"op":"ambience","loop":"synth_pad"}
+{"op":"say","text":"Welcome to 1986. Sort of."}

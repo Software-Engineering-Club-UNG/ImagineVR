@@ -1,0 +1,9 @@
+# Put me in a city at night
+{"op":"clear"}
+{"op":"sky","preset":"night_city","t":4}
+{"op":"terrain","type":"flat","material":"asphalt","t":2}
+{"op":"kit","id":"city","kit":"city","density":0.7,"size":0.8,"seed":5}
+{"op":"spawn","id":"taxi","asset":"car","place":"left","distance":6,"rot_y":90,"tint":"#F5D90A"}
+{"op":"weather","type":"rain","intensity":0.25}
+{"op":"ambience","loop":"city_night"}
+{"op":"say","text":"The city never sleeps. Look up."}
