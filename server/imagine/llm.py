@@ -9,7 +9,8 @@ import httpx
 
 from . import config
 
-URL = "https://openrouter.ai/api/v1/chat/completions"
+# Any OpenAI-compatible chat completions endpoint works; OPENROUTER_URL points it elsewhere (a proxy, a test stub).
+URL = config.OPENROUTER_URL
 
 
 class LLMError(Exception):

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
@@ -89,6 +90,13 @@ async def health():
         "stt": f"local:{config.STT_MODEL}" if config.STT == "local" else config.STT,
         "tts": tts.enabled(),
     }
+
+
+@app.get("/health")
+async def deploy_health():
+    """The shape the Vultr deploy script checks after switching releases (see infra/deploy/deploy.sh)."""
+    return {"status": "ok", "revision": os.environ.get("DEPLOYMENT_REVISION", "development"),
+            "model": "offline" if config.OFFLINE else config.MODEL}
 
 
 @app.post("/v1/turn")

@@ -18,6 +18,7 @@ def _env(name: str, default: str = "") -> str:
 
 
 OPENROUTER_API_KEY = _env("OPENROUTER_API_KEY")
+OPENROUTER_URL = _env("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
 MODEL = _env("IMAGINE_MODEL", "anthropic/claude-haiku-5.5")
 REASONING = _env("IMAGINE_REASONING").lower()
 

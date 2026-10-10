@@ -4,13 +4,14 @@ using UnityEngine.InputSystem;
 namespace ImagineVR
 {
     /// <summary>
-    /// Lets the user ride or drive through the world they built: a car, a horse, a dragon. The whole
-    /// rig moves, with the vehicle drawn around it. The right thumbstick (or W A S D on the desktop)
-    /// is throttle and steering. Things that fly cruise above the ground.
+    /// Moves the user through the world they built: on foot, or in or on a car, a horse, a dragon.
+    /// The whole rig moves, with any vehicle drawn around it. The right thumbstick (or W A S D on the
+    /// desktop) is forward, back and turning. Things that fly cruise above the ground.
     /// </summary>
     public sealed class Vehicle : MonoBehaviour
     {
         const float Cruise = 12f;   // metres above the ground, for things that fly
+        const float WalkSpeed = 3f;
 
         Rig _rig;
         World _world;
@@ -99,7 +100,8 @@ namespace ImagineVR
             Vector3 before = p;
             float turn = 0f, dt = Time.deltaTime;
 
-            if (Riding)
+            // on foot the same controls walk, so the world can be explored without asking for a ride
+            if (Riding || !_world.IsDark)
             {
                 Vector2 stick = _rig.Stick + Autopilot;
                 Keyboard kb = Keyboard.current;
@@ -113,7 +115,8 @@ namespace ImagineVR
                 stick = Vector2.ClampMagnitude(stick, 1f);
                 if (stick.magnitude < 0.15f) stick = Vector2.zero;
 
-                float wanted = stick.y >= 0f ? stick.y * _top : stick.y * _top * 0.4f;
+                float top = Riding ? _top : WalkSpeed;
+                float wanted = stick.y >= 0f ? stick.y * top : stick.y * top * (Riding ? 0.4f : 1f);
                 _speed = Mathf.MoveTowards(_speed, wanted, (Mathf.Abs(wanted) > Mathf.Abs(_speed) ? 6f : 10f) * dt);
                 // steers like a car once it is rolling, and can still be turned on the spot
                 turn = stick.x * 70f * Mathf.Clamp(Mathf.Abs(_speed) / 3f, 0.4f, 1f) * (_speed < -0.1f ? -1f : 1f) * dt;
