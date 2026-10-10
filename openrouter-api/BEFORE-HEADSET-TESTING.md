@@ -2,6 +2,13 @@
 
 ## Review fixes applied
 
+**Current decision:** local faster-whisper on the upgraded 4-vCPU / 8-GB VM.
+The old ElevenLabs recommendations below are historical, not required setup.
+Only `OPENROUTER_API_KEY`, `IMAGINE_APP_TOKEN`, and `VULTR_PROVISION_SSH_KEY`
+are needed in addition to the existing deployment SSH secret. Provisioning uses
+Python 3.13, caches public Whisper weights, and validates offline loading.
+Transcription now has one CPU slot, not four hosted-provider slots.
+
 Israel's checklist below is retained as the original review. The integration
 branch now includes microphone conversion commit `9e524b7`, accepts completed
 streams with absent/provider-specific finish reasons, provisions users/groups

@@ -4,7 +4,7 @@ FastAPI backend for ImagineVR, adapted from Israel-Jauregui's `online-ready`
 commit `e5f8c5a`. It exposes Unity's `/v1/turn`, `/v1/session/reset`, and
 `/v1/health`, plus the existing `/`, `/health`, `/docs`, and `/openapi.json`.
 
-Push-to-talk WAV uploads are transcribed through ElevenLabs; complete text and
+Push-to-talk WAV uploads are transcribed locally with faster-whisper; complete text and
 session world state go to OpenRouter. Validated ImagineScript commands stream
 back to Unity as NDJSON, including `ride`, creature `behavior`, and `ignored`
 outcomes for background chatter. It also supports `think` terminal plan lines,
@@ -19,10 +19,11 @@ edit this folder's `prompt.md` and `script.py` directly. Configure local setting
 in `openrouter-api/.env`, not the old `server/.env`.
 
 The VM is now sized at 4 CPUs / 8 GB RAM ($40/month), per Parker's explicit
-resize request. The backend still uses Python 3.14 and hosted transcription
-rather than local Whisper; resizing does not change the transcription provider. Do not install
-Whisper on production. The optional local adapter requires a separate Python
-3.13 environment with faster-whisper and numpy if used for development.
+resize request. Development, CI, and production use Python 3.13.16 and local
+faster-whisper `base.en` on CPU with int8 inference and four CPU threads.
+No speech provider key or per-transcription charge is required. Audio stays on
+the VM; only the resulting text goes to OpenRouter for scene instructions.
+TTS remains off. Whisper startup failures are explicit, never a hosted fallback.
 
 ## Activate the world-building backend
 
@@ -30,7 +31,6 @@ The new configuration is not live until provisioned. Add these **Actions
 repository secrets**, in addition to the existing `VULTR_DEPLOY_SSH_KEY`:
 
 - `OPENROUTER_API_KEY`: an OpenRouter key with available credit.
-- `ELEVENLABS_API_KEY`: an ElevenLabs key with speech-to-text access.
 - `IMAGINE_APP_TOKEN`: a random token of at least 32 characters; securely share
   this with Israel for Unity's `ImagineSettings` asset. Never use `dev-token`.
 - `VULTR_PROVISION_SSH_KEY`: the privileged operator SSH key, separate from the
@@ -40,7 +40,8 @@ repository secrets**, in addition to the existing `VULTR_DEPLOY_SSH_KEY`:
 Merge backend changes onto current `main` without overwriting Israel's work.
 Apply the remaining Terraform HTTPS firewall rule, then manually run
 **Provision ImagineVR API host** on `main`. This installs server configuration,
-runtime secrets, TLS for `64.177.52.162.sslip.io`, and certificate renewal. Then
+runtime secrets, Python 3.13, public Whisper weights, TLS for
+`64.177.52.162.sslip.io`, and certificate renewal. Then
 run **Test and deploy openrouter-api**. An initial application deployment before
 provisioning will fail safely and retain/restore the prior release.
 
@@ -68,18 +69,25 @@ and the Unity/headset path separately; the smoke script tests text turns.
 
 For local development, copy `.env.example` to `.env` and set provider keys.
 Without a key, development retains Israel's labelled keyword fallback.
-Production fails startup if model, transcription, or client-token secrets are
-missing. OpenRouter errors before any output retain the explicit fallback note;
+Production fails startup if the OpenRouter key/client token are missing or local
+Whisper cannot load. OpenRouter errors before any output retain the explicit fallback note;
 errors after partial output preserve the world already built and finish failed.
 Streams with `[DONE]` accept missing/provider-specific finish reasons; `length`,
 `error`, `content_filter`, and disconnection before `[DONE]` still fail explicitly.
 Provider-error diagnostics include a bounded, credential-redacted message.
-Hosted transcription permits four concurrent recordings across sessions, while
-turns within a session remain serialized (local Whisper permits only one).
+Local transcription permits one recording at a time across sessions to avoid CPU
+oversubscription; turns within a session also remain serialized. Empty-line
+heartbeats keep Unity's connection alive while waiting or transcribing.
+
+Whisper weights live at `/var/cache/openrouter-api/whisper-base.en`, owned by the
+service account and retained across releases. Provisioning downloads them once
+and validates loading; runtime uses `local_files_only=True` and
+`HF_HUB_OFFLINE=1`. No Hugging Face or speech provider key is required for these
+public weights. Cached weights must exist before the service becomes ready.
 
 ## Local development
 
-Use Python 3.14 to match production and CI:
+Use Python 3.13.16 to match production and CI:
 
 ```sh
 cd openrouter-api

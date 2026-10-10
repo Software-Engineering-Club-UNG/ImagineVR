@@ -307,7 +307,7 @@ def test_non_200_includes_actionable_diagnostics(monkeypatch):
     asyncio.run(check())
 
 
-@pytest.mark.parametrize('provider,expected_parallel', [('elevenlabs', 4), ('local', 1)])
+@pytest.mark.parametrize('provider,expected_parallel', [('local', 1)])
 def test_transcription_concurrency(monkeypatch, provider, expected_parallel):
     async def check():
         monkeypatch.setattr(config, 'STT', provider)

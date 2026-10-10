@@ -54,8 +54,8 @@ def load_files(force: bool = False) -> None:
 async def lifespan(_app: FastAPI):
     if config.PRODUCTION and (config.OFFLINE or not config.APP_TOKEN or config.APP_TOKEN == "dev-token"):
         raise RuntimeError("Production requires OPENROUTER_API_KEY and a non-development IMAGINE_APP_TOKEN")
-    if config.PRODUCTION and (config.STT != "elevenlabs" or not config.ELEVENLABS_API_KEY):
-        raise RuntimeError("Production requires IMAGINE_STT=elevenlabs and ELEVENLABS_API_KEY")
+    if config.STT != "local":
+        raise RuntimeError("Speech-to-text runs locally only; set IMAGINE_STT=local")
     if not config.CATALOG_PATH.exists():
         raise RuntimeError(
             f"Catalog not found at {config.CATALOG_PATH}. Export it from Unity (ImagineVR > Export Catalog) "

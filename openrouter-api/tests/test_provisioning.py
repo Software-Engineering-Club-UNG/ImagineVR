@@ -50,6 +50,18 @@ def test_runtime_secret_install_is_atomic_and_root_only():
     assert 'tee' not in script
 
 
+def test_local_whisper_provisioning_needs_no_speech_key():
+    config = workflow('provision-openrouter-api.yml')
+    assert 'ELEVENLABS_API_KEY' not in str(config)
+    assert 'IMAGINE_STT=local' in str(config)
+    bootstrap = (ROOT / 'infra/deploy/bootstrap.sh').read_text()
+    assert bootstrap.index('useradd --system') < bootstrap.index('prepare-whisper.sh')
+    unit = (ROOT / 'infra/deploy/openrouter-api.service').read_text()
+    assert 'Environment=IMAGINE_STT=local' in unit
+    assert 'Environment=HF_HUB_OFFLINE=1' in unit
+    assert 'ReadWritePaths=/var/cache/openrouter-api' in unit
+
+
 @pytest.mark.parametrize('name', ['provision-openrouter-api.yml', 'deploy-openrouter-api.yml'])
 def test_workflow_shell_steps_parse(name):
     bash = str(Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Git/bin/bash.exe') if os.name == 'nt' else shutil.which('bash')

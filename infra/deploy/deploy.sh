@@ -12,7 +12,7 @@ archive="$base/incoming/$revision.tar.gz"
 # Application deployment must not replace a healthy app before host provisioning.
 unit=$(systemctl cat openrouter-api.service)
 if ! grep -Fq 'Environment=IMAGINE_ENV=production' <<< "$unit" ||
-   ! grep -Fq 'Environment=IMAGINE_STT=elevenlabs' <<< "$unit"; then
+   ! grep -Fq 'Environment=IMAGINE_STT=local' <<< "$unit"; then
   echo 'Run Provision ImagineVR API host with the required secrets before deploying. Existing release unchanged.' >&2
   exit 1
 fi
@@ -22,7 +22,7 @@ flock -w 300 9
 release=$(mktemp -d "$base/releases/$revision.XXXXXX")
 chmod 755 "$release"
 tar -xzf "$archive" -C "$release"
-python3 -m venv "$release/.venv"
+"${PYTHON_BIN:-/opt/openrouter-python/bin/python3.13}" -m venv "$release/.venv"
 "$release/.venv/bin/python" -m pip install --disable-pip-version-check -r "$release/requirements.txt"
 printf 'DEPLOYMENT_REVISION=%s\n' "$revision" > "$release/release.env"
 

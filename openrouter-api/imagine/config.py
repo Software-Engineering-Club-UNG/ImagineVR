@@ -22,8 +22,9 @@ OPENROUTER_URL = _env("OPENROUTER_URL") or "https://openrouter.ai/api/v1/chat/co
 MODEL = _env("IMAGINE_MODEL", "anthropic/claude-haiku-5.5")
 REASONING = _env("IMAGINE_REASONING").lower()
 
-STT = _env("IMAGINE_STT", "elevenlabs").lower()
+STT = _env("IMAGINE_STT", "local").lower()
 STT_MODEL = _env("IMAGINE_STT_MODEL", "base.en")
+STT_MODEL_PATH = _env("IMAGINE_STT_MODEL_PATH") or None
 
 TTS = _env("IMAGINE_TTS", "off").lower() == "on"
 ELEVENLABS_API_KEY = _env("ELEVENLABS_API_KEY")

@@ -18,6 +18,7 @@ apt-get install -y certbot python3-certbot-nginx
 
 id deploy &>/dev/null || useradd --create-home --shell /bin/bash deploy
 id openrouter-api &>/dev/null || useradd --system --home /nonexistent --shell /usr/sbin/nologin openrouter-api
+bash "$script_dir/prepare-whisper.sh"
 install -d -m 755 -o deploy -g deploy /srv/openrouter-api /srv/openrouter-api/releases /srv/openrouter-api/incoming
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 touch /home/deploy/.ssh/authorized_keys

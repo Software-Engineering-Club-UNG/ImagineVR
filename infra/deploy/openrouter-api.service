@@ -23,7 +23,15 @@ UMask=0027
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONUNBUFFERED=1
 Environment=IMAGINE_ENV=production
-Environment=IMAGINE_STT=elevenlabs
+Environment=IMAGINE_STT=local
+Environment=IMAGINE_STT_MODEL=base.en
+Environment=IMAGINE_STT_CACHE=/var/cache/openrouter-api
+Environment=IMAGINE_STT_MODEL_PATH=/var/cache/openrouter-api/whisper-base.en
+Environment=HF_HOME=/var/cache/openrouter-api/huggingface
+Environment=HF_HUB_OFFLINE=1
+Environment=HF_HUB_DISABLE_TELEMETRY=1
+CacheDirectory=openrouter-api
+ReadWritePaths=/var/cache/openrouter-api
 Environment=IMAGINE_PUBLIC_URL=https://64.177.52.162.sslip.io
 Environment=IMAGINE_CATALOG=/srv/openrouter-api/current/shared/catalog.json
 TimeoutStartSec=300

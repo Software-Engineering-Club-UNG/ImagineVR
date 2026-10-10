@@ -36,7 +36,7 @@ cat > "$test_dir/bin/systemctl" <<'MOCK'
 #!/usr/bin/env bash
 [[ "$*" == 'cat openrouter-api.service' ]] || exit 1
 [[ "${UNPROVISIONED:-0}" == 0 ]] || exit 0
-printf 'Environment=IMAGINE_ENV=production\nEnvironment=IMAGINE_STT=elevenlabs\n'
+printf 'Environment=IMAGINE_ENV=production\nEnvironment=IMAGINE_STT=local\n'
 MOCK
 
 cat > "$test_dir/bin/curl" <<'MOCK'

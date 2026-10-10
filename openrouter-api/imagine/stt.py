@@ -1,4 +1,4 @@
-"""Speech to text. Default: Whisper on this machine. Fallback: ElevenLabs."""
+"""Speech to text using local CPU faster-whisper only. Audio never goes to a provider."""
 
 from __future__ import annotations
 
@@ -9,8 +9,6 @@ import threading
 import time
 import io
 import wave
-
-import httpx
 
 from . import config
 
@@ -90,7 +88,11 @@ def _load_model():
             from faster_whisper import WhisperModel
 
             started = time.perf_counter()
-            _model = WhisperModel(config.STT_MODEL, device="cpu", compute_type="int8", cpu_threads=4, num_workers=1, download_root=config.STT_CACHE)
+            _model = WhisperModel(
+                config.STT_MODEL_PATH or config.STT_MODEL,
+                device="cpu", compute_type="int8", cpu_threads=4, num_workers=1,
+                download_root=config.STT_CACHE, local_files_only=bool(config.STT_MODEL_PATH),
+            )
             log.info("whisper %s loaded in %.1fs", config.STT_MODEL, time.perf_counter() - started)
     return _model
 
@@ -117,27 +119,12 @@ def _transcribe_local(wav: bytes) -> str:
     return " ".join(p for p in parts if p).strip()
 
 
-async def _transcribe_elevenlabs(wav: bytes) -> str:
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.post(
-            "https://api.elevenlabs.io/v1/speech-to-text",
-            headers={"xi-api-key": config.ELEVENLABS_API_KEY},
-            data={"model_id": "scribe_v1", "language_code": "en"},
-            files={"file": ("speech.wav", wav, "audio/wav")},
-        )
-        response.raise_for_status()
-        return str(response.json().get("text", "")).strip()
-
-
 async def transcribe(wav: bytes) -> str:
     """Return what was said, or an empty string when nothing intelligible was heard."""
     started = time.perf_counter()
-    if config.STT == "elevenlabs":
-        if not config.ELEVENLABS_API_KEY:
-            raise RuntimeError("ELEVENLABS_API_KEY is required for hosted transcription")
-        text = await _transcribe_elevenlabs(wav)
-    else:
-        text = await asyncio.to_thread(_transcribe_local, wav)
+    if config.STT != "local":
+        raise RuntimeError("Only local Whisper transcription is supported")
+    text = await asyncio.to_thread(_transcribe_local, wav)
     log.info("transcribed %.1fs of audio in %.2fs", wav_seconds(wav), time.perf_counter() - started)
     if text.lower().strip(" .!?") in _HALLUCINATIONS:
         return ""

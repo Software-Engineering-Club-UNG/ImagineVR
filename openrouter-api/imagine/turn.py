@@ -145,13 +145,13 @@ async def _run_turn(
     )
     yield {"op": "done", "outcome": outcome}
 
-_stt_slots = asyncio.Semaphore(4 if config.STT == "elevenlabs" else 1)
+_stt_slots = asyncio.Semaphore(1)
 
 
 def reset_stt_slots():
     """Create the limiter on application startup for this event-loop lifetime."""
     global _stt_slots
-    _stt_slots = asyncio.Semaphore(4 if config.STT == "elevenlabs" else 1)
+    _stt_slots = asyncio.Semaphore(1)
 
 
 async def run_turn(session, catalog, system_prompt, **kwargs):

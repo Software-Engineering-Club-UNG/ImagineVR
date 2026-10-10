@@ -34,12 +34,11 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           IMAGINE_APP_TOKEN: ${{ secrets.IMAGINE_APP_TOKEN }}
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ALLOW_HTTP_DEMO: ${{ inputs.allow_http_demo && '1' || '0' }}
         run: |
           python - <<'PY'
           import os, re
-          for name in ('OPENROUTER_API_KEY', 'IMAGINE_APP_TOKEN', 'ELEVENLABS_API_KEY'):
+          for name in ('OPENROUTER_API_KEY', 'IMAGINE_APP_TOKEN'):
               value = os.environ[name]
               if not re.fullmatch(r'[A-Za-z0-9_.-]{20,}', value) or value == 'dev-token':
                   raise SystemExit(f'Add a valid repository secret: {name}')
@@ -52,8 +51,8 @@ jobs:
             'sudo bash /opt/imagine-provision/infra/deploy/install-environment.sh' <<EOF
           OPENROUTER_API_KEY=$OPENROUTER_API_KEY
           IMAGINE_APP_TOKEN=$IMAGINE_APP_TOKEN
-          ELEVENLABS_API_KEY=$ELEVENLABS_API_KEY
-          IMAGINE_STT=elevenlabs
+          IMAGINE_STT=local
+          IMAGINE_TTS=off
           EOF
       - name: Remove provisioning key
         if: always()

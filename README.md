@@ -60,8 +60,8 @@ Things to know:
 
 - Anything in front of the app (Caddy, nginx, a load balancer) must not buffer responses, or
   the streaming breaks.
-- The deployed backend uses Python 3.14 and hosted ElevenLabs transcription.
-  The legacy local-Whisper environment still caps Python below 3.14.
+- The backend uses Python 3.13 and local faster-whisper transcription on the
+  4-vCPU / 8-GB VM. No speech provider key is required; OpenRouter receives text only.
 - WAV is decoded by hand in `stt.py` because faster-whisper's decoder breaks with the current
   PyAV.
 - On Windows use `127.0.0.1`, not `localhost` (two-second IPv6 delay).
