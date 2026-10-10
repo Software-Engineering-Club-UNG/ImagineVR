@@ -27,6 +27,8 @@ namespace ImagineVR
         /// <summary>The user's head. Used to place things in reach and to aim sounds.</summary>
         public Transform Head;
         public TMP_FontAsset Font;
+        /// <summary>What carries the user about. Null when the world is drawn without a rig.</summary>
+        public Vehicle Vehicle;
 
         /// <summary>Dim terminal lines, e.g. a substitution or a limit being applied.</summary>
         public event Action<string> Noted;
@@ -90,6 +92,7 @@ namespace ImagineVR
                 case "spawn": EnsureLight(); Objects.Spawn(s); break;
                 case "scatter": EnsureLight(); Objects.Scatter(s); break;
                 case "give": Props.Give(s); break;
+                case "ride": EnsureLight(); if (Vehicle != null) Vehicle.Apply(s); break;
                 case "modify": Objects.Modify(s); Props.Modify(s); break;
                 case "remove": Objects.Remove(s); Props.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
@@ -118,6 +121,7 @@ namespace ImagineVR
             // The ground is only removed if nothing replaces it before the turn ends, so that a
             // new terrain statement can sweep over the old ground instead of popping it away.
             if (!keep.Contains("terrain")) _clearGroundAtTurnEnd = true;
+            if (Vehicle != null) Vehicle.Home();   // the next place is built around the middle of the world
         }
 
         /// <summary>Called when a turn's `done` arrives.</summary>
@@ -142,6 +146,7 @@ namespace ImagineVR
             Terrain.Clear(seconds);
             Sky.Reset(seconds);
             _clearGroundAtTurnEnd = false;
+            if (Vehicle != null) { Vehicle.Dismount(); Vehicle.Home(); }
         }
 
         /// <summary>A floating name tag, used above stand-in shapes.</summary>

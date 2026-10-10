@@ -66,6 +66,9 @@ namespace ImagineVR
             Terminal.transform.SetParent(transform, false);
             Terminal.Build(_font, Rig.Head);
 
+            World.Vehicle = Rig.gameObject.AddComponent<Vehicle>();
+            World.Vehicle.Init(Rig, World, Terminal);
+
             Client = gameObject.AddComponent<TurnClient>();
             Client.Settings = _settings;
             TextAsset version = Resources.Load<TextAsset>("CatalogVersion");

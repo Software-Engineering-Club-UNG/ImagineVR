@@ -18,7 +18,7 @@ namespace ImagineVR
         static readonly HashSet<string> WorldOps = new HashSet<string>
         {
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
-            "kit", "spawn", "scatter", "give", "modify", "remove", "ambience",
+            "kit", "spawn", "scatter", "give", "ride", "modify", "remove", "ambience",
         };
 
         public bool IsStream => StreamOps.Contains(Op);

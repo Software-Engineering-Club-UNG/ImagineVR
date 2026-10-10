@@ -14,13 +14,15 @@ from .catalog import Catalog
 
 WORLD_OPS = (
     "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
-    "kit", "spawn", "scatter", "give", "modify", "remove", "ambience",
+    "kit", "spawn", "scatter", "give", "ride", "modify", "remove", "ambience",
 )
 STREAM_OPS = ("transcript", "status", "note", "error", "done")
 
 PLACES = ("front", "left", "right", "behind", "center", "above")
 AREAS = ("around", "front", "behind", "left", "right", "ring", "edges", "everywhere", "sky")
 KEEP = ("sky", "terrain", "ambience", "weather")
+BEHAVIORS = ("chase", "wander", "flee", "still")
+NO_RIDE = ("none", "off", "stop", "exit", "out", "walk", "nothing", "foot", "on_foot")
 
 NAMED_COLORS = {
     "white": "#FFFFFF", "black": "#000000", "red": "#E5484D", "green": "#46A758", "blue": "#3E7BFA",
@@ -188,14 +190,15 @@ FIELDS: dict[str, dict] = {
     "spawn": {
         "at": _vec3, "place": _enum(PLACES), "distance": _num(0, 400), "height": _num(-20, 200),
         "scale": _scale, "rot_y": _num(-720, 720), "rot": _rot, "tint": _color,
-        "motion": _motion, "physics": _bool, "t": T,
+        "motion": _motion, "physics": _bool, "behavior": _enum(BEHAVIORS), "t": T,
     },
     "scatter": {
         "count": _int(1, 100000), "area": _enum(AREAS), "radius": _range2(0, 400),
         "height": _range2(-20, 200), "scale": _range2(0.05, 60), "tint": _color, "seed": _int(0, 99999),
-        "motion": _motion, "physics": _bool, "t": T,
+        "motion": _motion, "physics": _bool, "behavior": _enum(BEHAVIORS), "t": T,
     },
     "give": {"tint": _color},
+    "ride": {"tint": _color, "speed": _num(0.2, 3)},
     "modify": {
         "scale": _num(0.05, 60), "tint": _color, "count": _int(0, 100000),
         "density": _num(0, 1), "motion": _motion, "t": T,
@@ -287,6 +290,11 @@ class WorldState:
                 # a preset also resets light and fog
                 self.globals.pop("light", None)
                 self.globals.pop("fog", None)
+        elif op == "ride":
+            if stmt.get("asset") == "none":
+                self.globals.pop("ride", None)
+            else:
+                self.globals["ride"] = dict(stmt)
         elif op in ("light", "fog", "weather", "physics", "ambience"):
             merged = self.globals.get(op, {})
             merged.update(stmt)
@@ -318,7 +326,7 @@ class WorldState:
         if self.is_empty():
             return "(empty: the dark room, nothing built yet)"
         lines = []
-        for op in ("sky", "light", "fog", "terrain", "weather", "physics", "ambience"):
+        for op in ("sky", "light", "fog", "terrain", "weather", "physics", "ambience", "ride"):
             if op in self.globals:
                 lines.append(_compact(self.globals[op]))
         for stmt in self.things.values():
@@ -342,6 +350,26 @@ class Validator:
         notes: list[dict] = []
         out: dict = {"op": op}
         lim = self.catalog.limits
+
+        # --- what the user is riding or driving; "none" puts them back on their feet
+        if op == "ride":
+            wanted = to_id(raw.get("asset")) if isinstance(raw.get("asset"), str) else None
+            if wanted is None or wanted in NO_RIDE:
+                if "ride" not in world.globals:
+                    return []
+                out["asset"] = "none"
+            else:
+                resolved, _ = self.catalog.resolve("asset", wanted)
+                out["asset"] = resolved or ("car" if self.catalog.has("asset", "car") else wanted)
+                if out["asset"] != wanted:
+                    notes.append(_note(f"used {_pretty(out['asset'])} in place of {_pretty(wanted)}"))
+                for field, convert in FIELDS[op].items():
+                    if field in raw:
+                        value = convert(raw[field], self.catalog)
+                        if value is not None:
+                            out[field] = value
+            world.apply(out)
+            return notes + [out]
 
         # --- catalog reference
         if op in REFS:

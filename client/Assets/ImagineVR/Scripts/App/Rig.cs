@@ -278,6 +278,7 @@ namespace ImagineVR
         static readonly Collider[] Hits = new Collider[16];
 
         public Prop Held => _held;
+        public Vector3 Velocity => _velocity;
 
         public void Init(Rig rig, bool right)
         {

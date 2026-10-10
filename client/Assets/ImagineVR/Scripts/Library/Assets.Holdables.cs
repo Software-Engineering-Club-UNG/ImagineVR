@@ -67,7 +67,7 @@ namespace ImagineVR
                     mb.Emit(1f).Col(Pal.Hex("#FFE9A0")).Sphere(V(0, 0.38f, 0), 0.02f, 0);
                     mb.Emit().Glow(V(0, 0.38f, 0), 0.12f, new Color(1f, 0.9f, 0.55f) * 0.9f);
                 }).AsTool().Solid(0.1f, 0.2f).Does("wand");
-            Add("blaster", "toys", 0.28f, "Toy ray gun that fires bouncing balls of light. Pull the trigger", "toy,gun,sci-fi,shoot,laser", "ray gun,laser gun,toy gun,zapper,space gun",
+            Add("blaster", "toys", 0.28f, "Toy ray gun that fires bouncing balls of light. Pull the trigger", "toy,gun,sci-fi,shoot,laser,weapon", "gun,ray gun,laser gun,toy gun,zapper,space gun,pistol,handgun,rifle,shotgun,weapon",
                 mb =>
                 {
                     mb.Col(Pal.Hex("#3C4654")).Box(V(0, -0.05f, -0.02f), V(0.035f, 0.11f, 0.05f));

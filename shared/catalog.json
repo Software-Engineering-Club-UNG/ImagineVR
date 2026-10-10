@@ -1,6 +1,6 @@
 {
   "language_version": 1,
-  "catalog_version": "1.241.384d0680",
+  "catalog_version": "1.242.cf185c0d",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
@@ -662,6 +662,24 @@
       "greeting": "Something moved. Probably the wind."
     },
     {
+      "id": "last_stand",
+      "desc": "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a blaster to go with it",
+      "tags": ["zombie", "undead", "horror", "apocalypse", "survival", "shoot", "fight", "battle", "enemies", "monsters", "defend"],
+      "aliases": ["zombies", "zombie apocalypse", "zombie outbreak", "zombie horde", "zombie shooter", "shoot zombies", "walking dead", "undead", "apocalypse", "last stand", "shooting gallery", "invasion", "uprising", "monster attack"],
+      "defaults": {
+        "sky": "spooky",
+        "terrain": {
+          "type": "flat",
+          "material": "dirt"
+        },
+        "ambience": "spooky"
+      },
+      "params": {
+        "enemy": "any character or animal asset id: zombie (default), robot, alien, skeleton, knight, t_rex ..."
+      },
+      "greeting": "They're coming. Grab the blaster and pull the trigger."
+    },
+    {
       "id": "candyland",
       "desc": "A land made of sweets: giant lollipops, candy canes, cupcakes, doughnuts and a towering cake",
       "tags": ["sweet", "candy", "dessert", "pastel", "kids", "cute"],
@@ -725,7 +743,7 @@
       "id": "sports_court",
       "desc": "An outdoor court: basketball hoop ahead with balls at your feet, a football goal behind, court lines",
       "tags": ["basketball", "sport", "game", "football", "soccer", "court"],
-      "aliases": ["basketball court", "court", "pitch", "sports field", "stadium", "gym"],
+      "aliases": ["basketball", "basketball court", "court", "pitch", "sports field", "stadium", "gym"],
       "defaults": {
         "sky": "clear_noon",
         "terrain": {
@@ -1658,8 +1676,8 @@
     {
       "id": "blaster",
       "desc": "Toy ray gun that fires bouncing balls of light. Pull the trigger",
-      "tags": ["toy", "gun", "sci-fi", "shoot", "laser"],
-      "aliases": ["ray gun", "laser gun", "toy gun", "zapper", "space gun"],
+      "tags": ["toy", "gun", "sci-fi", "shoot", "laser", "weapon"],
+      "aliases": ["gun", "ray gun", "laser gun", "toy gun", "zapper", "space gun", "pistol", "handgun", "rifle", "shotgun", "weapon"],
       "category": "toys",
       "size_m": 0.28,
       "holdable": true,
@@ -2327,7 +2345,15 @@
       "id": "skeleton",
       "desc": "Bony white skeleton",
       "tags": ["spooky", "halloween", "haunted", "undead", "pirate"],
-      "aliases": ["bones", "undead", "zombie"],
+      "aliases": ["bones", "skull", "skeletons"],
+      "category": "people",
+      "size_m": 1.75
+    },
+    {
+      "id": "zombie",
+      "desc": "Green-skinned zombie that shambles towards you and falls over when shot or hit, then another rises",
+      "tags": ["undead", "monster", "horror", "halloween", "spooky", "enemy"],
+      "aliases": ["zombies", "walker", "ghoul", "undead", "walking dead", "the undead"],
       "category": "people",
       "size_m": 1.75
     },

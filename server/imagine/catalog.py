@@ -34,11 +34,17 @@ DEFAULT_LIMITS = {
 _WORD = re.compile(r"[a-z0-9]+")
 
 
+# words too common to say anything about what was asked for ("the woods" must not match every "the")
+_STOP = frozenset("a an the of in on at to by for with and or it is me my i you some this that be do can".split())
+
+
 def words(text: str) -> list[str]:
     return _WORD.findall(text.lower().replace("_", " "))
 
 
 def _stem(word: str) -> str:
+    if len(word) > 4 and word.endswith("ie"):  # "zombie" must meet "zombies" (-> "zomby")
+        return word[:-2] + "y"
     for suffix in ("ies", "es", "s"):
         if len(word) > len(suffix) + 2 and word.endswith(suffix):
             return word[: -len(suffix)] + ("y" if suffix == "ies" else "")
@@ -124,10 +130,11 @@ class Catalog:
 
     def search(self, kind: str, text: str, limit: int = 3) -> list[tuple[str, float]]:
         """Score every entry of a kind against free text. Used by the offline director."""
-        query = {_stem(w) for w in words(text)}
+        query = {_stem(w) for w in words(text)} - _STOP
+        spaced = " " + " ".join(words(text)) + " "  # whole words only: "hell" is not in "hello"
         scored = []
         for eid, id_words, aliases, other_words in self._index[kind]:
-            alias_hit = any(a.replace("_", " ") in text.lower() for a in aliases)
+            alias_hit = any(f" {p} " in spaced or f" {p}s " in spaced for p in (a.replace("_", " ") for a in aliases))
             score = 3.0 * len(query & id_words) + 1.5 * len(query & other_words) + (4.0 if alias_hit else 0.0)
             if id_words and id_words <= query:
                 score += 3.0
@@ -135,6 +142,16 @@ class Catalog:
                 scored.append((eid, score))
         scored.sort(key=lambda pair: -pair[1])
         return scored[:limit]
+
+    def vocabulary(self) -> set[str]:
+        """Every word the catalog knows, for correcting what speech recognition misheard."""
+        vocab: set[str] = set()
+        for kind in ("kit", "asset", "weather"):
+            for eid, entry in self._entries[kind].items():
+                vocab.update(words(eid))
+                for name in entry.get("aliases", []) + entry.get("tags", []):
+                    vocab.update(words(name))
+        return {w for w in vocab if len(w) >= 4}
 
     # ------------------------------------------------------------------ prompt
 

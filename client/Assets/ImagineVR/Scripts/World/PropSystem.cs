@@ -528,7 +528,7 @@ namespace ImagineVR
             AssetDef def = Library.Asset("energy_ball") ?? Library.Asset("sphere");
             Prop shot = Create(def, "shot", position, Quaternion.identity, Vector3.one, color);
             shot.Body.useGravity = true;
-            shot.Body.linearVelocity = direction.normalized * 13f;
+            shot.Body.linearVelocity = direction.normalized * 20f;
             Object.Destroy(shot.gameObject, 6f);
             Sfx.Play("zap", position, 0.7f, 0.9f + Random.value * 0.3f);
         }

@@ -159,6 +159,23 @@ namespace ImagineVR
             }
         }
 
+        /// <summary>
+        /// Living things get an object of their own that moves, in place of an instanced placement.
+        /// `behavior` comes from the statement; some assets (a zombie) are alive without being told.
+        /// Returns false when this one is not alive. Once the world has enough of them the rest are
+        /// quietly left out, since one that stood frozen and could not be hit would look broken.
+        /// </summary>
+        public bool Enliven(Group g, AssetDef def, Vector3 position, float scale, string behavior = null)
+        {
+            if (string.IsNullOrEmpty(behavior)) behavior = Creature.DefaultFor(def);
+            if (behavior == null || behavior == "still" || !Application.isPlaying) return false;
+            int alive = 0;
+            foreach (Group other in _order) foreach (GameObject extra in other.Extras) if (extra != null && extra.GetComponent<Creature>() != null) alive++;
+            if (alive >= Creature.MaxLive) return true;
+            g.Extras.Add(Creature.Create(_world, def, position, scale, g.Tint, behavior));
+            return true;
+        }
+
         static float Fit(AssetDef def)
         {
             Bounds b = def.Bounds;
@@ -213,7 +230,8 @@ namespace ImagineVR
             Group g = Begin(s.Str("id"), "spawn", s, s.T(0.9f));
             if (s.TryColor("tint", out Color tint)) g.Tint = tint;
             g.Motion = MotionFor(s.Str("motion", "none"), def);
-            g.Add(new Placement { Mesh = def.Mesh, Position = pos, Rotation = rot, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
+            if (!Enliven(g, def, pos, scale.y, s.Str("behavior")))
+                g.Add(new Placement { Mesh = def.Mesh, Position = pos, Rotation = rot, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
             if (standIn) _world.AddLabel(g, name.Replace('_', ' '), pos, def.Bounds.size.y * scale.y + 0.35f);
             return g;
         }
@@ -249,6 +267,8 @@ namespace ImagineVR
         void Populate(Group g, Statement s, AssetDef def, int count)
         {
             g.Items.Clear();
+            foreach (GameObject extra in g.Extras) if (extra != null && extra.GetComponent<Creature>() != null) UnityEngine.Object.Destroy(extra);
+            g.Extras.RemoveAll(extra => extra == null || extra.GetComponent<Creature>() != null);
             string area = s.Str("area", def.Airborne ? "sky" : "around");
             int seed = s.Has("seed") ? s.Int("seed") : (g.Id.GetHashCode() & 0x7FFFFFFF);
             var rng = new System.Random(seed);
@@ -303,6 +323,7 @@ namespace ImagineVR
                 pos.y = Mathf.Lerp(hMin, hMax, (float)rng.NextDouble());
                 float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
                 float yaw = (float)rng.NextDouble() * 360f;
+                if (Enliven(g, def, pos, scale, s.Str("behavior"))) continue;
                 var p = new Placement(def.Mesh, pos, yaw, scale, Color.white) { OnWater = def.OnWater };
                 g.Items.Add(p);
             }

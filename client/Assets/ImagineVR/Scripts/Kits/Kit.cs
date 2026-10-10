@@ -117,7 +117,15 @@ namespace ImagineVR
         {
             AssetDef def = Library.Asset(asset) ?? Library.FindAsset(asset) ?? Library.Asset("cube");
             if (yaw < 0f) yaw = Rand() * 360f;
+            if (World.Objects.Enliven(Group, def, new Vector3(x, lift, z), scale)) return;
             Group.Add(new Placement(def.Mesh, new Vector3(x, lift, z), yaw, scale, tint ?? NoTint) { OnWater = def.OnWater });
+        }
+
+        /// <summary>A living thing that belongs to the kit: it chases, wanders or flees, and can be knocked down.</summary>
+        public void Alive(string asset, float x, float z, string behavior, float scale = 1f)
+        {
+            AssetDef def = Library.Asset(asset) ?? Library.FindAsset(asset) ?? Library.Asset("zombie");
+            if (!World.Objects.Enliven(Group, def, new Vector3(x, 0f, z), scale, behavior)) Put(def.Id, x, z, Facing(x, z), scale);
         }
 
         /// <summary>Like Put, with separate scale per axis (stretching a building, say).</summary>

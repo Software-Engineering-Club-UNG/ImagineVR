@@ -13,7 +13,7 @@ from .session import Session
 
 log = logging.getLogger("imagine.turn")
 
-OUTCOMES = ("world_changed", "object_given", "answered", "not_understood", "declined", "failed")
+OUTCOMES = ("world_changed", "object_given", "answered", "ignored", "not_understood", "declined", "failed")
 
 
 def build_user_content(session: Session, text: str) -> str:
@@ -125,7 +125,7 @@ async def run_turn(
             yield {"op": "done", "outcome": "failed"}
             return
 
-        if emitted == 0:
+        if emitted == 0 and hinted != "ignored":  # "ignored": it was not a request, so silence is the answer
             yield {"op": "say", "text": "I couldn't work out how to build that. Try saying it another way."}
             hinted = hinted or "not_understood"
 

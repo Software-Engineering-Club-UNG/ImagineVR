@@ -232,6 +232,7 @@ namespace ImagineVR
         static string Stem(string word)
         {
             if (word.Length > 5 && word.EndsWith("ies")) return word.Substring(0, word.Length - 3) + "y";
+            if (word.Length > 4 && word.EndsWith("ie")) return word.Substring(0, word.Length - 2) + "y";   // zombie = zombies
             if (word.Length > 4 && word.EndsWith("es")) return word.Substring(0, word.Length - 2);
             if (word.Length > 3 && word.EndsWith("s")) return word.Substring(0, word.Length - 1);
             return word;

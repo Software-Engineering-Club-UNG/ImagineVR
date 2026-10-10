@@ -75,6 +75,11 @@ namespace ImagineVR
                 "halloween,haunted,spooky,ghost,cemetery,horror", "cemetery,haunted graveyard,halloween,spooky,haunted", Graveyard)
                 .Defaults(sky: "spooky", terrain: "rolling", material: "swamp", height: 0.25f, ambience: "spooky").Greet("Something moved. Probably the wind.");
 
+            Kit("last_stand", "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a blaster to go with it",
+                "zombie,undead,horror,apocalypse,survival,shoot,fight,battle,enemies,monsters,defend", "zombies,zombie apocalypse,zombie outbreak,zombie horde,zombie shooter,shoot zombies,walking dead,undead,apocalypse,last stand,shooting gallery,invasion,uprising,monster attack", LastStand)
+                .Param("enemy", "any character or animal asset id: zombie (default), robot, alien, skeleton, knight, t_rex ...")
+                .Defaults(sky: "spooky", terrain: "flat", material: "dirt", ambience: "spooky").Greet("They're coming. Grab the blaster and pull the trigger.");
+
             Kit("candyland", "A land made of sweets: giant lollipops, candy canes, cupcakes, doughnuts and a towering cake",
                 "sweet,candy,dessert,pastel,kids,cute", "candy land,candy world,sweet land,sugar land,dessert world", Candyland)
                 .Defaults(sky: "candy", terrain: "rolling", material: "candy", height: 0.25f).Greet("Everything here is edible. Probably.");
@@ -92,7 +97,7 @@ namespace ImagineVR
                 .Defaults(sky: "white_room", terrain: "flat", material: "marble").Greet("The gallery is yours. Pick up a brush.");
 
             Kit("sports_court", "An outdoor court: basketball hoop ahead with balls at your feet, a football goal behind, court lines",
-                "basketball,sport,game,football,soccer,court", "basketball court,court,pitch,sports field,stadium,gym", SportsCourt)
+                "basketball,sport,game,football,soccer,court", "basketball,basketball court,court,pitch,sports field,stadium,gym", SportsCourt)
                 .Defaults(sky: "clear_noon", terrain: "flat", material: "concrete", ambience: "birds_breeze").Greet("Ball's at your feet. Take the shot.");
 
             Kit("bowling_alley", "A bowling lane: polished wood running ahead to ten pins, bowling balls beside you",
@@ -529,6 +534,52 @@ namespace ImagineVR
             k.Put("skeleton", -6.4f, 9f, 150f);
             for (int i = 0; i < k.N(6); i++) { float a = k.Rand() * Mathf.PI * 2f, r = k.Range(7f, 24f); k.Float("ghost", Mathf.Cos(a) * r, k.Range(1.2f, 4f), Mathf.Sin(a) * r, k.Rand() * 360f, k.Range(0.9f, 1.3f)); }
             for (int i = 0; i < k.N(14); i++) { float a = k.Rand() * Mathf.PI * 2f, r = k.Range(6f, 40f); k.Float("bat", Mathf.Cos(a) * r, k.Range(5f, 16f), Mathf.Sin(a) * r, k.Rand() * 360f, k.Range(1f, 2f)); }
+        }
+
+        static void LastStand(KitContext k)
+        {
+            k.Ribbon(new List<Vector2> { new Vector2(0f, -30f), new Vector2(0f, 70f) }, 7f, Pal.Hex("#2E2E33"), 0.04f, 0f, "road");
+            for (float z = -24f; z <= 66f; z += 6f) k.Ribbon(new List<Vector2> { new Vector2(0f, z), new Vector2(0f, z + 2.4f) }, 0.18f, Pal.Hex("#8A8468"), 0.06f, 0f, "line");
+            for (float z = 6f; z <= 54f; z += 16f)
+            {
+                k.Put("street_lamp", -5f, z, 90f);
+                k.Put("street_lamp", 5f, z + 8f, 270f);
+            }
+            // a barricade to stand behind, low enough to shoot over and open straight ahead
+            foreach (float side in new[] { -1f, 1f })
+            {
+                k.Put("crate", side * 1.9f, 2.9f, k.Range(-12f, 12f));
+                k.Put("crate", side * 2.8f, 2.4f, k.Range(-25f, 25f), 0.9f);
+                k.Put("barrel", side * 3.5f, 1.6f, 0f, 0.95f);
+                k.Put("road_cone", side * 1.1f, 3.3f, 0f);
+            }
+            k.Put("campfire", -3.2f, 3.4f, 0f);
+            // the street beyond: wrecks left where they stopped
+            k.Put("car", -2.2f, 12f, 28f, 1f, Pal.Hex("#5A6470"));
+            k.Put("car", 2.6f, 21f, 196f, 1f, Pal.Hex("#7A3A32"));
+            k.Put("bus", -1.2f, 36f, 74f, 1f, Pal.Hex("#6A6A52"));
+            k.Put("car", 6.5f, 9f, 110f, 1f, Pal.Hex("#3E4A3E"));
+            k.Scatter("crate", k.N(8), 5f, 30f, 0.7f, 1.1f, null, (x, z) => Mathf.Abs(x) > 4f);
+            k.Scatter("barrel", k.N(6), 5f, 30f, 0.8f, 1.1f, null, (x, z) => Mathf.Abs(x) > 4f);
+            for (float x = 9f; x <= 21f; x += 3f)
+            {
+                if (k.Chance(0.75f)) k.Put("fence", -x, 7f, 0f, 1.1f, Pal.Hex("#3A3A40"));
+                if (k.Chance(0.75f)) k.Put("fence", x, 15f, 0f, 1.1f, Pal.Hex("#3A3A40"));
+            }
+            k.Scatter("gravestone", k.N(14), 9f, 34f, 0.8f, 1.3f, null, (x, z) => x < -8f && z > 8f);
+            k.Scatter("dead_tree", k.N(26), 12f, k.Reach, 0.9f, 1.8f, null, (x, z) => Mathf.Abs(x) > 9f);
+            k.Scatter("rock", k.N(16), 6f, 50f, 0.6f, 1.6f, Pal.Hex("#5A5A62"), (x, z) => Mathf.Abs(x) > 5f);
+            k.Scatter("tall_grass", k.N(50), 5f, 40f, 0.8f, 1.5f, Pal.Hex("#56603F"), (x, z) => Mathf.Abs(x) > 4.5f);
+            for (int i = 0; i < k.N(8); i++) { float a = k.Rand() * Mathf.PI * 2f, r = k.Range(8f, 40f); k.Float("bat", Mathf.Cos(a) * r, k.Range(5f, 14f), Mathf.Sin(a) * r, k.Rand() * 360f, k.Range(1f, 2f)); }
+
+            // the horde: mostly ahead, where the user is looking, at mixed distances so they arrive in a trickle
+            string enemy = k.ParamStr("enemy", "zombie");
+            int horde = k.N(9);
+            for (int i = 0; i < horde; i++)
+            {
+                float a = k.Range(-75f, 75f) * Mathf.Deg2Rad, r = k.Range(8f, 21f);
+                k.Alive(enemy, Mathf.Sin(a) * r, Mathf.Cos(a) * r, "chase", k.Range(0.92f, 1.12f));
+            }
         }
 
         static void Candyland(KitContext k)

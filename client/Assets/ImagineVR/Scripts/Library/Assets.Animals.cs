@@ -63,7 +63,7 @@ namespace ImagineVR
         /// A simple standing person, facing +Z. Returns the centre of the head.
         /// `top` is the shirt or coat, `bottom` the trousers or skirt.
         /// </summary>
-        static Vector3 Figure(MeshBuilder mb, float height, Color skin, Color top, Color bottom, Color hair, bool skirt = false, float bulk = 1f)
+        static Vector3 Figure(MeshBuilder mb, float height, Color skin, Color top, Color bottom, Color hair, bool skirt = false, float bulk = 1f, bool reach = false)
         {
             float leg = height * 0.47f, torso = height * 0.31f, head = height * 0.13f, w = height * 0.19f * bulk;
             mb.Shade(0.04f);
@@ -81,9 +81,12 @@ namespace ImagineVR
 
             mb.Col(top).Lathe(V(0, leg - 0.02f, 0), Profile(w * 0.5f, 0f, w * 0.56f, torso * 0.3f, w * 0.62f, torso * 0.8f, w * 0.4f, torso, 0f, torso * 1.03f), 7);
             float shoulder = leg + torso * 0.86f;
-            mb.Rod(V(-w * 0.62f, shoulder, 0), V(-w * 0.78f, shoulder - torso * 0.95f, w * 0.1f), w * 0.17f, w * 0.14f, 5);
-            mb.Rod(V(w * 0.62f, shoulder, 0), V(w * 0.78f, shoulder - torso * 0.95f, w * 0.1f), w * 0.17f, w * 0.14f, 5);
-            mb.Col(skin).Sphere(V(-w * 0.78f, shoulder - torso * 1.0f, w * 0.1f), w * 0.15f, 0).Sphere(V(w * 0.78f, shoulder - torso * 1.0f, w * 0.1f), w * 0.15f, 0);
+            // arms hang at the sides, or reach straight out in front
+            Vector3 handL = reach ? V(-w * 0.5f, shoulder - torso * 0.12f, torso * 0.95f) : V(-w * 0.78f, shoulder - torso * 0.95f, w * 0.1f);
+            Vector3 handR = reach ? V(w * 0.5f, shoulder + torso * 0.04f, torso * 0.95f) : V(w * 0.78f, shoulder - torso * 0.95f, w * 0.1f);
+            mb.Rod(V(-w * 0.62f, shoulder, 0), handL, w * 0.17f, w * 0.14f, 5);
+            mb.Rod(V(w * 0.62f, shoulder, 0), handR, w * 0.17f, w * 0.14f, 5);
+            mb.Col(skin).Sphere(handL, w * 0.15f, 0).Sphere(handR, w * 0.15f, 0);
 
             Vector3 headPos = V(0, leg + torso + head * 0.62f, 0);
             mb.Cyl(V(0, leg + torso - 0.01f, 0), w * 0.16f, w * 0.15f, head * 0.3f, 6, false);
@@ -389,7 +392,7 @@ namespace ImagineVR
                     mb.Emit().Col(Pal.Black).Sphere(V(-0.12f, 1.2f, 0.3f), V(0.05f, 0.08f, 0.04f), 0).Sphere(V(0.12f, 1.2f, 0.3f), V(0.05f, 0.08f, 0.04f), 0).Sphere(V(0, 1.03f, 0.34f), V(0.06f, 0.09f, 0.04f), 0);
                     mb.Glow(V(0, 0.9f, 0), 1.3f, new Color(0.6f, 0.8f, 1f) * 0.25f, true);
                 }).Flies();
-            Add("skeleton", "people", 1.75f, "Bony white skeleton", "spooky,halloween,haunted,undead,pirate", "bones,undead,zombie",
+            Add("skeleton", "people", 1.75f, "Bony white skeleton", "spooky,halloween,haunted,undead,pirate", "bones,skull,skeletons",
                 mb =>
                 {
                     Color b = Pal.Hex("#E8E4D4");
@@ -405,6 +408,17 @@ namespace ImagineVR
                     }
                     mb.Col(Pal.Black).Sphere(V(-0.04f, 1.64f, 0.095f), 0.026f, 0).Sphere(V(0.04f, 1.64f, 0.095f), 0.026f, 0);
                 });
+            Add("zombie", "people", 1.75f, "Green-skinned zombie that shambles towards you and falls over when shot or hit, then another rises", "undead,monster,horror,halloween,spooky,enemy", "zombies,walker,ghoul,undead,walking dead,the undead",
+                mb =>
+                {
+                    Color skin = Pal.Hex("#7FA45C"), rags = Pal.Hex("#5C5346");
+                    Vector3 head = Figure(mb, 1.75f, skin, rags, Pal.Hex("#39404A"), Pal.Hex("#2C3324"), false, 1f, true);
+                    // torn shirt, a dark mouth, and eyes that glow in the dark
+                    mb.Col(Pal.Hex("#3E382F")).Box(V(-0.09f, 1.12f, 0.17f), V(0.12f, 0.16f, 0.03f)).Box(V(0.1f, 0.95f, 0.17f), V(0.09f, 0.1f, 0.03f));
+                    mb.Col(Pal.Hex("#2A1616")).Box(head + V(0, -0.065f, 0.1f), V(0.07f, 0.025f, 0.03f));
+                    mb.Emit(1f).Col(Pal.Hex("#FFE14A")).Sphere(head + V(-0.039f, 0.006f, 0.105f), 0.021f, 0).Sphere(head + V(0.039f, 0.006f, 0.105f), 0.021f, 0);
+                    mb.Emit();
+                }).Does("zombie");
             Add("snowman", "people", 1.7f, "Snowman with a carrot nose, scarf and top hat", "winter,snow,christmas,holiday", "frosty,snow man",
                 mb =>
                 {

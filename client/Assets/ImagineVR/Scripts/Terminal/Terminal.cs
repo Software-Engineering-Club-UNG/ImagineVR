@@ -487,6 +487,17 @@ namespace ImagineVR
             if (instant) transform.SetPositionAndRotation(_targetPos, _targetRot);
         }
 
+        /// <summary>Moves the terminal with the user when they are carried along, so it stays where they left it relative to themselves.</summary>
+        public void Carry(Vector3 delta, float yaw, Vector3 pivot)
+        {
+            if (!_placed) return;
+            Quaternion turn = Quaternion.Euler(0f, yaw, 0f);
+            transform.position = pivot + turn * (transform.position + delta - pivot);
+            transform.rotation = turn * transform.rotation;
+            _targetPos = pivot + turn * (_targetPos + delta - pivot);
+            _targetRot = turn * _targetRot;
+        }
+
         void Follow(float dt)
         {
             if (_head == null) return;
@@ -596,7 +607,7 @@ namespace ImagineVR
             string tool = op;
             if (op == "light" || op == "fog") tool = "sky";
             else if (op == "ambience" || op == "physics") tool = "weather";
-            else if (op == "modify" || op == "remove" || op == "clear") tool = "spawn";
+            else if (op == "modify" || op == "remove" || op == "clear" || op == "ride") tool = "spawn";
             for (int i = 0; i < Tools.Length; i++) if (Tools[i] == tool) _heat[i] = 1f;
         }
 

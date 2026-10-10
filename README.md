@@ -27,8 +27,8 @@ scripts/  unity.ps1, a Windows wrapper for Unity command-line runs
 
 The contracts between the two halves are in `specs/001-voice-world-builder/contracts/`
 (`server-api.md`, `scene-language.md`, `catalog.md`). `scene-language.md` and `catalog.md` lag
-the code: they do not yet describe `weather`, `physics`, vector `scale` and `rot`, or dotted
-ids.
+the code: they do not yet describe `weather`, `physics`, `ride`, `behavior`, vector `scale` and `rot`, or
+dotted ids.
 
 ## Setting up a machine
 
@@ -70,11 +70,12 @@ Things to know:
 Open `client/` in Unity 6000.3.26f1, open `Assets/ImagineVR/Scenes/Main`, press Play. No
 headset, server or keys are needed for the built-in demos.
 
-- **F1** to **F8** play built-in demos, **B** cycles through all 28, **F12** returns to the
+- **F1** to **F8** play built-in demos, **B** cycles through all 30, **F12** returns to the
   dark room.
 - Hold the **right mouse button** to look around.
 - **Enter** types a request and **Space** speaks one (both need the server), **E** grabs,
   **left click** uses the held thing, **R** recentres the terminal.
+- **W A S D** drives whatever you are riding (the right thumbstick in the headset).
 
 The server URL and app token are in the `ImagineSettings` asset
 (`client/Assets/ImagineVR/Resources/`). The token must match `IMAGINE_APP_TOKEN`.
@@ -129,7 +130,8 @@ the file with `git checkout`.
 client/Assets/ImagineVR/
   Scripts/
     App/        ImagineApp (builds everything at startup; the scene holds only this),
-                Rig (head, hands, input, desktop mode, Grabber), Conductor (plays statements
+                Rig (head, hands, input, desktop mode, Grabber), Vehicle (`ride`: driving,
+                riding and flying through the world), Conductor (plays statements
                 into terminal + world at a readable pace), SnapshotRunner (editor only)
     Core/       MiniJson, Statement (one line of ImagineScript, plus Ease)
     Net/        TurnClient (POST + streamed NDJSON reply), ImagineSettings
@@ -137,7 +139,8 @@ client/Assets/ImagineVR/
     Terminal/   Terminal (lines, states, follow) and TerminalToolbar
     World/      World (dispatches statements), SkySystem, TerrainSystem, ObjectSystem
                 (instanced groups: spawn, scatter, modify, remove), PropSystem (physics props,
-                give, paint strokes, ScoreZone), WeatherSystem
+                give, paint strokes, ScoreZone), Creature (`behavior`: living things that
+                chase, wander or flee and fall when hit), WeatherSystem
     Audio/      Sfx (synthesised effects), AmbienceSystem
     Library/    MeshBuilder (the modelling toolkit), Library (registry, lookup, colours),
                 Assets.*.cs (recipes)

@@ -139,6 +139,9 @@ namespace ImagineVR
                     b = Buffer(0.06f); Tone(b, 0, 0.05f, 380, 260, 0.14f, 6, 0.002f); return b;
                 case "zap":
                     b = Buffer(0.25f); Tone(b, 0, 0.22f, 1500, 240, 0.3f, 4, 0.001f); Tone(b, 0, 0.2f, 2250, 360, 0.1f, 5, 0.001f); return b;
+                case "groan":     // a zombie somewhere nearby
+                    b = Buffer(1.1f); Tone(b, 0, 1.1f, 96, 68, 0.3f, 1.5f, 0.2f); Tone(b, 0, 1.0f, 145, 101, 0.14f, 2f, 0.2f);
+                    Tone(b, 0.1f, 0.9f, 290, 210, 0.05f, 3f, 0.25f); Noise(b, 0, 1.0f, 0.12f, 2, 0.08f, 29); return b;
                 case "sparkle":
                     b = Buffer(0.7f);
                     for (int i = 0; i < 7; i++) Tone(b, i * 0.07f, 0.25f, 1600 + i * 310, 1600 + i * 310, 0.07f, 6, 0.002f);
