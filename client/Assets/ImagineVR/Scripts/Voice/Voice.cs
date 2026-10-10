@@ -88,7 +88,8 @@ namespace ImagineVR
             }
             var samples = new float[Mathf.Min(position, _clip.samples) * _clip.channels];
             _clip.GetData(samples, 0);
-            byte[] wav = EncodeWav(samples, _clip.channels, _clip.frequency);
+            // the server takes 16 kHz mono only; some microphones ignore the rate they were asked for
+            byte[] wav = EncodeWav(ToMono16k(samples, _clip.channels, _clip.frequency), 1, SampleRate);
             Terminal.SetState(TerminalState.Thinking);   // acknowledge straight away
             Conductor.SubmitAudio(wav);
         }
@@ -110,6 +111,44 @@ namespace ImagineVR
             for (int i = 0; i < _meter.Length; i++) sum += _meter[i] * _meter[i];
             float rms = Mathf.Sqrt(sum / _meter.Length);
             return Mathf.Clamp01(rms * 9f);
+        }
+
+        /// <summary>Mixes down to mono and, if the microphone recorded at another rate, resamples to 16 kHz.</summary>
+        public static float[] ToMono16k(float[] samples, int channels, int rate)
+        {
+            channels = Mathf.Max(1, channels);
+            int frames = samples.Length / channels;
+            var mono = new float[frames];
+            for (int f = 0; f < frames; f++)
+            {
+                float v = 0f;
+                for (int c = 0; c < channels; c++) v += samples[f * channels + c];
+                mono[f] = v / channels;
+            }
+            if (rate == SampleRate || rate <= 0 || frames < 2) return mono;
+            int outFrames = Mathf.Max(1, (int)((long)frames * SampleRate / rate));
+            var resampled = new float[outFrames];
+            float step = (float)rate / SampleRate;
+            // average the input each output sample covers when slowing down, so high notes do not fold over
+            int span = Mathf.Max(1, Mathf.RoundToInt(step));
+            for (int i = 0; i < outFrames; i++)
+            {
+                float at = i * step;
+                int a = Mathf.Min((int)at, frames - 1);
+                if (span <= 1)
+                {
+                    int b = Mathf.Min(a + 1, frames - 1);
+                    resampled[i] = Mathf.Lerp(mono[a], mono[b], at - a);
+                }
+                else
+                {
+                    float sum = 0f;
+                    int n = 0;
+                    for (int k = a; k < a + span && k < frames; k++, n++) sum += mono[k];
+                    resampled[i] = sum / Mathf.Max(1, n);
+                }
+            }
+            return resampled;
         }
 
         /// <summary>16-bit PCM WAV, mixed down to mono.</summary>
