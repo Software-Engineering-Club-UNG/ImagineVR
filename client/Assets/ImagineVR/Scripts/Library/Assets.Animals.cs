@@ -291,7 +291,7 @@ namespace ImagineVR
                         mb.TriTwoSided(elbow, tip, root + V(s * 0.6f, -0.3f, -2.2f));
                         mb.TriTwoSided(elbow, tip + V(-s * 1.0f, -0.2f, -1.3f), tip);
                     }
-                });
+                }).Wings();
             Add("unicorn", "animals", 2.3f, "White unicorn with a golden horn", "fantasy,magic,myth,horse,fairy tale", "pegasus,magical horse",
                 mb =>
                 {

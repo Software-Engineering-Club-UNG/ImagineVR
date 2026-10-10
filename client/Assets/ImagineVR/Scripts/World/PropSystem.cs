@@ -22,6 +22,7 @@ namespace ImagineVR
         public Grabber Holder;
         public float Length = 0.3f; // how far the business end is from the grip, for tools
         public float Born;
+        public float LetGoAt;       // when a hand last let go of it
 
         Vector3 _floatAnchor;
         float _lastSound;
@@ -366,16 +367,7 @@ namespace ImagineVR
                 scale = Mathf.Min(1f, 0.32f / Mathf.Max(biggest, 0.01f));
             }
 
-            Transform head = _world.Head;
-            Vector3 forward = head != null ? head.forward : Vector3.forward;
-            forward.y = 0f;
-            forward = forward.sqrMagnitude > 0.01f ? forward.normalized : Vector3.forward;
-            Vector3 origin = head != null ? head.position : new Vector3(0f, 1.6f, 0f);
-            int waiting = 0;
-            foreach (Prop p in _props) if (p != null && p.Floating) waiting++;
-            Vector3 side = Vector3.Cross(Vector3.up, forward) * (((waiting + 1) / 2) * 0.28f * (waiting % 2 == 0 ? 1f : -1f));
-            Vector3 position = origin + forward * 0.5f + side + Vector3.down * 0.32f;
-            position.y = Mathf.Max(position.y, 0.6f);
+            Vector3 position = InReach();
 
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
             Prop prop = Create(def, id, position, Quaternion.identity, Vector3.one * scale, tint);
@@ -386,6 +378,32 @@ namespace ImagineVR
             if (standIn && _world.Font != null) AddLabel(prop, name.Replace('_', ' '));
             _world.Placed(s, name, def, standIn, position, null);
             _world.OnGiven(prop);
+        }
+
+        /// <summary>How far from the user's head something waiting to be taken still counts as within reach.</summary>
+        public const float Reach = 1.5f;
+        const float ComesBackAfter = 2.5f;
+
+        /// <summary>A free spot in the air in front of the user, at the height of a hand: where things wait to be taken.</summary>
+        Vector3 InReach()
+        {
+            Transform head = _world.Head;
+            Vector3 forward = head != null ? head.forward : Vector3.forward;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 0.01f ? forward.normalized : Vector3.forward;
+            Vector3 origin = head != null ? head.position : new Vector3(0f, 1.6f, 0f);
+            int waiting = 0;
+            foreach (Prop p in _props) if (p != null && p.Floating && !p.Held && (p.transform.position - origin).magnitude < Reach) waiting++;
+            Vector3 side = Vector3.Cross(Vector3.up, forward) * (((waiting + 1) / 2) * 0.28f * (waiting % 2 == 0 ? 1f : -1f));
+            Vector3 position = origin + forward * 0.5f + side + Vector3.down * 0.32f;
+            position.y = Mathf.Max(position.y, 0.6f);
+            return position;
+        }
+
+        /// <summary>True for something the user was given that is waiting in the air close enough to take.</summary>
+        public bool WithinReach(Prop p)
+        {
+            return p != null && p.Floating && !p.Held && _world.Head != null && (p.transform.position - _world.Head.position).magnitude < Reach;
         }
 
         void AddLabel(Prop prop, string text)
@@ -479,6 +497,20 @@ namespace ImagineVR
                 Prop p = _props[i];
                 if (p == null) { _props.RemoveAt(i); continue; }
                 Vector3 pos = p.transform.position;
+                // A tool the user was given and has let go of comes back to wait within reach: dropped
+                // by accident it is otherwise lost at their feet or across the street, and they have
+                // to ask for another. Thrown on purpose, it is back in a moment to throw again.
+                if (p.Given && p.Def.Tool && !p.Held && !p.Floating && Time.time - p.LetGoAt > ComesBackAfter)
+                {
+                    Vector3 back = InReach();
+                    p.Body.linearVelocity = Vector3.zero;
+                    p.Body.angularVelocity = Vector3.zero;
+                    p.FloatAt(back);
+                    Sfx.Play("sparkle", back, 0.4f);
+                    SessionLog.Write("recover", "asset", p.Def.Id, "id", p.GroupId, "from", pos, "to", back, "why", "dropped tool came back to reach");
+                    _world.OnGiven(p);
+                    continue;
+                }
                 if (pos.y < -30f || pos.sqrMagnitude > 250f * 250f)
                 {
                     if (p.Given)

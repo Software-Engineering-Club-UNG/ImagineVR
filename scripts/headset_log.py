@@ -59,7 +59,8 @@ def one_line(e: dict) -> str | None:
         where = f"{e.get('metres_from_user')} m away, {e.get('degrees_from_gaze')} deg from where they looked"
         flags = "".join([
             "   [STAND-IN BOX: not in the library]" if e.get("stand_in") else "",
-            "   [NOT IN VIEW]" if not e.get("in_view") and not e.get("problem") else "",
+            # a scatter is logged by its middle and a ride by its seat: both are where the user stands
+            "   [NOT IN VIEW]" if not e.get("in_view") and not e.get("problem") and e.get("op") not in ("scatter", "ride") else "",
             f"   [{e['problem']}]" if e.get("problem") else "",
         ])
         swap = "" if e.get("asked") == e.get("used") or not e.get("used") else f" (asked for {e.get('asked')})"
@@ -83,7 +84,9 @@ def one_line(e: dict) -> str | None:
         return text + ("\n" + str(e["stack"]).rstrip() if e.get("stack") else "") if e.get("level") != "info" else text
     if k == "state":
         return (f"at {e.get('head')} facing {e.get('yaw')}, {e.get('fps')} fps, {'dark room' if e.get('dark') else 'in a world'}"
-                f"{', passthrough' if e.get('passthrough') else ''}, terminal {e.get('terminal')}"
+                f"{', passthrough' if e.get('passthrough') else ''}"
+                f"{', riding ' + e['riding'] if e.get('riding') else ''}"
+                f"{', stick %s, moving %s m/s' % (e.get('stick'), e.get('speed')) if e.get('stick') else ''}, terminal {e.get('terminal')}"
                 f"{' (tucked away)' if e.get('collapsed') else ''}, holding {e.get('left')}/{e.get('right')}")
     rest = {n: v for n, v in e.items() if n not in ("t", "clock", "kind")}
     return f"{k}: {json.dumps(rest, ensure_ascii=False)}"

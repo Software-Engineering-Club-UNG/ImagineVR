@@ -150,8 +150,22 @@ def validate_rule(raw):
     return result
 
 
+USER_STATE = 'user-state-v1'
+
+
+def validate_user(raw):
+    """What the user has in their hands, in reach, lying dropped, and is riding: asset ids only."""
+    strict(raw, ('holding', 'in_reach', 'dropped', 'riding'))
+    for key in ('holding', 'in_reach', 'dropped'):
+        items = raw.get(key, [])
+        if not isinstance(items, list) or len(items) > 8: raise RuleError('invalid user state')
+        for item in items: identifier(item)
+    if raw.get('riding') is not None: identifier(raw['riding'])
+
+
 def validate_snapshot(raw):
-    strict(raw, ('generation','sequence','entities','rules','counters','states','player','failures'), ('generation','sequence','entities','rules','counters','states','player','failures'))
+    strict(raw, ('generation','sequence','entities','rules','counters','states','player','failures','user'), ('generation','sequence','entities','rules','counters','states','player','failures'))
+    if 'user' in raw: validate_user(raw['user'])
     for key in ('generation','sequence'):
         number(raw[key], 0, 2**31-1)
         if not isinstance(raw[key], int): raise RuleError('expected integer sequence')

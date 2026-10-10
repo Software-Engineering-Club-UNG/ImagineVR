@@ -184,3 +184,19 @@ def test_new_session_uses_generation_zero_after_old_session_reset(monkeypatch):
     snapshot = {'generation': 0, 'sequence': 1, 'entities': [], 'rules': [],
                 'counters': {}, 'states': {}, 'player': [0, 1.6, 0], 'failures': []}
     assert client.post('/v1/session/runtime', headers=headers, json=snapshot).status_code == 200
+
+
+def test_the_headset_says_what_is_in_the_users_hands():
+    from imagine.script import WorldState
+    snapshot = {'generation': 0, 'sequence': 1, 'entities': [], 'rules': [], 'counters': {}, 'states': {},
+                'player': [0, 1.6, 0], 'failures': []}
+    world = WorldState()
+    world.runtime = validate_snapshot(snapshot)
+    assert 'USER RIGHT NOW' not in world.render()   # an older headset says nothing, so nothing is claimed
+    world.runtime = validate_snapshot({**snapshot, 'user': {'holding': [], 'in_reach': [], 'dropped': ['blaster'], 'riding': 'dragon'}})
+    assert world.render().endswith('USER RIGHT NOW: hands empty; dropped, no longer in their hands: blaster; riding dragon.')
+    world.runtime = validate_snapshot({**snapshot, 'user': {'holding': ['blaster'], 'in_reach': ['golf_club']}})
+    assert world.render().endswith('USER RIGHT NOW: holding blaster; floating in front of them, not yet taken: golf club; on foot.')
+    for bad in ({'holding': 'blaster'}, {'holding': ['no spaces']}, {'pockets': []}, {'riding': 7}):
+        with pytest.raises(RuleError):
+            validate_snapshot({**snapshot, 'user': bad})

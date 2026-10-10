@@ -513,6 +513,31 @@ namespace ImagineVR
             for (float t = .2f; t > 0; t -= Time.unscaledDeltaTime) { image.color = new Color(0,0,0,t/.2f); yield return null; }
             UnityEngine.Object.Destroy(go); _playerTransition = false;
         }
+        /// <summary>Server capability: it wants to be told what the user holds and rides, with each snapshot.</summary>
+        public const string UserState = "user-state-v1";
+        public bool ReportUser;
+
+        /// <summary>
+        /// What is in the user's hands, waiting within their reach, lying dropped, and under them.
+        /// Without it the server only knows what it once handed over, and tells someone whose
+        /// blaster is on the ground that it is in their hand.
+        /// </summary>
+        Dictionary<string, object> UserNow()
+        {
+            var holding = new List<object>();
+            var inReach = new List<object>();
+            var dropped = new List<object>();
+            foreach (Prop p in _world.Props.All)
+            {
+                if (p == null || p.Def == null) continue;
+                List<object> list = p.Held ? holding : !p.Given ? null : _world.Props.WithinReach(p) ? inReach : dropped;
+                if (list != null && list.Count < 8 && !list.Contains(p.Def.Id)) list.Add(p.Def.Id);
+            }
+            var user = new Dictionary<string, object> { ["holding"] = holding, ["in_reach"] = inReach, ["dropped"] = dropped };
+            if (_world.Vehicle != null && _world.Vehicle.Riding) user["riding"] = _world.Vehicle.Asset;
+            return user;
+        }
+
         public Dictionary<string, object> Snapshot()
         {
             SyncEntities();
@@ -526,9 +551,11 @@ namespace ImagineVR
                 entities.Add(item);
             }
             Vector3 head = _world.Head != null ? _world.Head.position : Vector3.zero;
-            return new Dictionary<string, object> { ["generation"] = _generation, ["sequence"] = ++_sequence, ["entities"] = entities,
+            var snapshot = new Dictionary<string, object> { ["generation"] = _generation, ["sequence"] = ++_sequence, ["entities"] = entities,
                 ["rules"] = _rules.Select(r => (object)r.Fields).ToList(), ["counters"] = _counters.ToDictionary(p => p.Key, p => (object)(double)p.Value),
                 ["states"] = new Dictionary<string, object>(_states), ["player"] = new List<object> { (double)head.x,(double)head.y,(double)head.z }, ["failures"] = _failures.Cast<object>().ToList() };
+            if (ReportUser) snapshot["user"] = UserNow();
+            return snapshot;
         }
     }
 }

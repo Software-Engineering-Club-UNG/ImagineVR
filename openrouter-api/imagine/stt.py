@@ -24,7 +24,8 @@ _HALLUCINATIONS = {
 }
 
 # Bias the decoder towards the words people actually say here.
-_PROMPT = "ImagineVR voice command: build a world. Golf course, city, forest, sunset, give me a golf club."
+_PROMPT = ("ImagineVR voice commands: put me in a city at night. Give me a new gun. Put a ray gun in front of my face. "
+           "Make the sheep massive. Put seventeen pigs in front of me. Let me ride a dragon. Fill it with zombies.")
 
 
 def wav_seconds(data: bytes) -> float:

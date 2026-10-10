@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+import time
 from typing import AsyncIterator
 
 import httpx
@@ -39,7 +41,9 @@ def client() -> httpx.AsyncClient:
     global _client
     if _client is None:
         # one shared client keeps the TLS connection warm between turns
-        _client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=8.0), http2=False)
+        # a provider that says nothing at all is given up on as soon as one that is slow to start (see stream_lines)
+        quiet = max(config.FIRST_TOKEN_SECONDS, config.STALL_SECONDS)
+        _client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=8.0, read=quiet), http2=False)
     return _client
 
 
@@ -73,6 +77,11 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
         "Content-Type": "application/json",
         "X-Title": "ImagineVR",
     }
+    # A provider that hangs is worse than one that fails: the user stands waiting. So the model
+    # gets a few seconds to start writing and a few between words (keep-alives do not count),
+    # and past that the caller is told, while there is still time to ask again.
+    heard = time.monotonic()
+    started = False
     try:
         async with client().stream("POST", URL, headers=headers, json=body) as response:
             if response.status_code != 200:
@@ -81,7 +90,15 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
             buffer = ""
             finished = False
             reason = None
-            async for raw in response.aiter_lines():
+            frames = response.aiter_lines().__aiter__()
+            while True:
+                left = (config.STALL_SECONDS if started else config.FIRST_TOKEN_SECONDS) - (time.monotonic() - heard)
+                try:
+                    raw = await asyncio.wait_for(anext(frames), max(left, 0.01))
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    raise LLMError("OpenRouter went quiet " + ("partway through" if started else "before answering")) from None
                 if not raw.startswith("data:"):
                     continue
                 data = raw[5:].strip()
@@ -103,6 +120,8 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
                 delta = (choices[0].get("delta") or {}).get("content") or ""
                 if not delta:
                     continue
+                started = True
+                heard = time.monotonic()
                 buffer += delta
                 while "\n" in buffer:
                     line, buffer = buffer.split("\n", 1)

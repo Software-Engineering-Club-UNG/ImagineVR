@@ -46,6 +46,10 @@ CATALOG_PATH = catalog_path()
 PROMPT_PATH = Path(__file__).resolve().parent / "prompt.md"
 
 MAX_AUDIO_SECONDS = 30
+# How long the model may stay silent before the request is given up on and tried again:
+# before its first word, and between words once it has started.
+FIRST_TOKEN_SECONDS = float(_env("IMAGINE_FIRST_TOKEN_SECONDS", "9"))
+STALL_SECONDS = float(_env("IMAGINE_STALL_SECONDS", "8"))
 SESSION_IDLE_SECONDS = 30 * 60
 TURNS_PER_MINUTE = 20
 

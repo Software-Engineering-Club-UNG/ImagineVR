@@ -138,29 +138,30 @@ namespace ImagineVR
         public Conductor Conductor;
 
         const float TalkLife = 45f, HandText = 0.2f, TerminalText = 0.34f;
-        const int TeachTakes = 3, TeachUses = 2, TeachFolds = 2;
+        const int TeachTakes = 3, TeachUses = 2, TeachFolds = 2, TeachRides = 3;
 
-        Callout _talk, _fold, _use;
+        Callout _talk, _fold, _use, _ride;
         readonly Dictionary<Prop, Callout> _take = new Dictionary<Prop, Callout>();
         bool _talkOwed;
         float _talkAt;
-        int _takes, _uses, _folds;
+        int _takes, _uses, _folds, _rides;
 
         void Start()
         {
             World.Given += OnGiven;
             Rig.Grabbed += OnGrabbed;
             Conductor.TurnEnded += OnTurnEnded;
+            if (World.Vehicle != null) World.Vehicle.Mounted += OnMounted;
         }
 
         /// <summary>Starts the hints over, as for someone who has just put the headset on.</summary>
         public void Arm()
         {
-            foreach (Callout c in new[] { _talk, _fold, _use }) if (c != null) c.Dismiss();
+            foreach (Callout c in new[] { _talk, _fold, _use, _ride }) if (c != null) c.Dismiss();
             foreach (Callout c in _take.Values) if (c != null) c.Dismiss();
             _take.Clear();
-            _talk = _fold = _use = null;
-            _takes = _uses = _folds = 0;
+            _talk = _fold = _use = _ride = null;
+            _takes = _uses = _folds = _rides = 0;
             _talkOwed = true;
             _talkAt = Time.time + 2f;   // after the welcome has typed itself out
         }
@@ -184,12 +185,33 @@ namespace ImagineVR
                 if (_talk != null) { _talk.Dismiss(); _talk = null; }
             }
 
+            // how to make a ride go: it stays until they push the stick, or get off
+            if (_ride != null && (Moving || !World.Vehicle.Riding)) { _ride.Dismiss(); _ride = null; }
+            if (Moving && World.Vehicle != null && World.Vehicle.Riding) _rides = TeachRides;   // they have found it
+
             if (Terminal.Collapsed)
             {
                 _folds = TeachFolds;   // they have found it
                 if (_fold != null) { _fold.Dismiss(); _fold = null; }
             }
             else if (!World.IsDark && Rig.Stick.magnitude > 0.6f) OfferFold();   // walking with the terminal in the way
+        }
+
+        bool Moving => World.Vehicle != null && Mathf.Abs(World.Vehicle.Speed) > 0.5f;
+
+        /// <summary>
+        /// A ride that is not moving looks broken: in testing a dragon and a flying saucer were
+        /// each sat on for a minute without the stick being touched. So the stick is pointed out.
+        /// </summary>
+        void OnMounted(bool flies)
+        {
+            if (_rides >= TeachRides || ImagineApp.Quiet) return;
+            _rides++;
+            if (_ride != null) _ride.Dismiss();
+            string go = flies ? "fly" : "drive";
+            string text = Xr ? "push this <b>thumbstick</b> forward to " + go + "  ·  sideways steers" : "<b>W A S D</b> to " + go;
+            _ride = Callout.Show(Rig.RightHand, Vector3.zero, 0.2f, text, HandText, 0f);
+            SessionLog.Write("hint", "what", "ride", "asset", World.Vehicle.Asset);
         }
 
         void OnTurnEnded(bool changedWorld)
@@ -227,7 +249,7 @@ namespace ImagineVR
             _uses++;
             if (_use != null) _use.Dismiss();
             string text;
-            if (prop.Def.Tool) text = Xr ? "<b>trigger</b> uses it  ·  squeeze the <b>grip</b> to let go" : "<b>click</b> uses it  ·  <b>E</b> lets go";
+            if (prop.Def.Tool) text = Xr ? "<b>trigger</b> uses it  ·  hold the <b>grip</b> to let go" : "<b>click</b> uses it  ·  hold <b>E</b> to let go";
             else text = Xr ? "squeeze the <b>grip</b>, then let go to throw" : "hold <b>E</b>, then let go to throw";
             _use = Callout.Show(right ? Rig.RightHand : Rig.LeftHand, Vector3.zero, 0.13f, text, HandText, 7f);
             SessionLog.Write("hint", "what", "use", "asset", prop.Def.Id);

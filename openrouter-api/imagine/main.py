@@ -18,7 +18,7 @@ from .catalog import Catalog
 from .script import to_frame
 from .session import SessionStore
 from .turn import run_turn, reset_stt_slots
-from .rules import CAPABILITY, CAPABILITIES, RuleError, validate_snapshot
+from .rules import CAPABILITY, CAPABILITIES, USER_STATE, RuleError, validate_snapshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("imagine")
@@ -100,7 +100,7 @@ async def health():
         "model": "offline" if config.OFFLINE else config.MODEL,
         "stt": f"local:{config.STT_MODEL}" if config.STT == "local" else config.STT,
         "tts": tts.enabled(),
-        "capabilities": [CAPABILITY],
+        "capabilities": [CAPABILITY, USER_STATE],
     }
 
 

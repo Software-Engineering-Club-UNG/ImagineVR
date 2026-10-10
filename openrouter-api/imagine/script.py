@@ -466,8 +466,24 @@ class WorldState:
                 summary['player'] = [round(v, 2) for v in _from_world(summary['player'], frame)]
             summary['entities_truncated'] = len(live) > 128
             summary.pop('rules', None)  # installed rules already appear above
+            user = summary.pop('user', None)
             lines.append(json.dumps(summary, separators=(',', ':')))
+            if user is not None:
+                lines.append(_user_now(user))
         return "\n".join(lines)
+
+
+def _user_now(user: dict) -> str:
+    """The headset's own account of the user's hands and ride, in words the model cannot misread."""
+    def names(key: str) -> str:
+        return ", ".join(str(item).replace("_", " ") for item in user.get(key) or [])
+    parts = ["holding " + names("holding") if user.get("holding") else "hands empty"]
+    if user.get("in_reach"):
+        parts.append("floating in front of them, not yet taken: " + names("in_reach"))
+    if user.get("dropped"):
+        parts.append("dropped, no longer in their hands: " + names("dropped"))
+    parts.append("riding " + str(user["riding"]).replace("_", " ") if user.get("riding") else "on foot")
+    return "USER RIGHT NOW: " + "; ".join(parts) + "."
 
 
 def _rule_coordinates(rule: dict, frame: list | None, inverse: bool = False) -> dict:
