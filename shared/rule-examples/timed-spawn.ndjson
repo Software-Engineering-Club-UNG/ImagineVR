@@ -1,0 +1,2 @@
+{"op":"rule","id":"flag.timer","selector":{"group":"marker"},"event":"interval","filters":{"duration":3},"actions":[{"action":"spawn","asset":"sheep","offset":[2,0,0],"behavior":"wander","target":"self"}]}
+{"op":"spawn","id":"marker","asset":"flag","place":"front","distance":8}

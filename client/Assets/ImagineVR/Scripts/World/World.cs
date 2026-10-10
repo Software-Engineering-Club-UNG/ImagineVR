@@ -23,6 +23,7 @@ namespace ImagineVR
         public PropSystem Props { get; private set; }
         public WeatherSystem Weather { get; private set; }
         public AmbienceSystem Ambience { get; private set; }
+        public RuleEngine Rules { get; private set; }
 
         /// <summary>The user's head. Used to place things in reach and to aim sounds.</summary>
         public Transform Head;
@@ -55,6 +56,7 @@ namespace ImagineVR
             Props = new PropSystem(this);
             Weather = new WeatherSystem(this);
             Ambience = new AmbienceSystem(this);
+            Rules = new RuleEngine(this);
             Terrain.Changed += OnGroundChanged;
         }
 
@@ -96,10 +98,12 @@ namespace ImagineVR
                 case "goal": Objects.Goal(s); break;
                 case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
                 case "modify": Objects.Modify(s); Props.Modify(s); break;
-                case "remove": Objects.Remove(s); Props.Remove(s.Str("id")); break;
+                case "remove": Rules.RemovingGroup(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
                 case "clear": Clear(s); break;
+                case "rule": case "rule_remove": Rules.SyncEntities(); Rules.Install(s); break;
             }
+            Rules.SyncEntities();
         }
 
         /// <summary>Things should never be built in total darkness: give them a default sky to be seen by.</summary>
@@ -113,6 +117,7 @@ namespace ImagineVR
         void Clear(Statement s)
         {
             List<string> keep = s.StrList("keep");
+            Rules.Reset(keep.Contains("rules"));
             float t = s.T(1.2f);
             Objects.Clear(t);
             Kits.Forget();
@@ -139,6 +144,7 @@ namespace ImagineVR
         /// <summary>Back to the dark room.</summary>
         public void ResetToDark(float seconds)
         {
+            Rules.NewSession();
             Objects.Clear(seconds);
             Kits.Forget();
             Props.ClearLoose();
@@ -149,6 +155,7 @@ namespace ImagineVR
             Sky.Reset(seconds);
             _clearGroundAtTurnEnd = false;
             if (Vehicle != null) { Vehicle.Dismount(); Vehicle.Resize(1f); Vehicle.Home(); }
+            Rules.SyncEntities();
         }
 
         /// <summary>A floating name tag, used above stand-in shapes.</summary>
@@ -179,6 +186,7 @@ namespace ImagineVR
             Props.Tick(dt);
             Weather.Tick(dt);
             Ambience.Tick(dt);
+            Rules.Tick(dt);
         }
 
         void LateUpdate()

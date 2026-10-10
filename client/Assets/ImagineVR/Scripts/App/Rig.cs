@@ -307,6 +307,7 @@ namespace ImagineVR
             float trigger = _rig.Trigger(_right);
             bool trig = trigger > 0.4f;
             if (_held != null) Use(trig, trigger);
+            if (_held != null && !trig && _triggerDown) EndUse(_held);
             _triggerDown = trig;
 
             if (_held != null && _held.Def.Behavior == "paint" && _rig.AltPressed && _right)
@@ -340,6 +341,8 @@ namespace ImagineVR
 
         void Grab(Prop prop)
         {
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            if (rule != null) rule.Engine.Emit("grab", rule.Entity);
             _held = prop;
             prop.Holder = this;
             prop.Floating = false;
@@ -387,6 +390,8 @@ namespace ImagineVR
                 prop.Body.linearVelocity = _velocity * 1.25f;
                 prop.Body.angularVelocity = _angular;
             }
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            if (rule != null) rule.Released(thrown);
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }
@@ -421,6 +426,11 @@ namespace ImagineVR
         void Use(bool pressed, float amount)
         {
             Prop prop = _held;
+            if (pressed && !_triggerDown)
+            {
+                RuleBody rule = prop.GetComponent<RuleBody>();
+                if (rule != null && rule.Engine.Emit("use_start", rule.Entity)) return;
+            }
             Vector3 tipPosition = TargetPosition + (TargetRotation * Vector3.up) * prop.Length;
             Vector3 aim = TargetRotation * Vector3.up;
             switch (prop.Def.Behavior)
@@ -481,6 +491,8 @@ namespace ImagineVR
 
         void EndUse(Prop prop)
         {
+            RuleBody rule = prop != null ? prop.GetComponent<RuleBody>() : null;
+            if (rule != null) rule.Engine.Emit("use_end", rule.Entity);
             if (_stroke != null && prop != null) prop.System.EndStroke(_stroke);
             _stroke = null;
         }

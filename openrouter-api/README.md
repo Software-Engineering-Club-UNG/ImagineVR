@@ -175,3 +175,12 @@ Application secrets (such as `OPENROUTER_API_KEY`) belong in the root-owned
 `/etc/openrouter-api/environment`, never in Git. Restart the service after editing
 that file. Production requires valid configuration before startup; health checks
 do not themselves make provider calls or prove that provider credit is available.
+## Runtime rules (new, not production activated)
+
+The event-and-action extension adds validated `rule`/`rule_remove` commands and
+authenticated `POST /v1/session/runtime` snapshots. It is negotiated through
+`X-Client-Capabilities: runtime-rules-v1`; legacy clients remain scene-only.
+See [the integration and acceptance guide](../specs/002-runtime-rules/README.md).
+The updated Unity client requires the matching backend extension. Native Unity,
+Android and headset acceptance remain a release gate; do not assume this feature
+is live merely because the source is present.

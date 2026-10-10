@@ -60,6 +60,7 @@ async def _run_turn(
     text: str | None = None,
     audio: bytes | None = None,
     base_url: str = "",
+    allow_rules: bool = False,
 ) -> AsyncIterator[dict]:
     started = time.perf_counter()
 
@@ -83,7 +84,7 @@ async def _run_turn(
     text = (text or "").strip()[:600]
     yield {"op": "status", "state": "thinking"}
 
-    validator = Validator(catalog)
+    validator = Validator(catalog, allow_rules=allow_rules)
     building = False
     changed = False
     gave = False

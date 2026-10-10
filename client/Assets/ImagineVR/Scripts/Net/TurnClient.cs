@@ -39,6 +39,8 @@ namespace ImagineVR
     public sealed class TurnClient : MonoBehaviour
     {
         public ImagineSettings Settings;
+        public World World;
+        bool _resetting;
         public string SessionId { get; private set; }
         public string CatalogVersion = "";
 
@@ -53,6 +55,7 @@ namespace ImagineVR
         {
             request.SetRequestHeader("X-App-Token", Settings.AppToken);
             request.SetRequestHeader("X-Session-Id", SessionId);
+            request.SetRequestHeader("X-Client-Capabilities", RuleEngine.Capability);
             if (!string.IsNullOrEmpty(CatalogVersion)) request.SetRequestHeader("X-Catalog-Version", CatalogVersion);
         }
 
@@ -108,6 +111,21 @@ namespace ImagineVR
 
         IEnumerator Run(Turn turn, byte[] body, string contentType)
         {
+            Conductor conductor = GetComponent<Conductor>();
+            while (_resetting || conductor != null && !conductor.IsCurrent(turn)) { if (turn.Closed) yield break; yield return null; }
+            if (turn.Closed) yield break;
+            if (World != null)
+            {
+                byte[] snapshot = Encoding.UTF8.GetBytes(MiniJson.Serialize(World.Rules.Snapshot()));
+                using (var sync = new UnityWebRequest(Url("/v1/session/runtime"), UnityWebRequest.kHttpVerbPOST))
+                {
+                    sync.uploadHandler = new UploadHandlerRaw(snapshot) { contentType = "application/json" };
+                    sync.downloadHandler = new DownloadHandlerBuffer(); sync.timeout = 10; Headers(sync);
+                    yield return sync.SendWebRequest();
+                    if (sync.result != UnityWebRequest.Result.Success) { turn.Fail("Runtime sync failed (" + sync.responseCode + "). Local rules still run; reset the session and try again."); yield break; }
+                }
+            }
+            if (turn.Closed) yield break;
             using (var request = new UnityWebRequest(Url("/v1/turn"), UnityWebRequest.kHttpVerbPOST))
             {
                 var handler = new LineHandler(turn);
@@ -170,13 +188,16 @@ namespace ImagineVR
 
         public IEnumerator ResetSession()
         {
+            _resetting = true;
             using (var request = new UnityWebRequest(Url("/v1/session/reset"), UnityWebRequest.kHttpVerbPOST))
             {
                 request.downloadHandler = new DownloadHandlerBuffer();
                 Headers(request);
                 request.timeout = 5;
                 yield return request.SendWebRequest();
+                if (request.result == UnityWebRequest.Result.Success && int.TryParse(request.GetResponseHeader("X-Session-Generation"), out int generation)) World?.Rules.SetGeneration(generation);
             }
+            _resetting = false;
         }
     }
 }

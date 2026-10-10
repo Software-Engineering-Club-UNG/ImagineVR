@@ -71,6 +71,7 @@ namespace ImagineVR
 
             Client = gameObject.AddComponent<TurnClient>();
             Client.Settings = _settings;
+            Client.World = World;
             TextAsset version = Resources.Load<TextAsset>("CatalogVersion");
             if (version != null) Client.CatalogVersion = version.text.Trim();
 
@@ -187,7 +188,15 @@ namespace ImagineVR
         {
             if (Rig.XrActive && !_foveationSet) _foveationSet = TryFoveation();
 
-            if (Rig.MenuPressed && !Typing) Terminal.Recenter(false);
+            if (Rig.MenuPressed && !Typing)
+            {
+                if (Rig.Grip(true) > .9f && Rig.Grip(false) > .9f)
+                {
+                    World.Rules.PlayerEffectsEnabled = !World.Rules.PlayerEffectsEnabled;
+                    Terminal.Note("Rule-driven player effects " + (World.Rules.PlayerEffectsEnabled ? "enabled" : "disabled") + " for this session");
+                }
+                else Terminal.Recenter(false);
+            }
 
             // B cycles the built-in demos, unless the right hand is holding a paintbrush (B then changes colour)
             if (Rig.AltPressed && !Typing && _examples.Length > 0)
@@ -236,6 +245,7 @@ namespace ImagineVR
 
         public void BackToDark()
         {
+            Conductor.CancelPending();
             World.ResetToDark(1.5f);
             Conductor.ResetFirstLight();
             Terminal.Note("back to the dark room");
@@ -247,6 +257,7 @@ namespace ImagineVR
         void OnGUI()
         {
             if (Rig == null || Rig.XrActive || Quiet) return;
+            World.Rules.PlayerEffectsEnabled = GUI.Toggle(new Rect(12, 12, 280, 25), World.Rules.PlayerEffectsEnabled, "Allow rule-driven player effects (this session)");
             const string fieldName = "ImaginePrompt";
             float w = Mathf.Min(Screen.width - 40f, 720f), h = 30f;
             var rect = new Rect((Screen.width - w) * 0.5f, Screen.height - h - 16f, w, h);

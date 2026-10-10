@@ -1,0 +1,5 @@
+{
+  "name": "ImagineVR.Runtime",
+  "references": ["Unity.InputSystem", "Unity.TextMeshPro", "UnityEngine.UI"],
+  "autoReferenced": true
+}

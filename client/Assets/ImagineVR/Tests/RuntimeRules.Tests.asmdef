@@ -1,0 +1,7 @@
+{
+  "name": "ImagineVR.RuntimeRules.Tests",
+  "references": ["ImagineVR.Runtime"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}
