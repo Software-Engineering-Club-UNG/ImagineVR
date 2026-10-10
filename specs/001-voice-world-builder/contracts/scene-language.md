@@ -109,6 +109,34 @@ Follow-up "make it sunset" in the same session:
 
 ## Versioning
 
+### Current Unity additions (2026-10-10)
+
+These additive fields and operations remain ImagineScript v1. The deployed
+backend lives in `openrouter-api/`; it follows Israel-Jauregui's `online-ready`
+implementation through `e5f8c5a`, including the exported catalog and prompt.
+
+- `think`: `{"op":"think","text":"A maze at sunset, then a flag at the exit."}`
+  is a brief display-only plan line, limited to 220 characters. Unity shows it
+  dimly in the terminal; it does not enter world state or conversational replies,
+  and does not trigger `building` or a `world_changed` outcome by itself.
+- `spawn` and `scatter` accept `solid: true` for scenery that blocks movement.
+  This differs from `physics: true`, which creates loose, movable props.
+- `spawn` accepts `path: [[x,height,z], ...]`, `speed` (0.1–40 m/s), `loop`, and
+  `start` (0–1). `ride` accepts `path` and `loop` alongside its existing speed
+  multiplier (0.2–3). Routes retain 2–24 valid points; heights are above ground.
+  Too-short/invalid paths are dropped without dropping the remaining statement.
+- `goal`: `{"op":"goal","id":"finish","at":[0,0,40],"radius":3,"for":"user","text":"You made it"}`.
+  Position is required; radius is bounded to 0.3–20 m, message to 80 characters.
+  `for` defaults to `user`; Unity also accepts asset-name matching or `any`.
+  Goals receive IDs, enter world state, and can be removed or cleared.
+- `player`: `{"op":"player","scale":0.1}` changes player size (0.05–20).
+  It enters global world state for follow-ups; setting scale to 1 resets it.
+- `modify.scale` remains uniform: a three-component vector is converted to its
+  average. `sky.t` now permits 0.2–120 seconds for gradual sunsets.
+- The generated catalog now includes the `maze` kit. Client and backend must use
+  the same exported catalog version; the maze/coaster examples are regression
+  fixtures, not hand-edited catalog entries.
+
 - The language version is an integer, currently `1`, reported by the server's health check
   and embedded in the catalog.
 - Adding an operation or an optional field does not change the version. Changing the meaning

@@ -1,13 +1,16 @@
 # openrouter-api
 
 FastAPI backend for ImagineVR, adapted from Israel-Jauregui's `online-ready`
-commit `c875d63`. It exposes Unity's `/v1/turn`, `/v1/session/reset`, and
+commit `e5f8c5a`. It exposes Unity's `/v1/turn`, `/v1/session/reset`, and
 `/v1/health`, plus the existing `/`, `/health`, `/docs`, and `/openapi.json`.
 
 Push-to-talk WAV uploads are transcribed through ElevenLabs; complete text and
 session world state go to OpenRouter. Validated ImagineScript commands stream
 back to Unity as NDJSON, including `ride`, creature `behavior`, and `ignored`
-outcomes for background chatter. The Unity-exported catalog is authoritative;
+outcomes for background chatter. It also supports `think` terminal plan lines,
+solid scenery and the maze kit, moving spawn/ride paths, `goal` triggers, and
+`player` scaling. Plan lines are displayed but never stored as scene state or
+counted as world changes. The Unity-exported catalog is authoritative;
 do not edit it by hand. TTS remains off.
 
 This follows Israel's latest deployment handoff: keep the 1 CPU / 1 GB VM and

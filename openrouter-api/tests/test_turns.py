@@ -2,6 +2,7 @@ import asyncio
 import io
 import json
 import wave
+from pathlib import Path
 
 import httpx
 import pytest
@@ -169,3 +170,115 @@ def test_ride_and_creature_behavior_contract():
     assert creature['behavior'] == 'chase'
     assert validator.check({'op': 'ride', 'asset': 'none'}, world)[-1]['asset'] == 'none'
     assert 'ride' not in world.globals
+
+
+def test_plan_line_stream_order_and_state(api, monkeypatch):
+    async def model(*args):
+        yield '{"op":"think","text":"A maze at sunset, then a flag marking the exit."}'
+        yield '{"op":"kit","id":"maze1","kit":"maze"}'
+        yield '{"op":"say","text":"Find your way out."}'
+    monkeypatch.setattr(config, 'OFFLINE', False)
+    monkeypatch.setattr(llm, 'stream_lines', model)
+    result = statements(api.post('/v1/turn', headers=HEADERS, json={'text': 'make a maze'}))
+    assert [s['op'] for s in result] == ['status', 'think', 'status', 'kit', 'say', 'done']
+    assert result[2] == {'op': 'status', 'state': 'building'}
+    assert result[-1]['outcome'] == 'world_changed'
+    session = main.state.sessions.get('test-session')
+    assert 'think' not in session.world.render()
+    assert list(session.history) == [('make a maze', 'Find your way out.')]
+
+
+def test_plan_only_is_not_a_world_change(api, monkeypatch):
+    async def model(*args):
+        yield '{"op":"think","text":"Sketching the route."}'
+    monkeypatch.setattr(config, 'OFFLINE', False)
+    monkeypatch.setattr(llm, 'stream_lines', model)
+    result = statements(api.post('/v1/turn', headers=HEADERS, json={'text': 'a route'}))
+    assert result[-1] == {'op': 'done', 'outcome': 'answered'}
+    assert not any(s.get('state') == 'building' for s in result)
+    assert main.state.sessions.get('test-session').world.is_empty()
+
+
+def test_plan_validation():
+    validator = Validator(Catalog.load(config.CATALOG_PATH))
+    world = WorldState()
+    assert validator.check({'op': 'think'}, world) == []
+    assert validator.check({'op': 'think', 'text': 'x' * 500, 'id': 'discard'}, world) == [{'op': 'think', 'text': 'x' * 220}]
+    assert world.is_empty()
+
+
+def test_routes_and_solidity_round_trip():
+    catalog = Catalog.load(config.CATALOG_PATH)
+    validator, world = Validator(catalog), WorldState()
+    path = [[0, 1, 0], [10, 6, 20], [20, 1, 30]]
+    spawn = validator.check({'op': 'spawn', 'id': 'traffic', 'asset': 'car', 'path': path,
+                             'speed': 12, 'loop': False, 'start': 0.5}, world)[-1]
+    assert {field: spawn[field] for field in ('path', 'speed', 'loop', 'start')} == {
+        'path': path, 'speed': 12, 'loop': False, 'start': 0.5}
+    ride = validator.check({'op': 'ride', 'asset': 'car', 'path': path, 'loop': False}, world)[-1]
+    assert ride['path'] == path and ride['loop'] is False
+    wall = validator.check({'op': 'spawn', 'id': 'wall', 'asset': 'cube', 'scale': [12, 3, 0.3], 'solid': True}, world)[-1]
+    assert wall['solid'] is True and wall['scale'] == [12, 3, 0.3]
+    barriers = validator.check({'op': 'scatter', 'id': 'barriers', 'asset': 'crate', 'count': 4, 'solid': True}, world)[-1]
+    assert barriers['solid'] is True
+    rendered = [json.loads(line) for line in world.render().splitlines()]
+    assert any(s.get('id') == 'traffic' and s['path'] == path for s in rendered)
+    assert any(s['op'] == 'ride' and s['path'] == path for s in rendered)
+
+
+@pytest.mark.parametrize('path,expected_length', [([], None), ([[1, 2, 3]], None),
+    ([[0, 0, 0], 'invalid', [1, 1, 1]], 2), ([[i, 0, i] for i in range(30)], 24)])
+def test_route_validation_and_point_limit(path, expected_length):
+    validator, world = Validator(Catalog.load(config.CATALOG_PATH)), WorldState()
+    out = validator.check({'op': 'ride', 'asset': 'car', 'path': path, 'speed': 100}, world)[-1]
+    assert out['speed'] == 3
+    if expected_length is None:
+        assert 'path' not in out
+    else:
+        assert len(out['path']) == expected_length
+
+
+def test_goals_player_size_and_followup_state():
+    validator, world = Validator(Catalog.load(config.CATALOG_PATH)), WorldState()
+    assert validator.check({'op': 'goal', 'text': 'Missing position'}, world) == []
+    goal = validator.check({'op': 'goal', 'at': [0, 0, 40], 'radius': 999,
+                            'for': 'user', 'text': 'You made it'}, world)[-1]
+    assert goal['radius'] == 20 and goal['id'] in world.things
+    assert validator.check({'op': 'player'}, world) == []
+    assert validator.check({'op': 'player', 'scale': 999}, world) == [{'op': 'player', 'scale': 20}]
+    assert '"op":"player"' in world.render()
+    assert '"op":"goal"' in world.render()
+    validator.check({'op': 'remove', 'id': goal['id']}, world)
+    assert goal['id'] not in world.things
+    validator.check({'op': 'player', 'scale': 1}, world)
+    assert 'player' not in world.globals
+
+
+def test_group_scale_and_extended_sky_transition():
+    validator, world = Validator(Catalog.load(config.CATALOG_PATH)), WorldState()
+    validator.check({'op': 'spawn', 'id': 'tree', 'asset': 'pine_tree'}, world)
+    out = validator.check({'op': 'modify', 'id': 'tree', 'scale': [2, 4, 6]}, world)[-1]
+    assert out['scale'] == 4 and world.things['tree']['scale'] == 4
+    assert validator.check({'op': 'sky', 'preset': 'golden_hour', 't': 90}, world)[-1]['t'] == 90
+    assert validator.check({'op': 'sky', 'preset': 'golden_hour', 't': 999}, world)[-1]['t'] == 120
+
+
+@pytest.mark.parametrize('example', ['31-maze.ndjson', '32-coaster.ndjson'])
+def test_new_unity_examples_are_validated_without_losing_commands(example):
+    catalog = Catalog.load(config.CATALOG_PATH)
+    validator, world = Validator(catalog), WorldState()
+    source = config.CATALOG_PATH.parent / 'examples' / example
+    for line in source.read_text(encoding='utf-8').splitlines():
+        if not line.strip() or line.startswith('#'):
+            continue
+        raw = json.loads(line)
+        out = validator.check(raw, world)
+        assert out and out[-1]['op'] == raw['op'], raw
+        for field in ('path', 'loop', 'speed'):
+            if field in raw:
+                assert out[-1][field] == raw[field]
+
+
+def test_backend_and_unity_catalog_versions_match():
+    unity_version = Path('../client/Assets/ImagineVR/Resources/CatalogVersion.txt').read_text().strip()
+    assert Catalog.load(config.CATALOG_PATH).version == unity_version

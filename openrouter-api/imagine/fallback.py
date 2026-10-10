@@ -86,7 +86,7 @@ RIDE = re.compile(r"\b(take me for a (spin|ride|drive|flight)|drive|driving|ride
 STOP_RIDE = re.compile(r"\b(let me (out|off)|i want (out|off)|get me out|get out|get off|hop out|hop off|climb (out|off)|stop (driving|riding|flying|sailing|the car)|park (it|the car|here)|on foot|i want to walk|let me walk|dismount)\b")
 FIGHT = re.compile(r"\b(shoot|shooting|fight|fighting|battle|kill|slay|defend|blast|attack|attacked|attacking|survive|hunt|hunting|destroy|defeat|take on)\b")
 CREATURES = ("people", "animals")
-RIDEABLE = ("vehicles", "animals", "sea", "space")
+RIDEABLE = ("vehicles", "animals", "sea")
 
 NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
@@ -196,6 +196,8 @@ def _place(catalog: Catalog, t: str, world: WorldState, rng: random.Random, sky_
     out: list[dict] = []
     entry = catalog.get("kit", kit_id) or {}
     defaults = entry.get("defaults") or {}
+    plan = str(entry.get("desc", kit_id.replace("_", " "))).split(": ")[0].split(". ")[0].rstrip(".")
+    out.append({"op": "think", "text": plan[:1].upper() + plan[1:] + ". Sky first, then the ground, then the rest."})
     if not world.is_empty():
         out.append({"op": "clear"})
     out.append({"op": "sky", "preset": sky_preset or defaults.get("sky") or _first_existing(catalog, "sky", ("clear_noon",)) or catalog.ids("sky")[0], "t": 3})
@@ -308,8 +310,9 @@ def compose(text: str, catalog: Catalog, world: WorldState) -> list[dict]:
     # "put me in a car" is a ride; "put me in a city" is a place
     if RIDE.search(t) or (re.search(r"\bput me (in|on)\b", t) and _named(catalog, t, RIDEABLE)):
         vehicle = _named(catalog, t, RIDEABLE)
-        if vehicle is None:
-            vehicle = next((v for v in ("airplane", "hot_air_balloon") if _named(catalog, t, ("sky",)) == v), None)
+        if vehicle is None:   # a few things from other shelves that are plainly for riding
+            vehicle = next((v for v in ("airplane", "hot_air_balloon", "rocket", "ufo", "skateboard")
+                            if re.search(rf"\b{v.replace('_', ' ')}s?\b", t) and catalog.has("asset", v)), None)
         if vehicle is None:
             flying = re.search(r"\b(fly|flying|flight|pilot)\b", t)
             vehicle = _first_existing(catalog, "asset", ("airplane",) if flying else ("car",)) or "car"
