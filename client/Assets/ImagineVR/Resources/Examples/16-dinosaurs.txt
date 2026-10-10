@@ -1,0 +1,8 @@
+# Show me dinosaurs
+{"op":"clear"}
+{"op":"sky","preset":"morning","t":4}
+{"op":"terrain","type":"valley","material":"forest_floor","height":0.4,"t":3}
+{"op":"kit","id":"dinos","kit":"dinosaur_valley","density":0.7,"size":0.7}
+{"op":"fog","density":0.25}
+{"op":"ambience","loop":"forest"}
+{"op":"say","text":"Sixty-five million years ago. Stay very still."}

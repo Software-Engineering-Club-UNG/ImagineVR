@@ -1,0 +1,9 @@
+# Take me to a forest at dawn
+{"op":"clear"}
+{"op":"sky","preset":"dawn","t":4}
+{"op":"terrain","type":"rolling","material":"forest_floor","height":0.3,"t":3}
+{"op":"kit","id":"forest","kit":"forest","density":0.7,"size":0.7}
+{"op":"weather","type":"fireflies","intensity":0.4}
+{"op":"fog","density":0.3}
+{"op":"ambience","loop":"forest"}
+{"op":"say","text":"First light in the woods. Listen for the birds."}

@@ -1,0 +1,6 @@
+# I want to shoot some hoops
+{"op":"clear"}
+{"op":"sky","preset":"golden_hour","t":4}
+{"op":"terrain","type":"flat","material":"concrete","t":2}
+{"op":"kit","id":"court","kit":"sports_court","density":0.6,"size":0.6}
+{"op":"say","text":"The ball is at your feet. Take the shot."}

@@ -1,0 +1,6 @@
+# Take me to the funfair
+{"op":"clear"}
+{"op":"sky","preset":"dusk","t":4}
+{"op":"terrain","type":"flat","material":"grass","t":2}
+{"op":"kit","id":"fair","kit":"fairground","density":0.7,"size":0.7}
+{"op":"say","text":"Roll up. Grab a balloon before it gets away."}
