@@ -256,6 +256,7 @@ namespace ImagineVR
             body.collisionDetectionMode = b.extents.magnitude * scale.x < 0.25f
                 ? CollisionDetectionMode.ContinuousDynamic : CollisionDetectionMode.Discrete;
 
+            if (groupId != "shot") Shadows.Cast(go.transform, b, mr);
             Prop prop = go.AddComponent<Prop>();
             prop.Def = def;
             prop.GroupId = groupId;

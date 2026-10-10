@@ -589,6 +589,7 @@ MonoBehaviour:
   - {fileID: 1831866486069928850}
   - {fileID: -2474632136042558334}
   - {fileID: 770853304159943628}
+  - {fileID: 7687017543946216873}
   - {fileID: -550648371185301362}
   - {fileID: -1128945037095934768}
   - {fileID: -4635226432742850646}
@@ -608,7 +609,7 @@ MonoBehaviour:
     m_List: 00000000
   m_depthSubmissionMode: 0
   m_spacewarpMotionVectorTextureFormat: 0
-  m_optimizeBufferDiscards: 0
+  m_optimizeBufferDiscards: 1
   m_symmetricProjection: 0
   m_optimizeMultiviewRenderRegions: 0
   m_multiviewRenderRegionsOptimizationMode: 0
@@ -915,6 +916,30 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &7687017543946216873
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 133182592b54b4f25b6a3b3e9fbfdb48, type: 3}
+  m_Name: QuestFeature Android
+  m_EditorClassIdentifier: Assembly-CSharp::ImagineVR.QuestFeature
+  m_enabled: 1
+  nameUi: ImagineVR Quest extras
+  version: 1.0.0
+  featureIdInternal: com.imaginevr.quest
+  openxrExtensionStrings: XR_FB_display_refresh_rate
+  company: ImagineVR
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+  refreshRate: 90
+  passthrough: 1
 --- !u!114 &7975725032613566920
 MonoBehaviour:
   m_ObjectHideFlags: 0

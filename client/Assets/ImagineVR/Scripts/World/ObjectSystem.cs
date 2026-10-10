@@ -44,6 +44,8 @@ namespace ImagineVR
         public bool Dirty = true;
 
         internal readonly List<Batch> Batches = new List<Batch>();
+        internal readonly List<Matrix4x4[]> Shadows = new List<Matrix4x4[]>();   // ground shadows, in runs of up to 500
+        internal Bounds ShadowBounds;
 
         internal sealed class Batch
         {
@@ -431,12 +433,15 @@ namespace ImagineVR
         }
 
         readonly Dictionary<BatchKey, List<Matrix4x4>> _scratch = new Dictionary<BatchKey, List<Matrix4x4>>();
+        readonly List<Matrix4x4> _shadowScratch = new List<Matrix4x4>();
 
         void Rebuild(Group g)
         {
             g.Dirty = false;
             g.Batches.Clear();
+            g.Shadows.Clear();
             _scratch.Clear();
+            _shadowScratch.Clear();
             bool moving = g.Motion.x != 0f;
             float waterY = _world.Terrain.WaterY;
             foreach (Placement p in g.Items)
@@ -458,7 +463,21 @@ namespace ImagineVR
                     _scratch[key] = list;
                 }
                 list.Add(Matrix4x4.TRS(pos, p.Rotation, p.Scale * g.Scale));
+
+                // whatever stands on the ground and stays put gets a shadow there
+                if (p.Grounded && !moving && g.Motion.y == 0f && Shadows.Wanted(p.Mesh.bounds, p.Scale * g.Scale, p.Position.y, out Vector2 half))
+                {
+                    float floor = p.OnWater && !float.IsNaN(waterY) ? waterY : float.NegativeInfinity;
+                    var yaw = Quaternion.Euler(0f, p.Rotation.eulerAngles.y, 0f);
+                    Vector3 centre = pos + p.Rotation * Vector3.Scale(p.Mesh.bounds.center, p.Scale * g.Scale);
+                    Matrix4x4 shadow = Shadows.Matrix(_world.Terrain, centre.x, centre.z, floor, yaw, half, 1f);
+                    var spot = new Bounds(shadow.GetColumn(3), Vector3.one * (Mathf.Max(half.x, half.y) * 3f));
+                    if (_shadowScratch.Count == 0) g.ShadowBounds = spot; else g.ShadowBounds.Encapsulate(spot);
+                    _shadowScratch.Add(shadow);
+                }
             }
+            for (int start = 0; start < _shadowScratch.Count; start += 500)
+                g.Shadows.Add(_shadowScratch.GetRange(start, Mathf.Min(500, _shadowScratch.Count - start)).ToArray());
             foreach (KeyValuePair<BatchKey, List<Matrix4x4>> pair in _scratch)
             {
                 List<Matrix4x4> list = pair.Value;
@@ -515,6 +534,9 @@ namespace ImagineVR
         {
             if (g.Dirty) Rebuild(g);
             if (g.Appear <= 0.0001f) return;
+            // shadows arrive last, once the things casting them have finished growing
+            float shade = Mathf.Clamp01(g.Appear * 3f - 2f);
+            foreach (Matrix4x4[] run in g.Shadows) Shadows.Draw(run, run.Length, g.ShadowBounds, shade);
             foreach (Group.Batch b in g.Batches)
             {
                 Color tint = g.Tint * (Color)b.Tint;

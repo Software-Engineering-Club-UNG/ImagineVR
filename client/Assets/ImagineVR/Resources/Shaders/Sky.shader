@@ -151,7 +151,9 @@ Shader "ImagineVR/Sky"
                 float haze = pow(1.0 - saturate(abs(y)), lerp(48.0, 3.0, _Haze));
                 col = lerp(col, _ImFogColor.rgb, haze);
 
-                return half4(col, 1.0);
+                // In a headset that can show the real room, the dark room is the real room: the sky
+                // is see-through until the first world arrives.
+                return half4(col * (1.0 - _ImReal), 1.0 - _ImReal);
             }
             ENDHLSL
         }

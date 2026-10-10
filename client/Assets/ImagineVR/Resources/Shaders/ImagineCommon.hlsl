@@ -11,6 +11,7 @@ float4 _ImFogColor;   // rgb
 float4 _ImFogParams;  // x: density, y: world-edge fade start (m), z: world-edge fade end (m)
 float4 _ImWind;       // xy: direction on the ground plane, z: strength
 float _ImNight;       // 0 day .. 1 night, drives night-only emission
+float _ImReal;        // 1 while the real room shows in place of the sky (headset passthrough), else 0
 
 float ImHash(float2 p)
 {

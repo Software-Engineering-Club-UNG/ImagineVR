@@ -102,6 +102,34 @@ namespace ImagineVR
             col.color = new ParticleSystem.MinMaxGradient(g);
         }
 
+        /// <summary>
+        /// A particle system that emits only when told to (with Emit), for things that leave a trail:
+        /// dust behind wheels, spray behind a boat. Each puff swells and fades.
+        /// </summary>
+        public static ParticleSystem Stream(string name, Transform parent, int max)
+        {
+            ParticleSystem ps = Make(name, Vector3.zero, false, max);
+            ps.transform.SetParent(parent, false);
+            ParticleSystem.MainModule main = ps.main;
+            main.loop = true;
+            main.gravityModifier = -0.02f;
+            ParticleSystem.EmissionModule em = ps.emission;
+            em.enabled = false;
+            ParticleSystem.ShapeModule sh = ps.shape;
+            sh.enabled = false;
+            ParticleSystem.SizeOverLifetimeModule size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.EaseInOut(0f, 0.35f, 1f, 1f));
+            ParticleSystem.ColorOverLifetimeModule col = ps.colorOverLifetime;
+            col.enabled = true;
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.15f), new GradientAlphaKey(0f, 1f) });
+            col.color = new ParticleSystem.MinMaxGradient(g);
+            ps.Play();
+            return ps;
+        }
+
         public static void Burst(Vector3 position, Color a, Color b, int count, float speed, float size, float life, float gravity, bool additive)
         {
             ParticleSystem ps = Make("Burst", position, additive, count);

@@ -87,6 +87,37 @@ namespace ImagineVR
             }
         }
 
+        /// <summary>A tone that swells and dies away with a wobble in its pitch, as a throat makes.</summary>
+        static void Voice(float[] buf, float start, float length, float f0, float f1, float volume, float wobbleHz, float wobble, float attack)
+        {
+            int s0 = Mathf.Clamp((int)(start * Rate), 0, buf.Length), n = Mathf.Min((int)(length * Rate), buf.Length - s0);
+            double phase = 0;
+            for (int i = 0; i < n; i++)
+            {
+                float t = i / (float)Rate, u = i / (float)n;
+                float f = Mathf.Lerp(f0, f1, u) * (1f + wobble * Mathf.Sin(2f * Mathf.PI * wobbleHz * t) * u);
+                phase += 2.0 * Math.PI * f / Rate;
+                float env = Mathf.Min(1f, t / attack) * (1f - u * u);
+                // a little of the octave above gives it a rasp
+                buf[s0 + i] += ((float)Math.Sin(phase) + 0.35f * (float)Math.Sin(phase * 2.0 + 0.5)) * env * volume;
+            }
+        }
+
+        /// <summary>A sound that plays round and round on its own source: an engine, the wind of speed.</summary>
+        public static AudioSource Loop(string name, Transform parent, float spatial)
+        {
+            var go = new GameObject("Loop_" + name);
+            go.transform.SetParent(parent, false);
+            AudioSource src = go.AddComponent<AudioSource>();
+            src.clip = Get(name);
+            src.loop = true;
+            src.playOnAwake = false;
+            src.spatialBlend = spatial;
+            src.dopplerLevel = 0f;
+            src.volume = 0f;
+            return src;
+        }
+
         static void Noise(float[] buf, float start, float length, float volume, float decay, float lowpass, int seed)
         {
             var rng = new System.Random(seed);
@@ -137,11 +168,64 @@ namespace ImagineVR
                     b = Buffer(0.06f); Tone(b, 0, 0.05f, 300, 380, 0.2f, 6, 0.002f); return b;
                 case "release":
                     b = Buffer(0.06f); Tone(b, 0, 0.05f, 380, 260, 0.14f, 6, 0.002f); return b;
-                case "zap":
-                    b = Buffer(0.25f); Tone(b, 0, 0.22f, 1500, 240, 0.3f, 4, 0.001f); Tone(b, 0, 0.2f, 2250, 360, 0.1f, 5, 0.001f); return b;
-                case "groan":     // a zombie somewhere nearby
-                    b = Buffer(1.1f); Tone(b, 0, 1.1f, 96, 68, 0.3f, 1.5f, 0.2f); Tone(b, 0, 1.0f, 145, 101, 0.14f, 2f, 0.2f);
-                    Tone(b, 0.1f, 0.9f, 290, 210, 0.05f, 3f, 0.25f); Noise(b, 0, 1.0f, 0.12f, 2, 0.08f, 29); return b;
+                case "zap":       // a blaster: a crack, a falling whine, and a thump you feel
+                    b = Buffer(0.32f); Noise(b, 0, 0.04f, 0.5f, 5, 0.8f, 31);
+                    Tone(b, 0, 0.26f, 2400, 180, 0.3f, 4, 0.001f); Tone(b, 0, 0.22f, 3600, 300, 0.1f, 5, 0.001f);
+                    Tone(b, 0, 0.18f, 150, 50, 0.45f, 5, 0.001f); return b;
+                case "groan":     // a zombie somewhere nearby: a low voice that wavers and breaks
+                    b = Buffer(1.3f); Voice(b, 0, 1.3f, 104, 70, 0.3f, 6.5f, 0.06f, 0.25f);
+                    Voice(b, 0.05f, 1.2f, 157, 104, 0.14f, 7.5f, 0.08f, 0.25f); Voice(b, 0.1f, 1.0f, 312, 205, 0.05f, 9f, 0.1f, 0.3f);
+                    Noise(b, 0, 1.2f, 0.16f, 2, 0.06f, 29); return b;
+                case "step":      // a footstep
+                    b = Buffer(0.1f); Noise(b, 0, 0.07f, 0.5f, 6, 0.12f, 37); Tone(b, 0, 0.08f, 95, 60, 0.3f, 6, 0.002f); return b;
+                case "hoof":
+                    b = Buffer(0.1f); Tone(b, 0, 0.08f, 700, 380, 0.3f, 8, 0.001f); Noise(b, 0, 0.04f, 0.35f, 6, 0.5f, 41);
+                    Tone(b, 0, 0.09f, 130, 80, 0.25f, 6, 0.001f); return b;
+                case "flap":      // one beat of large wings
+                    b = Buffer(0.45f);
+                    {
+                        var rng = new System.Random(43);
+                        float y = 0f;
+                        for (int i = 0; i < b.Length; i++)
+                        {
+                            float u = i / (float)b.Length, swell = Mathf.Pow(Mathf.Sin(u * Mathf.PI), 2f);
+                            y += (((float)rng.NextDouble() * 2f - 1f) - y) * Mathf.Lerp(0.02f, 0.14f, swell);
+                            b[i] = y * swell * 0.9f;
+                        }
+                    }
+                    return b;
+                case "engine":    // loops: a motor ticking over; pitch it up with speed
+                    b = Buffer(1f);
+                    for (int i = 0; i < b.Length; i++)
+                    {
+                        float t = i / (float)Rate, x = 0f;
+                        // whole numbers of cycles in one second, so the loop has no seam
+                        for (int k = 1; k <= 6; k++) x += Mathf.Sin(2f * Mathf.PI * 46f * k * t + k * 0.7f) / k;
+                        float chug = 0.7f + 0.3f * Mathf.Sin(2f * Mathf.PI * 23f * t);
+                        b[i] = x * chug * 0.16f + Mathf.Sin(2f * Mathf.PI * 92f * t) * 0.05f;
+                    }
+                    return b;
+                case "rush":      // loops: air going past
+                    b = Buffer(2f);
+                    {
+                        var rng = new System.Random(47);
+                        float y = 0f, z = 0f;
+                        for (int i = 0; i < b.Length; i++)
+                        {
+                            y += (((float)rng.NextDouble() * 2f - 1f) - y) * 0.06f;
+                            z += (y - z) * 0.3f;
+                            b[i] = z * 1.6f;
+                        }
+                        // fold the tail over the head so the end runs into the start
+                        int fade = Rate / 4;
+                        for (int i = 0; i < fade; i++)
+                        {
+                            float u = i / (float)fade;
+                            b[i] = b[i] * u + b[b.Length - fade + i] * (1f - u);
+                        }
+                        System.Array.Resize(ref b, b.Length - fade);
+                    }
+                    return b;
                 case "sparkle":
                     b = Buffer(0.7f);
                     for (int i = 0; i < 7; i++) Tone(b, i * 0.07f, 0.25f, 1600 + i * 310, 1600 + i * 310, 0.07f, 6, 0.002f);

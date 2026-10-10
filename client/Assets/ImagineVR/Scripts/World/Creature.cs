@@ -31,6 +31,10 @@ namespace ImagineVR
         float _t, _wait, _height, _radius, _speed, _stop, _home, _phase, _nextSound, _lift, _pause, _size;
         Vector3 _centre, _goal;
         Vector3 _fallAxis = Vector3.right;
+        static readonly int GaitId = Shader.PropertyToID("_Gait");
+        MaterialPropertyBlock _props;
+        ShadowCaster _shadow;
+        float _stride, _legs, _fourLegs, _gait, _pace;   // the walk cycle: see the Lit shader
 
         /// <summary>The behaviour an asset has when a statement does not name one, or null for none.</summary>
         public static string DefaultFor(AssetDef def) => def.Behavior == "zombie" ? "chase" : null;
@@ -84,6 +88,14 @@ namespace ImagineVR
             c._stop = capsule.radius + Random.Range(2f, 2.9f);   // beyond arm's length, and beyond the terminal
             c._phase = Random.value * 10f;
             c._lift = def.Airborne ? Mathf.Clamp(position.y, 1.5f, 6f) : 0f;
+            c._props = props;
+            c._shadow = Shadows.Cast(go.transform, new Bounds(Vector3.zero, new Vector3(b.size.x, 0f, b.size.z) * scale));
+            // People and animals have legs to walk on; four of them when the body is longer than it is
+            // wide. Anything else that has been brought to life (a car, a ghost, a ball) just glides.
+            bool legged = !def.Airborne && (def.Category == "people" || def.Category == "animals");
+            c._fourLegs = legged && def.Category == "animals" && b.extents.z > b.extents.x * 1.25f ? 1f : 0f;
+            c._legs = legged ? b.max.y * (c._fourLegs > 0f ? 0.42f : 0.47f) : 0f;
+            c._stride = c._legs * 0.2f;
 
             Vector2 flat = new Vector2(position.x, position.z);
             if (flat.sqrMagnitude < 0.01f) flat = Vector2.up;
@@ -143,7 +155,8 @@ namespace ImagineVR
                     float f = Mathf.SmoothStep(0f, 1f, _t / RiseSeconds);
                     if (_rises) _visual.localPosition = Vector3.down * (_height * (1f - f));
                     else _visual.localScale = Vector3.one * (_size * Mathf.Clamp01(_t / 0.5f));
-                    if (_t >= (_rises ? RiseSeconds : 0.5f)) { _state = State.Walking; _t = 0f; _visual.localScale = Vector3.one * _size; }
+                    _shadow.Fade = _rises ? f : Mathf.Clamp01(_t / 0.5f);
+                    if (_t >= (_rises ? RiseSeconds : 0.5f)) { _state = State.Walking; _t = 0f; _visual.localScale = Vector3.one * _size; _shadow.Fade = 1f; }
                     if (_mode == Mode.Chase) heading = toUser;
                     break;
                 }
@@ -188,10 +201,15 @@ namespace ImagineVR
                     if (p.magnitude > World.Radius - 4f) p = p.normalized * (World.Radius - 4f);
                     if (_mode == Mode.Flee) _centre = Vector3.Lerp(_centre, p, dt * 0.5f);
 
-                    // a rocking, stiff-legged gait while moving; a slow sway while standing
-                    float step = _t * _speed * 5f + _phase, moving = pace > 0f ? 1f : 0.25f;
-                    _visual.localPosition = Vector3.up * (Mathf.Abs(Mathf.Sin(step)) * 0.03f * moving * _size);
-                    _visual.localRotation = Quaternion.Euler((_rises ? 8f : 2f) + Mathf.Sin(_t * 1.3f + _phase) * 3f * moving, 0f, Mathf.Sin(step) * 7f * moving);
+                    // Legs step in time with the ground covered, so feet do not slide; the body rises on
+                    // each step and rocks a little. Standing still, the legs settle and it only sways.
+                    _pace = Mathf.MoveTowards(_pace, pace > 0f ? 1f : 0f, dt * 4f);
+                    if (_stride > 0f) _gait += dt * Mathf.PI * pace / (2f * _stride * _size);
+                    else _gait += dt * _speed * 5f;
+                    float step = _gait + _phase, moving = Mathf.Lerp(0.25f, 1f, _pace);
+                    _visual.localPosition = Vector3.up * (Mathf.Abs(Mathf.Cos(step)) * 0.035f * _pace * _size);
+                    _visual.localRotation = Quaternion.Euler((_rises ? 8f : 2f) + Mathf.Sin(_t * 1.3f + _phase) * 3f * moving, 0f, Mathf.Sin(step) * (_rises ? 5f : 2.5f) * moving);
+                    Stride(step, _pace * (pace > _speed * 1.5f ? 1.5f : 1f));
                     if (_rises && _t > _nextSound)
                     {
                         _nextSound = _t + Random.Range(5f, 12f);
@@ -214,12 +232,14 @@ namespace ImagineVR
                 }
                 case State.Down:
                     if (_t > LieSeconds) _visual.localPosition = Vector3.down * ((0.4f + _radius) * (_t - LieSeconds) / SinkSeconds);
+                    _shadow.Fade = 1f - Mathf.Clamp01((_t - LieSeconds) / SinkSeconds);
                     if (_t >= LieSeconds + SinkSeconds)
                     {
                         _state = State.Gone;
                         _t = 0f;
                         _wait = Random.Range(1.5f, 4f);
                         _renderer.enabled = false;
+                        _shadow.Fade = 0f;
                     }
                     break;
                 case State.Gone:
@@ -252,6 +272,14 @@ namespace ImagineVR
             transform.position = p;
             if ((_state == State.Arriving || _state == State.Walking) && heading.sqrMagnitude > 0.01f)
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(heading), 1f - Mathf.Exp(-dt * 5f));
+        }
+
+        /// <summary>Poses the legs: where in the step they are, and how far they reach (0 stands still).</summary>
+        void Stride(float phase, float reach)
+        {
+            if (_stride <= 0f) return;
+            _props.SetVector(GaitId, new Vector4(phase, _stride * reach, _legs, _fourLegs));
+            _renderer.SetPropertyBlock(_props);
         }
 
         /// <summary>Hit by something the user is swinging: held things are moved by hand, so physics never reports them.</summary>
@@ -295,6 +323,8 @@ namespace ImagineVR
             _state = State.Falling;
             _t = 0f;
             _collider.enabled = false;
+            _pace = 0f;
+            Stride(0f, 0f);
             Vector3 chest = transform.position + Vector3.up * (_height * 0.7f);
             Color a = _rises ? new Color(0.55f, 0.85f, 0.3f) : new Color(1f, 0.9f, 0.5f), b = _rises ? new Color(0.25f, 0.4f, 0.15f) : Color.white;
             Fx.Burst(chest, a, b, 22, 3f, 0.06f * Mathf.Clamp(_height, 0.6f, 3f), 0.6f, 0.8f, false);

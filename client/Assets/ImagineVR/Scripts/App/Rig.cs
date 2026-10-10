@@ -17,6 +17,8 @@ namespace ImagineVR
     ///   use held thing     trigger                     left mouse button
     ///   next colour / demo B (right)                   B
     ///   recentre terminal  X (left)                    R
+    ///   move               right thumbstick            W A S D
+    ///   step / smooth turn click right thumbstick      T
     ///   look                                           hold right mouse button
     /// </summary>
     public sealed class Rig : MonoBehaviour
@@ -29,7 +31,7 @@ namespace ImagineVR
         public Grabber RightGrabber { get; private set; }
         public bool XrActive { get; private set; }
 
-        InputAction _talk, _alt, _menu, _gripL, _gripR, _triggerL, _triggerR, _stickR;
+        InputAction _talk, _alt, _menu, _gripL, _gripR, _triggerL, _triggerR, _stickR, _stickClick;
         InputAction _posL, _rotL, _posR, _rotR, _look, _lookHold;
         TrackedPoseDriver _headDriver;
         float _yaw, _pitch;
@@ -45,6 +47,7 @@ namespace ImagineVR
         public bool AltPressed => !Blocked && _alt.WasPressedThisFrame();
         public bool MenuPressed => !Blocked && _menu.WasPressedThisFrame();
         public Vector2 Stick => _stickR.ReadValue<Vector2>();
+        public bool StickClicked => !Blocked && _stickClick.WasPressedThisFrame();
 
         public float Grip(bool right) => Blocked ? 0f : (right ? _gripR : _gripL).ReadValue<float>();
         public float Trigger(bool right) => Blocked ? 0f : (right ? _triggerR : _triggerL).ReadValue<float>();
@@ -91,6 +94,7 @@ namespace ImagineVR
             _triggerL = Axis("TriggerL", "<XRController>{LeftHand}/trigger", "<Keyboard>/z");
             _stickR = new InputAction("StickR", InputActionType.Value, "<XRController>{RightHand}/thumbstick", expectedControlType: "Vector2");
             _stickR.Enable();
+            _stickClick = Button("StickClick", "<XRController>{RightHand}/thumbstickClicked", "<Keyboard>/t");
             _posL = Pose("PosL", "<XRController>{LeftHand}/devicePosition", "Vector3");
             _rotL = Pose("RotL", "<XRController>{LeftHand}/deviceRotation", "Quaternion");
             _posR = Pose("PosR", "<XRController>{RightHand}/devicePosition", "Vector3");

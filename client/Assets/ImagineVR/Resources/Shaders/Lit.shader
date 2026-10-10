@@ -9,6 +9,7 @@ Shader "ImagineVR/Lit"
         _Appear ("Appear", Range(0,1)) = 1
         _Motion ("Motion (orbit, bob height, bob speed, spin)", Vector) = (0,0,0,0)
         _Sway ("Sway", Float) = 1
+        _Gait ("Gait (phase, stride, leg height, four legs)", Vector) = (0,0,0,0)
     }
     SubShader
     {
@@ -34,6 +35,7 @@ Shader "ImagineVR/Lit"
                 float4 _Motion;
                 float _Appear;
                 float _Sway;
+                float4 _Gait;
             CBUFFER_END
 
             struct Attributes
@@ -68,7 +70,15 @@ Shader "ImagineVR/Lit"
                 float a = saturate(_Appear * 3.0 - stagger * 2.0);
                 float grow = ImBackOut(a) * step(0.0001, a);
 
-                float3 pos = v.positionOS.xyz * grow;
+                // Walking: legs swing from the hip, each out of step with the one beside it (and, on
+                // four legs, with the one behind it). Only living things set a stride.
+                float3 local = v.positionOS.xyz;
+                float legWeight = saturate(1.0 - local.y / max(_Gait.z, 0.001)) * step(0.0001, _Gait.y);
+                float legSide = sign(local.x) * lerp(1.0, sign(local.z), _Gait.w);
+                local.z += sin(_Gait.x) * legSide * _Gait.y * legWeight;
+                local.y += saturate(cos(_Gait.x) * legSide) * _Gait.y * 0.4 * legWeight * legWeight;
+
+                float3 pos = local * grow;
                 float3 nrm = v.normalOS;
 
                 float spin = _Motion.w * (_Time.y + h * 10.0);

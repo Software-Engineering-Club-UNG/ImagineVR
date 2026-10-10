@@ -67,6 +67,7 @@ namespace ImagineVR
             props.SetFloat("_Appear", 1f);
             mr.SetPropertyBlock(props);
 
+            Shadows.Cast(go.transform, def.Bounds);
             Mover m = go.AddComponent<Mover>();
             m._world = world;
             m._route = route;

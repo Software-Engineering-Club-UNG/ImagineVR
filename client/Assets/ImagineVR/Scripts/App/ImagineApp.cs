@@ -41,9 +41,10 @@ namespace ImagineVR
         {
             Instance = this;
             Typing = false;
-            Time.fixedDeltaTime = 1f / 72f;
+            // The headset sets the pace (90 Hz when it agrees to: see QuestFeature); physics keeps up with it.
+            Time.fixedDeltaTime = 1f / 90f;
             QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = 72;
+            Application.targetFrameRate = 90;
 
             _settings = ImagineSettings.Load();
             _font = Resources.Load<TMP_FontAsset>("Fonts/ImagineMono");

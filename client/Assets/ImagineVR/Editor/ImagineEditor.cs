@@ -204,7 +204,7 @@ namespace ImagineVR.EditorTools
                 if (feature == null) continue;
                 bool wanted = feature is MetaQuestFeature || feature is OculusTouchControllerProfile ||
                               feature is MetaQuestTouchPlusControllerProfile || feature is MetaQuestTouchProControllerProfile ||
-                              feature is FoveatedRenderingFeature;
+                              feature is FoveatedRenderingFeature || feature is QuestFeature;
                 if (wanted && !feature.enabled)
                 {
                     feature.enabled = true;
@@ -466,6 +466,7 @@ namespace ImagineVR.EditorTools
         {
             string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ImagineVR.apk"));
             Directory.CreateDirectory(Path.GetDirectoryName(output));
+            EnableQuestExtras();
             var options = new BuildPlayerOptions
             {
                 scenes = new[] { "Assets/ImagineVR/Scenes/Main.unity" },
@@ -479,6 +480,50 @@ namespace ImagineVR.EditorTools
             Debug.Log("ImagineVR build: " + summary.result + ", " + (summary.totalSize / (1024 * 1024)) + " MB, " +
                       summary.totalErrors + " errors, " + summary.totalWarnings + " warnings -> " + output);
             if (Application.isBatchMode) EditorApplication.Exit(summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+        }
+
+        /// <summary>The 90 Hz and passthrough feature is ours, so nothing switches it on unless we do.</summary>
+        static void EnableQuestExtras()
+        {
+            FeatureHelpers.RefreshFeatures(BuildTargetGroup.Android);
+            OpenXRSettings openxr = OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
+            QuestFeature feature = openxr != null ? openxr.GetFeature<QuestFeature>() : null;
+            if (feature == null) { Debug.LogWarning("ImagineVR build: Quest extras feature not found; building without 90 Hz and passthrough"); return; }
+            if (!feature.enabled)
+            {
+                feature.enabled = true;
+                EditorUtility.SetDirty(feature);
+                EditorUtility.SetDirty(openxr);
+                AssetDatabase.SaveAssets();
+            }
+            Debug.Log("ImagineVR build: Quest extras enabled (" + QuestFeature.Extensions + ")");
+        }
+    }
+
+    /// <summary>Tells the headset the app may show the real room behind itself (see QuestFeature).</summary>
+    public sealed class QuestFeatureBuildHooks : OpenXRFeatureBuildHooks
+    {
+        public override int callbackOrder => 2;
+        public override Type featureType => typeof(QuestFeature);
+
+        protected override void OnPreprocessBuildExt(UnityEditor.Build.Reporting.BuildReport report) { }
+        protected override void OnPostGenerateGradleAndroidProjectExt(string path) { }
+        protected override void OnPostprocessBuildExt(UnityEditor.Build.Reporting.BuildReport report) { }
+
+        protected override Unity.XR.Management.AndroidManifest.Editor.ManifestRequirement ProvideManifestRequirementExt()
+        {
+            return new Unity.XR.Management.AndroidManifest.Editor.ManifestRequirement
+            {
+                SupportedXRLoaders = new HashSet<Type> { typeof(OpenXRLoader) },
+                NewElements = new List<Unity.XR.Management.AndroidManifest.Editor.ManifestElement>
+                {
+                    new Unity.XR.Management.AndroidManifest.Editor.ManifestElement
+                    {
+                        ElementPath = new List<string> { "manifest", "uses-feature" },
+                        Attributes = new Dictionary<string, string> { { "name", "com.oculus.feature.PASSTHROUGH" }, { "required", "false" } },
+                    },
+                },
+            };
         }
     }
 

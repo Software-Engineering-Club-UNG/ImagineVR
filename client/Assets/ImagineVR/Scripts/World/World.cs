@@ -179,10 +179,18 @@ namespace ImagineVR
             Props.Tick(dt);
             Weather.Tick(dt);
             Ambience.Tick(dt);
+
+            // In a headset that can show the real room, the dark room is the user's own room.
+            _real = Mathf.MoveTowards(_real, QuestFeature.Passthrough && IsDark ? 1f : 0f, dt / 2.5f);
+            Shader.SetGlobalFloat(RealId, _real);
         }
+
+        static readonly int RealId = Shader.PropertyToID("_ImReal");
+        float _real;
 
         void LateUpdate()
         {
+            Shadows.Render(this, Time.deltaTime);
             Objects.Render();
         }
 

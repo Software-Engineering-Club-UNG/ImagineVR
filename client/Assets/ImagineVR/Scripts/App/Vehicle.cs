@@ -7,6 +7,10 @@ namespace ImagineVR
     /// Moves the user through the world they built: on foot, or in or on a car, a horse, a dragon.
     /// The whole rig moves, with any vehicle drawn around it. The right thumbstick (or W A S D on the
     /// desktop) is forward, back and turning. Things that fly cruise above the ground.
+    ///
+    /// On foot in the headset the user walks where they are looking and turns in steps, which is
+    /// the gentlest way to turn; clicking the thumbstick switches to smooth turning. Whenever the
+    /// user is being moved the edge of their view darkens a little (see <see cref="Comfort"/>).
     /// </summary>
     public sealed class Vehicle : MonoBehaviour
     {
@@ -22,6 +26,20 @@ namespace ImagineVR
         Route _route;
         float _railHeight, _lastYaw;
 
+        // what makes a ride feel like one: it leans, bobs, kicks up dust and can be heard
+        static readonly int GaitId = Shader.PropertyToID("_Gait");
+        Comfort _comfort;
+        AudioSource _engine, _rush;
+        ParticleSystem _dust;
+        MeshRenderer _body;
+        MaterialPropertyBlock _bodyProps;
+        Vector3 _visualHome;
+        float _roll, _tilt, _turnRate, _lastSpeed, _stepped, _gait, _beat, _dustDue, _legs, _fourLegs;
+        bool _snapArmed = true;
+
+        /// <summary>Turn in 30 degree steps on foot (the comfortable default in a headset) rather than smoothly.</summary>
+        public bool SnapTurn = true;
+
         /// <summary>Stick input from code rather than a hand: x steers, y is throttle. For demos and checks.</summary>
         public Vector2 Autopilot;
 
@@ -33,6 +51,10 @@ namespace ImagineVR
             _rig = rig;
             _world = world;
             _terminal = terminal;
+            _comfort = Comfort.Create(rig.Head);
+            _engine = Sfx.Loop("engine", rig.transform, 0f);
+            _rush = Sfx.Loop("rush", rig.Head, 0f);
+            _dust = Fx.Stream("Dust", world.transform, 120);
         }
 
         public void Apply(Statement s)
@@ -82,6 +104,15 @@ namespace ImagineVR
             props.SetColor("_Tint", tint);
             props.SetFloat("_Appear", 1f);
             mr.SetPropertyBlock(props);
+            _body = mr;
+            _bodyProps = props;
+            _visualHome = _visual.transform.localPosition;
+            _roll = _tilt = _turnRate = _gait = 0f;
+            // an animal being ridden walks on its own legs, as one roaming free does
+            bool legged = !def.Airborne && def.Category == "animals";
+            _fourLegs = legged && b.extents.z > b.extents.x * 1.25f ? 1f : 0f;
+            _legs = legged ? top * (_fourLegs > 0f ? 0.42f : 0.47f) : 0f;
+            Shadows.Cast(_visual.transform, b);
             Sfx.Play("whoosh", _rig.transform.position, 0.6f);
         }
 
@@ -90,6 +121,7 @@ namespace ImagineVR
         {
             if (_visual != null) Destroy(_visual);
             _visual = null;
+            _body = null;
             _def = null;
             _route = null;
             _speed = 0f;
@@ -153,7 +185,16 @@ namespace ImagineVR
             Transform rig = _rig.transform;
             Vector3 p = rig.position;
             Vector3 before = p;
+            Vector3 centre = p;      // what a turn pivots on
+            Vector3 turned = p;      // where the rig is once it has turned, before it travels
             float turn = 0f, dt = Time.deltaTime;
+            bool xr = _rig.XrActive, snapped = false;
+
+            if (_rig.StickClicked)
+            {
+                SnapTurn = !SnapTurn;
+                _world.Note(SnapTurn ? "turning in steps" : "turning smoothly");
+            }
 
             if (Riding && _route != null)
             {
@@ -172,7 +213,7 @@ namespace ImagineVR
             {
                 Vector2 stick = _rig.Stick + Autopilot;
                 Keyboard kb = Keyboard.current;
-                if (kb != null && !_rig.XrActive && !ImagineApp.Typing)
+                if (kb != null && !xr && !ImagineApp.Typing)
                 {
                     if (kb.wKey.isPressed || kb.upArrowKey.isPressed) stick.y += 1f;
                     if (kb.sKey.isPressed || kb.downArrowKey.isPressed) stick.y -= 1f;
@@ -185,10 +226,51 @@ namespace ImagineVR
                 float top = Riding ? _top : WalkSpeed * Mathf.Clamp(_size, 0.25f, 6f);
                 float wanted = stick.y >= 0f ? stick.y * top : stick.y * top * (Riding ? 0.4f : 1f);
                 _speed = Mathf.MoveTowards(_speed, wanted, (Mathf.Abs(wanted) > Mathf.Abs(_speed) ? 6f : 10f) * dt);
-                // steers like a car once it is rolling, and can still be turned on the spot
-                turn = stick.x * 70f * Mathf.Clamp(Mathf.Abs(_speed) / 3f, 0.4f, 1f) * (_speed < -0.1f ? -1f : 1f) * dt;
-                rig.Rotate(0f, turn, 0f, Space.World);
-                Vector3 step = Blocked(p, rig.forward * (_speed * dt));
+
+                Vector3 forward = rig.forward;
+                if (Riding)
+                {
+                    // steers like a car once it is rolling, and can still be turned on the spot
+                    turn = stick.x * 70f * Mathf.Clamp(Mathf.Abs(_speed) / 3f, 0.4f, 1f) * (_speed < -0.1f ? -1f : 1f) * dt;
+                    rig.Rotate(0f, turn, 0f, Space.World);
+                    forward = rig.forward;
+                }
+                else
+                {
+                    // On foot the turn pivots on the user, wherever in their room they are standing.
+                    Vector3 head = _rig.Head.position;
+                    centre = new Vector3(head.x, p.y, head.z);
+                    if (xr && SnapTurn)
+                    {
+                        if (_snapArmed && Mathf.Abs(stick.x) > 0.7f && Mathf.Abs(stick.x) > Mathf.Abs(stick.y))
+                        {
+                            turn = Mathf.Sign(stick.x) * 30f;
+                            _snapArmed = false;
+                            snapped = true;
+                        }
+                        else if (Mathf.Abs(stick.x) < 0.35f) _snapArmed = true;
+                    }
+                    else
+                    {
+                        turn = stick.x * 70f * Mathf.Clamp(Mathf.Abs(_speed) / 3f, 0.4f, 1f) * (_speed < -0.1f ? -1f : 1f) * dt;
+                    }
+                    if (turn != 0f)
+                    {
+                        rig.RotateAround(centre, Vector3.up, turn);
+                        p = rig.position;
+                    }
+                    turned = p;
+                    // in the headset, forward is where the user is looking
+                    if (xr)
+                    {
+                        Vector3 look = _rig.Head.forward;
+                        look.y = 0f;
+                        if (look.sqrMagnitude > 0.01f) forward = look.normalized;
+                    }
+                    else forward = rig.forward;
+                }
+
+                Vector3 step = Blocked(p, forward * (_speed * dt));
                 if (step == Vector3.zero && Riding) _speed *= 0.5f;
                 p += step;
                 float edge = World.Radius - 8f;
@@ -213,7 +295,139 @@ namespace ImagineVR
             p.y = _height;
             rig.position = p;
 
-            if (_terminal != null && (p != before || turn != 0f)) _terminal.Carry(p - before, turn, p);
+            if (_terminal != null && (p != before || turn != 0f)) _terminal.Carry(p - turned, turn, centre + (p - turned));
+
+            if (dt > 0f) Liven(dt, snapped ? 0f : turn / dt, xr);
+        }
+
+        /// <summary>Everything that tells the user they are moving, other than the world going past.</summary>
+        void Liven(float dt, float turnRate, bool xr)
+        {
+            Transform rig = _rig.transform;
+            float speed = Mathf.Abs(_speed);
+            float top = Riding ? _top : WalkSpeed * Mathf.Clamp(_size, 0.25f, 6f);
+            float pace = Mathf.Clamp01(speed / Mathf.Max(top, 0.1f));
+            float accel = (_speed - _lastSpeed) / dt;
+            _lastSpeed = _speed;
+            _turnRate = Mathf.Lerp(_turnRate, turnRate, 1f - Mathf.Exp(-dt * 8f));
+            bool rails = Riding && _route != null;
+            bool flying = Riding && _def.Airborne;
+            bool machine = Riding && _def.Category == "vehicles";
+            bool grounded = _altitude < 0.5f && _railHeight < 0.5f && _world.Terrain.HasGround;
+
+            // comfort: the faster the user is carried or turned, the narrower their view
+            float narrow = 0f;
+            if (xr)
+            {
+                float turning = Mathf.Clamp01(Mathf.Abs(_turnRate) / 60f);
+                if (rails) narrow = 0.35f + 0.3f * pace;
+                else if (Riding) narrow = 0.3f * pace + 0.4f * turning;
+                else narrow = 0.5f * pace + 0.45f * turning;
+            }
+            _comfort.Set(narrow, dt);
+
+            // the air going past, once there is enough speed to hear it
+            Play(_rush, Mathf.Clamp01((speed - 3.5f) / 12f) * 0.45f, 0.8f + 0.5f * pace, dt);
+            Play(_engine, machine ? 0.14f + 0.2f * pace : 0f, 0.75f + 1.05f * pace, dt);
+
+            if (!Riding)
+            {
+                // footsteps
+                if (grounded && speed > 0.3f)
+                {
+                    _stepped += speed * dt;
+                    if (_stepped > 0.8f * Mathf.Clamp(_size, 0.4f, 3f))
+                    {
+                        _stepped = 0f;
+                        Vector3 head = _rig.Head.position;
+                        Sfx.Play("step", new Vector3(head.x, rig.position.y, head.z), 0.28f, Random.Range(0.85f, 1.15f));
+                    }
+                }
+                return;
+            }
+
+            // The ride leans and pitches around the user, who stays level: a car rolls out of a bend
+            // and squats when it pulls away, an animal leans in, and anything that flies banks.
+            float roll = flying ? Mathf.Clamp(-_turnRate * 0.35f, -22f, 22f)
+                : machine ? Mathf.Clamp(_turnRate * 0.06f * pace, -3.5f, 3.5f)
+                : Mathf.Clamp(-_turnRate * 0.1f * pace, -8f, 8f);
+            float tilt = machine && !flying ? Mathf.Clamp(-accel * 0.35f, -2.5f, 3f) : 0f;
+            _roll = Mathf.Lerp(_roll, roll, 1f - Mathf.Exp(-dt * 5f));
+            _tilt = Mathf.Lerp(_tilt, tilt, 1f - Mathf.Exp(-dt * 5f));
+
+            float bob = 0f;
+            if (flying)
+            {
+                // wings beat (or a balloon drifts): a slow heave, with the sound of each beat
+                float every = machine ? 4f : 0.95f;
+                _beat += dt / every;
+                if (_beat >= 1f)
+                {
+                    _beat -= 1f;
+                    if (!machine) Sfx.Play("flap", rig.position, 0.5f, Random.Range(0.9f, 1.1f));
+                }
+                bob = -Mathf.Cos(_beat * 2f * Mathf.PI) * (machine ? 0.08f : 0.16f);
+            }
+            else if (machine)
+            {
+                bob = Mathf.Sin(Time.time * 31f) * 0.004f * (0.4f + pace);
+            }
+            else if (!rails)
+            {
+                // an animal: its legs step, its back rises and falls, and its feet can be heard
+                float stride = Mathf.Max(_legs * 0.3f, 0.05f);
+                _gait += dt * Mathf.Min(Mathf.PI * speed / (2f * stride), 13f);
+                bob = Mathf.Abs(Mathf.Cos(_gait)) * 0.06f * pace;
+                if (_legs > 0f && _body != null)
+                {
+                    _bodyProps.SetVector(GaitId, new Vector4(_gait, stride * Mathf.Clamp01(speed / 1.5f), _legs, _fourLegs));
+                    _body.SetPropertyBlock(_bodyProps);
+                }
+                if (grounded && speed > 0.3f)
+                {
+                    _stepped += dt * Mathf.Min(Mathf.PI * speed / (2f * stride), 13f);
+                    if (_stepped > Mathf.PI * 0.5f)
+                    {
+                        _stepped = 0f;
+                        Sfx.Play("hoof", rig.position, 0.3f + 0.3f * pace, Random.Range(0.85f, 1.2f));
+                    }
+                }
+            }
+            _visual.transform.localPosition = _visualHome + Vector3.up * bob;
+            _visual.transform.localRotation = Quaternion.Euler(_tilt, 0f, _roll);
+
+            // dust from the ground, or spray from the water, behind anything moving along it
+            _dustDue -= dt;
+            if (grounded && !rails && !flying && speed > 2.5f && _dustDue <= 0f)
+            {
+                _dustDue = 0.06f;
+                Bounds b = _def.Bounds;
+                float wide = Mathf.Clamp(b.extents.x, 0.4f, 1.6f);
+                float ground = _world.Terrain.HeightAt(rig.position.x, rig.position.z), water = _world.Terrain.WaterY;
+                bool afloat = !float.IsNaN(water) && water > ground;
+                Vector3 back = rig.position - rig.forward * (b.extents.z * 0.8f) + rig.right * Random.Range(-wide, wide) * 0.8f;
+                back.y = (afloat ? water : ground) + 0.15f;
+                var puff = new ParticleSystem.EmitParams
+                {
+                    position = back,
+                    velocity = -rig.forward * (speed * 0.08f) + Vector3.up * Random.Range(0.3f, 0.9f) + Random.insideUnitSphere * 0.4f,
+                    startSize = Random.Range(0.5f, 1.1f) * wide,
+                    startLifetime = Random.Range(0.8f, 1.4f),
+                    startColor = afloat ? new Color(0.9f, 0.96f, 1f, 0.4f) : new Color(0.72f, 0.66f, 0.56f, 0.22f + 0.12f * pace),
+                };
+                _dust.Emit(puff, 1);
+            }
+        }
+
+        /// <summary>Fades a looping sound towards a volume; silent loops are paused rather than left running.</summary>
+        static void Play(AudioSource source, float volume, float pitch, float dt)
+        {
+            if (source == null || source.clip == null) return;
+            source.volume = Mathf.MoveTowards(source.volume, volume, dt * 0.8f);
+            source.pitch = pitch;
+            bool audible = source.volume > 0.004f;
+            if (audible && !source.isPlaying) source.Play();
+            else if (!audible && source.isPlaying) source.Pause();
         }
     }
 }
