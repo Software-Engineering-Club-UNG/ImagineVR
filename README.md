@@ -54,7 +54,8 @@ course" or "make it sunset" work end to end without a model. Keys never go in th
 
 Routes: `POST /v1/turn` (audio or text in, streamed NDJSON out), `POST /v1/session/reset`,
 `GET /v1/health`, `GET /v1/audio/{clip_id}`. Requests carry `X-App-Token`, `X-Session-Id` and
-`X-Catalog-Version`.
+`X-Catalog-Version`, plus `X-User-Pose` (`x,z,yaw` or `home`) so new objects appear around
+the user after they move.
 
 Things to know:
 
@@ -65,8 +66,8 @@ Things to know:
 - WAV is decoded by hand in `stt.py` because faster-whisper's decoder breaks with the current
   PyAV.
 - On Windows use `127.0.0.1`, not `localhost` (two-second IPv6 delay).
-- The world-building backend is not deployed yet. Activation and secrets are documented
-  in `openrouter-api/README.md`; deployments continue to use that folder.
+- The hosted backend is at `https://64.177.52.162.sslip.io`. Deployment and configuration
+  are documented in `openrouter-api/README.md`; `/health` reports the deployed revision.
 - `python scripts/smoke.py` checks a running server against the things people actually say.
   Run it after adding an OpenRouter key and after changing `prompt.md`.
 
@@ -75,16 +76,62 @@ Things to know:
 Open `client/` in Unity 6000.3.26f1, open `Assets/ImagineVR/Scenes/Main`, press Play. No
 headset, server or keys are needed for the built-in demos.
 
-- **F1** to **F8** play built-in demos, **B** cycles through all 32, **F12** returns to the
-  dark room.
+- **F1** to **F8** play built-in demos, **B** cycles through all 32, **F12** resets the
+  whole world and conversation.
 - Hold the **right mouse button** to look around.
 - **Enter** types a request and **Space** speaks one (both need the server), **E** grabs,
-  **left click** uses the held thing, **R** recentres the terminal.
+  **left click** uses the held thing, **R** recentres the terminal, **C** folds/unfolds it.
+- In the headset, hold **A** to speak, press **Y** to fold/unfold the terminal, and tap
+  **X** to recentre it. The first-arrival A-button hint disappears after talking or its
+  timeout; hint state is not saved between sessions.
+- Touch a floating given item to take it, or point and pull the trigger. Grip also grabs.
+  Tools stay in your hand; squeeze grip again to drop them. Trigger uses the held tool
+  (the pull used to take it does not also fire it).
+- Hold **X** in the headset or **R** on desktop for **two seconds** to start over. A
+  countdown appears before resetting objects, held items, paint, sky, terrain, weather,
+  player size, rides, pending turns, and conversation. The terminal and hints restart;
+  the headset returns to passthrough where supported (still needs Quest verification).
 - **W A S D** walks you around, or drives whatever you are riding (the right thumbstick in
   the headset).
 
 The server URL and app token are in the `ImagineSettings` asset
 (`client/Assets/ImagineVR/Resources/`). The token must match `IMAGINE_APP_TOKEN`.
+
+### Runtime rules
+
+Ask for behavior as well as objects: “Give me a blaster and two sheep; when I shoot a
+sheep, make just that sheep burst into confetti and disappear.” Then “Turn them blue
+instead when I shoot them.” The server writes bounded event/action rules; changing a
+rule replaces its old actions, including delayed ones. Current live instances, rules,
+scores, and failures are synchronized before each new request.
+
+Automatic player movement is disabled initially. Hold both grips and tap **X** to toggle
+it for the session; that X press cannot trigger the hold-to-reset countdown. Desktop has
+an opt-in checkbox. Reset disables it again. See [the runtime rule reference](RUNTIME_EFFECTS_AND_TRIGGERS.md)
+for supported triggers/actions and limitations, including basic particle presets.
+
+### Session logs
+
+Each app run writes an NDJSON log to `Application.persistentDataPath/logs`, retaining the
+newest 20 files. It records controller presses, grabs/releases, requests and streamed
+replies, object placement and substitutions, resets, Unity errors, and position/state
+samples every two seconds. Logs contain spoken/typed requests; the app token is not added
+to log fields.
+
+On Quest the folder is `/sdcard/Android/data/com.hacklanta.imaginevr/files/logs`. Connect
+the headset by USB, allow USB debugging, and make sure Android SDK `adb` is on your PATH.
+From the repo root:
+
+```sh
+python3 scripts/headset_log.py pull             # copy logs and show the newest timeline
+python3 scripts/headset_log.py show             # show the newest local log
+python3 scripts/headset_log.py show --all       # include position/state samples
+python3 scripts/headset_log.py show /path/to/session-20261010-120000.ndjson
+```
+
+Pulled files go into the ignored `headset-logs/` folder. For a missing object, look for
+`placed` entries: they report the requested/used asset, stand-in status, distance, and
+bearing from the user. Desktop log viewing is verified; USB pulling still needs a headset.
 
 ### Unity from the command line
 
@@ -195,11 +242,17 @@ openrouter-api/imagine/ main (routes), turn (one turn), script (validation, Worl
 | The other 26 demos | Rendered; only a few looked at |
 | Real model through OpenRouter (`prompt.md` has never met one) | **Not tested** |
 | Anything on the headset, including frame rate and how tools sit in the hand | **Not tested** |
-| Grabbing, throwing, tools, score zones | **Not tested**, even on the desktop |
-| Android build | **Not attempted** |
+| User-relative placement, touch-take, trigger use, grip-drop, C folding, bare clear, full reset, short/held R | Verified by a temporary desktop play-mode harness (53 checks total, offline director); screenshots reviewed |
+| Session logs and `headset_log.py show` | Verified on desktop; NDJSON parsed successfully |
+| `headset_log.py pull` over USB | **Not tested**; no headset attached |
+| Unknown assets, stand-in state, sculpt retry, pose frames, full clear | Server tests pass; sculpt retry uses a fake model |
+| A-button ring position, folded strip height, Y/held-X bindings, reset passthrough | **Not tested on Quest**; button-ring position is an estimate |
+| Throwing and score zones | **Not tested** |
+| Combined runtime-rule PlayMode tests | 7 passed in native Unity 6000.3.26f1; individual sheep hits/replacement, future spawns, invalid updates, reset, queued-turn cancellation, registry cleanup |
+| Android build | See PR #5 validation for the integrated Quest build |
 | Microphone capture in the app | **Not tested** |
 | ElevenLabs speech | **Not tested** |
-| Vultr deployment | **Not written** |
+| Vultr deployment | GitHub Actions deployment and TLS are configured; `/health` exposes the deployed revision |
 
 ## Different from the plan, on purpose
 

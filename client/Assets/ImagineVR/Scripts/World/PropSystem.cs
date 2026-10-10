@@ -118,6 +118,7 @@ namespace ImagineVR
             Fx.Confetti(transform.position + Vector3.up * 0.3f);
             Sfx.Play("confetti", transform.position, 0.9f);
             _world.Emit(_count > 1 ? Message + "  (" + _count + ")" : Message);
+            _world.Rules.Broadcast("goal_reached", Message);
         }
     }
 
@@ -151,6 +152,7 @@ namespace ImagineVR
             Fx.Confetti(transform.position + Vector3.up * 1.5f);
             Sfx.Play("confetti", transform.position, 0.9f);
             _world.Emit(Message);
+            _world.Rules.Broadcast("goal_reached", Message);
         }
     }
 
@@ -204,7 +206,7 @@ namespace ImagineVR
 
         // ------------------------------------------------------------------ creation
 
-        Prop Create(AssetDef def, string groupId, Vector3 position, Quaternion rotation, Vector3 scale, Color tint)
+        Prop Create(AssetDef def, string groupId, Vector3 position, Quaternion rotation, Vector3 scale, Color tint, bool registerRules = true)
         {
             var go = new GameObject("Prop_" + def.Id);
             go.transform.SetParent(_root, false);
@@ -267,6 +269,7 @@ namespace ImagineVR
             prop.Length = Mathf.Max(0.1f, b.max.y * scale.y);
             prop.SetTint(tint);
             _props.Add(prop);
+            if (registerRules) _world.Rules?.RegisterProp(prop);
             Trim();
             return prop;
         }
@@ -299,9 +302,9 @@ namespace ImagineVR
         }
 
         /// <summary>A physics prop made by a kit. It is removed with the kit.</summary>
-        public Prop SpawnLoose(string groupId, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale, Color tint)
+        public Prop SpawnLoose(string groupId, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale, Color tint, bool registerRules = true)
         {
-            return Create(def, groupId, position, rotation, scale, tint);
+            return Create(def, groupId, position, rotation, scale, tint, registerRules);
         }
 
         public void RemoveQuietly(string id)
@@ -330,11 +333,13 @@ namespace ImagineVR
             if (area == "left") arcCenter = -90f; else if (area == "right") arcCenter = 90f; else if (area == "behind") arcCenter = 180f;
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
             bool hasTint = s.Has("tint");
+            Pose frame = s.Frame();
             for (int i = 0; i < count; i++)
             {
                 float angle = (arcCenter + ((float)rng.NextDouble() * 2f - 1f) * arcHalf) * Mathf.Deg2Rad;
                 float radius = Mathf.Lerp(rMin, rMax, (float)rng.NextDouble());
-                float x = Mathf.Sin(angle) * radius, z = Mathf.Cos(angle) * radius;
+                Vector3 spot = Statement.InWorld(frame, new Vector3(Mathf.Sin(angle) * radius, 0f, Mathf.Cos(angle) * radius));
+                float x = spot.x, z = spot.z;
                 // dropped from a little way up so they tumble into place
                 float y = _world.Terrain.HeightAt(x, z) + 0.4f + i * 0.12f + (float)rng.NextDouble() * 0.5f;
                 float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
@@ -379,6 +384,8 @@ namespace ImagineVR
             Sfx.Play("sparkle", position, 0.5f);
             Fx.Burst(position, new Color(1f, 0.9f, 0.6f), Color.white, 16, 0.8f, 0.03f, 0.7f, 0f, true);
             if (standIn && _world.Font != null) AddLabel(prop, name.Replace('_', ' '));
+            _world.Placed(s, name, def, standIn, position, null);
+            _world.OnGiven(prop);
         }
 
         void AddLabel(Prop prop, string text)
@@ -430,6 +437,26 @@ namespace ImagineVR
             }
         }
 
+        /// <summary>The user was moved (brought back to the middle): what is waiting in the air for them comes along.</summary>
+        public void Carry(Vector3 from, Vector3 to, Quaternion turn)
+        {
+            foreach (Prop p in _props)
+                if (p != null && p.Floating && !p.Held) p.FloatAt(to + turn * (p.transform.position - from));
+        }
+
+        /// <summary>Removes every prop there is, loose, given or in a hand, and every stroke of paint.</summary>
+        public void ClearAll()
+        {
+            foreach (Prop p in _props)
+            {
+                if (p == null) continue;
+                if (p.Holder != null) p.Holder.ForceRelease();
+                Object.Destroy(p.gameObject);
+            }
+            _props.Clear();
+            ClearLoose();
+        }
+
         /// <summary>Removes loose physics props. Things the user was given stay.</summary>
         public void ClearLoose()
         {
@@ -462,6 +489,8 @@ namespace ImagineVR
                         p.Body.linearVelocity = Vector3.zero;
                         p.Body.angularVelocity = Vector3.zero;
                         p.FloatAt(back);
+                        SessionLog.Write("recover", "asset", p.Def.Id, "id", p.GroupId, "from", pos, "to", back,
+                            "why", "given item left world bounds");
                     }
                     else
                     {
@@ -476,6 +505,10 @@ namespace ImagineVR
 
         public void OnHit(Prop prop, Collision collision, float speed)
         {
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            Prop source = collision.collider.GetComponentInParent<Prop>();
+            if (rule != null && rule.Hit(source != null ? rule.Engine.Find(source.gameObject) : null,
+                source != null && source.GroupId == "shot" ? "projectile" : source != null ? "thrown" : "collision", speed)) return;
             Vector3 point = collision.contactCount > 0 ? collision.GetContact(0).point : prop.transform.position;
             float volume = Mathf.Clamp01(speed / 8f);
             switch (prop.Def.Behavior)

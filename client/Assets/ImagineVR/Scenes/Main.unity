@@ -147,7 +147,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8b69b8b02e79e864bb634d796f24c153, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ImagineVR.ImagineApp
+  m_EditorClassIdentifier: ImagineVR.Runtime::ImagineVR.ImagineApp
 --- !u!4 &349445548
 Transform:
   m_ObjectHideFlags: 0

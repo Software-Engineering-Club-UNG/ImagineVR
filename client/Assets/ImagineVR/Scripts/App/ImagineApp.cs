@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -22,7 +23,11 @@ namespace ImagineVR
         public Conductor Conductor { get; private set; }
         public TurnClient Client { get; private set; }
         public Voice Voice { get; private set; }
+        public Hints Hints { get; private set; }
         public bool Online { get; private set; }
+
+        /// <summary>How long X (or R) is held before everything is reset, and how long before the countdown shows.</summary>
+        const float ResetHold = 2f, ResetGrace = 0.45f;
 
         /// <summary>Set by tools that drive the app themselves (snapshots): skips the welcome text and server check.</summary>
         public static bool Quiet;
@@ -36,17 +41,23 @@ namespace ImagineVR
         string _typed = "";
         bool _focusField;
         bool _foveationSet;
+        float _holdSince = -1f, _nextSample;
+        int _frames;
 
         void Awake()
         {
             Instance = this;
             Typing = false;
+            SessionLog.Open();
             // The headset sets the pace (90 Hz when it agrees to: see QuestFeature); physics keeps up with it.
             Time.fixedDeltaTime = 1f / 90f;
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 90;
 
             _settings = ImagineSettings.Load();
+            SessionLog.Write("start", "version", Application.version, "unity", Application.unityVersion,
+                "device", SystemInfo.deviceModel, "os", SystemInfo.operatingSystem,
+                "server", _settings.ServerUrl, "settings_from", _settings.Source, "log", SessionLog.Path);
             _font = Resources.Load<TMP_FontAsset>("Fonts/ImagineMono");
             if (_font == null) _font = TMP_Settings.defaultFontAsset;
             _examples = Resources.LoadAll<TextAsset>("Examples");
@@ -72,6 +83,8 @@ namespace ImagineVR
 
             Client = gameObject.AddComponent<TurnClient>();
             Client.Settings = _settings;
+            Client.Pose = UserPose;
+            Client.World = World;
             TextAsset version = Resources.Load<TextAsset>("CatalogVersion");
             if (version != null) Client.CatalogVersion = version.text.Trim();
 
@@ -86,12 +99,33 @@ namespace ImagineVR
             Voice.Terminal = Terminal;
             Voice.Conductor = Conductor;
 
+            Hints = gameObject.AddComponent<Hints>();
+            Hints.Rig = Rig;
+            Hints.Terminal = Terminal;
+            Hints.World = World;
+            Hints.Conductor = Conductor;
+
             World.Noted += Terminal.Note;
             World.Happened += OnWorldEvent;
+            World.Emptied += Conductor.ResetFirstLight;
+        }
+
+        /// <summary>
+        /// Where the user's head is in the world and which way it faces, as "x,z,yaw" for the
+        /// server; "home" in the dark room, where the next place is built around them anyway.
+        /// </summary>
+        string UserPose()
+        {
+            if (World.Unbuilt) return "home";
+            Vector3 p = Rig.Head.position, look = Rig.Head.forward;
+            look.y = 0f;
+            float yaw = look.sqrMagnitude > 0.01f ? Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg : Rig.transform.eulerAngles.y;
+            return string.Format(CultureInfo.InvariantCulture, "{0:0.00},{1:0.00},{2:0.0}", p.x, p.z, yaw);
         }
 
         void OnWorldEvent(string text)
         {
+            SessionLog.Write("event", "text", text);
             Terminal.Event(text);
             Rig.Haptic(true, 0.7f, 0.12f);
             Rig.Haptic(false, 0.7f, 0.12f);
@@ -103,6 +137,7 @@ namespace ImagineVR
             Terminal.Recenter(true);
             if (Quiet) yield break;
             Welcome();
+            Hints.Arm();
             yield return new WaitForSeconds(0.6f);
             yield return CheckServer();
         }
@@ -126,9 +161,11 @@ namespace ImagineVR
             Terminal.Blank();
             if (Rig.XrActive || XRSettings.isDeviceActive)
             {
-                Terminal.Raw("  " + Terminal.Tag(Terminal.Text, "hold A") + Terminal.Tag(d, " and speak") + Terminal.Tag(d, "    ") +
-                             Terminal.Tag(Terminal.Text, "grip") + Terminal.Tag(d, " to grab") + Terminal.Tag(d, "    ") +
-                             Terminal.Tag(Terminal.Text, "X") + Terminal.Tag(d, " recentres"), 52);
+                Terminal.Raw("  " + Terminal.Tag(Terminal.Text, "hold A") + Terminal.Tag(d, " and speak") + "    " +
+                             Terminal.Tag(Terminal.Text, "touch") + Terminal.Tag(d, " things to take them"), 46);
+                Terminal.Raw("  " + Terminal.Tag(Terminal.Text, "Y") + Terminal.Tag(d, " tucks this away") + "    " +
+                             Terminal.Tag(Terminal.Text, "X") + Terminal.Tag(d, " recentres") + "    " +
+                             Terminal.Tag(Terminal.Text, "hold X") + Terminal.Tag(d, " starts over"), 56);
             }
             else
             {
@@ -138,7 +175,8 @@ namespace ImagineVR
                 Terminal.Raw("  " + Terminal.Tag(Terminal.Text, "F1-F8") + Terminal.Tag(d, " demos") + "   " +
                              Terminal.Tag(Terminal.Text, "E") + Terminal.Tag(d, " grab") + "   " +
                              Terminal.Tag(Terminal.Text, "click") + Terminal.Tag(d, " use") + "   " +
-                             Terminal.Tag(Terminal.Text, "F12") + Terminal.Tag(d, " back to dark"), 54);
+                             Terminal.Tag(Terminal.Text, "C") + Terminal.Tag(d, " tuck away") + "   " +
+                             Terminal.Tag(Terminal.Text, "F12") + Terminal.Tag(d, " start over"), 68);
             }
             Terminal.SetHint(Voice.HintText());
         }
@@ -165,6 +203,8 @@ namespace ImagineVR
             yield return Client.Health(h => health = h);
             Online = health != null;
             string library = Library.AssetList.Count + " objects, " + Library.Kits.Count + " kits";
+            SessionLog.Write("server", "online", Online, "health", health != null ? MiniJson.Serialize(health) : null,
+                "app_catalog", Client.CatalogVersion, "objects", Library.AssetList.Count, "kits", Library.Kits.Count);
             if (Online)
             {
                 string model = health.TryGetValue("model", out object m) && m is string ms ? ms : "?";
@@ -187,8 +227,51 @@ namespace ImagineVR
         void Update()
         {
             if (Rig.XrActive && !_foveationSet) _foveationSet = TryFoveation();
+            Terminal.SetFoldKey(Rig.XrActive ? "Y" : "C");
+            Sample();
 
-            if (Rig.MenuPressed && !Typing) Terminal.Recenter(false);
+            if (Rig.FoldPressed && !Typing) Terminal.Toggle();
+
+            // X (or R): a tap recentres the terminal, and holding it down resets everything
+            if (Rig.MenuPressed && !Typing)
+            {
+                if (Rig.Grip(true) > .9f && Rig.Grip(false) > .9f)
+                {
+                    _holdSince = -1f; // this entire X press belongs to the opt-in gesture
+                    Terminal.SetOverride(null);
+                    World.Rules.PlayerEffectsEnabled = !World.Rules.PlayerEffectsEnabled;
+                    Terminal.Note("Automatic player movement " + (World.Rules.PlayerEffectsEnabled ? "enabled" : "disabled") + " for this session");
+                    SessionLog.Write("rules", "player_effects", World.Rules.PlayerEffectsEnabled);
+                }
+                else
+                {
+                    Terminal.Recenter(false);
+                    _holdSince = Time.unscaledTime;
+                }
+            }
+            if (_holdSince >= 0f)
+            {
+                float held = Time.unscaledTime - _holdSince;
+                if (!Rig.MenuHeld)
+                {
+                    _holdSince = -1f;
+                    Terminal.SetOverride(null);
+                }
+                else if (held >= ResetHold)
+                {
+                    _holdSince = -1f;
+                    ResetEverything("held " + (Rig.XrActive ? "X" : "R"));
+                }
+                else if (held >= ResetGrace)
+                {
+                    // a countdown they can see and feel, so nobody resets the world by leaning on a button
+                    const int dots = 10;
+                    int lit = Mathf.Clamp(Mathf.CeilToInt((held - ResetGrace) / (ResetHold - ResetGrace) * dots), 0, dots);
+                    Terminal.SetOverride(Terminal.Tag(Terminal.Yellow, "Keep holding to start over ") +
+                        Terminal.Tag(Terminal.Accent, Repeat(Terminal.Dot, lit)) + Terminal.Tag(Terminal.Faint, Repeat(Terminal.Dot, dots - lit)));
+                    if (Time.frameCount % 6 == 0) Rig.Haptic(false, 0.15f + 0.5f * lit / dots, 0.03f);
+                }
+            }
 
             // B cycles the built-in demos, unless the right hand is holding a paintbrush (B then changes colour)
             if (Rig.AltPressed && !Typing && _examples.Length > 0)
@@ -202,7 +285,7 @@ namespace ImagineVR
             {
                 Key[] keys = { Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6, Key.F7, Key.F8 };
                 for (int i = 0; i < keys.Length; i++) if (kb[keys[i]].wasPressedThisFrame) PlayDemo(i);
-                if (kb.f12Key.wasPressedThisFrame) BackToDark();
+                if (kb.f12Key.wasPressedThisFrame) ResetEverything("F12");
                 if (kb.enterKey.wasPressedThisFrame) _focusField = true;
             }
         }
@@ -235,12 +318,63 @@ namespace ImagineVR
             Conductor.SubmitScript(text, label);
         }
 
-        public void BackToDark()
+        public void BackToDark() { ResetEverything("editor"); }
+
+        /// <summary>
+        /// Everything back to how it was when the app started, ready for the next person: the dark
+        /// room (their own room, in a headset that shows it), nothing built, nothing held, nothing
+        /// being said or on its way, an empty terminal with its welcome, a server that remembers
+        /// nothing, and the newcomer's hints again. This is what holding X does.
+        /// </summary>
+        public void ResetEverything(string why)
         {
-            World.ResetToDark(1.5f);
-            Conductor.ResetFirstLight();
-            Terminal.Note("back to the dark room");
-            if (Online) StartCoroutine(Client.ResetSession());
+            _holdSince = -1f;
+            SessionLog.Write("reset", "what", "everything", "why", why);
+            Voice.Cancel();
+            Conductor.Abort();
+            string old = Client.NewSession();
+            if (Online) StartCoroutine(Client.ResetSession(old));
+
+            World.ResetEverything(1.5f);   // also lets go of whatever is in the hands
+            _demo = 0;
+
+            Terminal.Clear();
+            Terminal.SetCollapsed(false);
+            Terminal.SetState(TerminalState.Ready);
+            Terminal.SetMic(0f);
+            Terminal.Recenter(false);
+            Welcome();
+            Terminal.Blank();
+            Terminal.Note("started over: the world, what you were holding and the conversation are all cleared");
+            Hints.Arm();
+
+            Sfx.Play("whoosh", Terminal.transform.position, 0.7f, 0.8f);
+            Rig.Haptic(true, 0.8f, 0.2f);
+            Rig.Haptic(false, 0.8f, 0.2f);
+        }
+
+        /// <summary>Every two seconds, where the user is and how the app is doing, for the session log.</summary>
+        void Sample()
+        {
+            _frames++;
+            if (Time.unscaledTime < _nextSample) return;
+            float fps = _frames / Mathf.Max(0.001f, Time.unscaledTime - (_nextSample - 2f));
+            _nextSample = Time.unscaledTime + 2f;
+            _frames = 0;
+            Vector3 look = Rig.Head.forward;
+            Prop left = Rig.LeftGrabber.Held, right = Rig.RightGrabber.Held;
+            SessionLog.Write("state", "head", Rig.Head.position, "yaw", Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg,
+                "rig", Rig.transform.position, "fps", Mathf.Round(fps), "headset", Rig.XrActive,
+                "dark", World.IsDark, "passthrough", QuestFeature.Passthrough,
+                "terminal", Terminal.State.ToString(), "collapsed", Terminal.Collapsed, "busy", Conductor.Busy,
+                "riding", World.Vehicle != null ? World.Vehicle.Asset : null,
+                "left", left != null ? left.Def.Id : null, "right", right != null ? right.Def.Id : null,
+                "objects", World.Objects.Count, "props", World.Props.All.Count);
+        }
+
+        void OnApplicationPause(bool paused)
+        {
+            SessionLog.Write("app", "what", paused ? "paused (headset off or app in the background)" : "resumed");
         }
 
         // ------------------------------------------------------------------ desktop typing
@@ -248,6 +382,7 @@ namespace ImagineVR
         void OnGUI()
         {
             if (Rig == null || Rig.XrActive || Quiet) return;
+            World.Rules.PlayerEffectsEnabled = GUI.Toggle(new Rect(12, 12, 280, 25), World.Rules.PlayerEffectsEnabled, "Allow rule-driven player effects (this session)");
             const string fieldName = "ImaginePrompt";
             float w = Mathf.Min(Screen.width - 40f, 720f), h = 30f;
             var rect = new Rect((Screen.width - w) * 0.5f, Screen.height - h - 16f, w, h);
@@ -285,6 +420,8 @@ namespace ImagineVR
         void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            SessionLog.Write("app", "what", "closed");
+            SessionLog.Close();
         }
     }
 }

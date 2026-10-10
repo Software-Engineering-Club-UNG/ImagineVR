@@ -23,6 +23,7 @@ namespace ImagineVR
         public PropSystem Props { get; private set; }
         public WeatherSystem Weather { get; private set; }
         public AmbienceSystem Ambience { get; private set; }
+        public RuleEngine Rules { get; private set; }
 
         /// <summary>The user's head. Used to place things in reach and to aim sounds.</summary>
         public Transform Head;
@@ -34,9 +35,38 @@ namespace ImagineVR
         public event Action<string> Noted;
         /// <summary>Things that happen in the world and deserve a line in the terminal.</summary>
         public event Action<string> Happened;
+        /// <summary>Something was put in reach for the user to take.</summary>
+        public event Action<Prop> Given;
+        /// <summary>The world went back to the dark room with nothing left in it.</summary>
+        public event Action Emptied;
 
-        bool _clearGroundAtTurnEnd;
+        bool _clearGroundAtTurnEnd, _clearSkyAtTurnEnd;
         bool _everLit;
+
+        /// <summary>True in the dark room before anything has been built: the next place is built around wherever the user is looking.</summary>
+        public bool Unbuilt => Sky.IsDark && Objects.Count == 0 && !Terrain.HasGround && !Terrain.Generating;
+
+        internal void OnGiven(Prop prop) { Given?.Invoke(prop); }
+
+        /// <summary>
+        /// Records, for the session log, where something asked for actually ended up and what stood
+        /// in for it: the first thing to read when "it said it made one but I can't see it".
+        /// </summary>
+        public void Placed(Statement s, string asked, AssetDef used, bool standIn, Vector3 position, string problem)
+        {
+            float distance = 0f, bearing = 0f;
+            if (Head != null)
+            {
+                Vector3 to = position - Head.position, look = Head.forward;
+                to.y = 0f;
+                look.y = 0f;
+                distance = to.magnitude;
+                if (to.sqrMagnitude > 0.0001f && look.sqrMagnitude > 0.0001f) bearing = Vector3.SignedAngle(look, to, Vector3.up);
+            }
+            SessionLog.Write("placed", "op", s.Op, "id", s.Str("id"), "asked", asked, "used", used != null ? used.Id : null,
+                "stand_in", standIn, "at", position, "metres_from_user", Math.Round(distance, 2), "degrees_from_gaze", Math.Round(bearing, 1),
+                "in_view", Mathf.Abs(bearing) < 45f && distance < 60f, "problem", problem);
+        }
 
         /// <summary>True until the first sky statement brings light into the dark room.</summary>
         public bool IsDark => Sky.IsDark;
@@ -55,6 +85,7 @@ namespace ImagineVR
             Props = new PropSystem(this);
             Weather = new WeatherSystem(this);
             Ambience = new AmbienceSystem(this);
+            Rules = new RuleEngine(this);
             Terrain.Changed += OnGroundChanged;
         }
 
@@ -64,18 +95,22 @@ namespace ImagineVR
             Objects.Resettle();
         }
 
-        public void Note(string text) { Noted?.Invoke(text); }
+        public void Note(string text) { SessionLog.Write("note", "text", text); Noted?.Invoke(text); }
         public void Emit(string text) { Happened?.Invoke(text); }
 
         /// <summary>Applies one world statement. Unknown operations are ignored.</summary>
         public void Apply(Statement s)
         {
+            // The first thing built in the dark room is built around the user as they stand: they
+            // are brought to the middle of the world facing along it, whichever way they were turned.
+            if (Unbuilt && Vehicle != null && Builds(s.Op)) Vehicle.Home();
             switch (s.Op)
             {
                 case "sky":
                     if (Sky.IsDark && !s.Has("t")) s.Fields["t"] = 4.0;   // the first light takes its time
                     Sky.ApplySky(s);
                     _everLit = true;
+                    _clearSkyAtTurnEnd = false;
                     break;
                 case "light": Sky.ApplyLight(s); break;
                 case "fog": Sky.ApplyFog(s); break;
@@ -96,10 +131,17 @@ namespace ImagineVR
                 case "goal": Objects.Goal(s); break;
                 case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
                 case "modify": Objects.Modify(s); Props.Modify(s); break;
-                case "remove": Objects.Remove(s); Props.Remove(s.Str("id")); break;
+                case "remove": Rules.RemovingGroup(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
                 case "clear": Clear(s); break;
+                case "rule": case "rule_remove": Rules.SyncEntities(); Rules.Install(s); break;
             }
+            Rules.SyncEntities();
+        }
+
+        static bool Builds(string op)
+        {
+            return op == "sky" || op == "terrain" || op == "kit" || op == "spawn" || op == "scatter" || op == "ride" || op == "goal";
         }
 
         /// <summary>Things should never be built in total darkness: give them a default sky to be seen by.</summary>
@@ -112,8 +154,15 @@ namespace ImagineVR
 
         void Clear(Statement s)
         {
-            List<string> keep = s.StrList("keep");
             float t = s.T(1.2f);
+            if (s.Flag("everything"))
+            {
+                // "reset everything": the dark room, and nothing left, not even what is in their hands
+                ResetEverything(Mathf.Max(t, 1.5f));
+                return;
+            }
+            List<string> keep = s.StrList("keep");
+            Rules.Reset(keep.Contains("rules"));
             Objects.Clear(t);
             Kits.Forget();
             Props.ClearLoose();
@@ -123,22 +172,33 @@ namespace ImagineVR
             // The ground is only removed if nothing replaces it before the turn ends, so that a
             // new terrain statement can sweep over the old ground instead of popping it away.
             if (!keep.Contains("terrain")) _clearGroundAtTurnEnd = true;
+            // Likewise the sky: it stays if anything is built under it this turn, and goes dark
+            // (which is the user's own room again, in a headset that shows it) if nothing is.
+            if (!keep.Contains("sky")) _clearSkyAtTurnEnd = true;
             if (Vehicle != null) Vehicle.Home();   // the next place is built around the middle of the world
         }
 
         /// <summary>Called when a turn's `done` arrives.</summary>
         public void EndTurn()
         {
+            bool empty = Objects.Count == 0 && (_clearGroundAtTurnEnd || (!Terrain.HasGround && !Terrain.Generating));
             if (_clearGroundAtTurnEnd)
             {
                 _clearGroundAtTurnEnd = false;
                 Terrain.Clear(1.5f);
+            }
+            if (_clearSkyAtTurnEnd)
+            {
+                _clearSkyAtTurnEnd = false;
+                if (empty && !Sky.IsDark) Sky.Reset(2f);
             }
         }
 
         /// <summary>Back to the dark room.</summary>
         public void ResetToDark(float seconds)
         {
+            Rules.Reset();
+            Rules.PlayerEffectsEnabled = false;
             Objects.Clear(seconds);
             Kits.Forget();
             Props.ClearLoose();
@@ -147,8 +207,22 @@ namespace ImagineVR
             Props.SetGravity(1f);
             Terrain.Clear(seconds);
             Sky.Reset(seconds);
-            _clearGroundAtTurnEnd = false;
+            _clearGroundAtTurnEnd = _clearSkyAtTurnEnd = false;
             if (Vehicle != null) { Vehicle.Dismount(); Vehicle.Resize(1f); Vehicle.Home(); }
+            Rules.SyncEntities();
+        }
+
+        /// <summary>
+        /// The dark room exactly as the app starts in it: nothing built, nothing given, nothing in
+        /// the hands, no paint in the air, and (in a headset that can show it) the user's own room.
+        /// </summary>
+        public void ResetEverything(float seconds)
+        {
+            ResetToDark(seconds);
+            Props.ClearAll();
+            Rules.SyncEntities();
+            SessionLog.Write("reset", "what", "world");
+            Emptied?.Invoke();
         }
 
         /// <summary>A floating name tag, used above stand-in shapes.</summary>
@@ -183,6 +257,7 @@ namespace ImagineVR
             // In a headset that can show the real room, the dark room is the user's own room.
             _real = Mathf.MoveTowards(_real, QuestFeature.Passthrough && IsDark ? 1f : 0f, dt / 2.5f);
             Shader.SetGlobalFloat(RealId, _real);
+            Rules.Tick(dt);
         }
 
         static readonly int RealId = Shader.PropertyToID("_ImReal");

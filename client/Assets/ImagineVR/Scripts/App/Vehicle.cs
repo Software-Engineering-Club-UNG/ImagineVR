@@ -62,6 +62,7 @@ namespace ImagineVR
             string name = s.Str("asset", "none");
             AssetDef def = name == "none" ? null : Library.FindAsset(name);
             if (def == null) { Dismount(); return; }
+            _world.Placed(s, name, def, false, _rig.transform.position, null);
             Mount(def, s.TryColor("tint", out Color tint) ? tint : Color.white, Mathf.Clamp(s.Num("speed", 1f), 0.2f, 3f));
             // on rails: a roller coaster, a guided tour, a boat ride. The route does the steering.
             _route = s.TryPath("path", out System.Collections.Generic.List<Vector3> points) ? new Route(points, s.Flag("loop", true)) : null;
@@ -114,11 +115,13 @@ namespace ImagineVR
             _legs = legged ? top * (_fourLegs > 0f ? 0.42f : 0.47f) : 0f;
             Shadows.Cast(_visual.transform, b);
             Sfx.Play("whoosh", _rig.transform.position, 0.6f);
+            _world.Rules.Broadcast("mount", def.Id);
         }
 
         /// <summary>Back on foot, standing wherever the ride stopped.</summary>
         public void Dismount()
         {
+            if (_visual != null) _world.Rules.Broadcast("dismount", _def != null ? _def.Id : "ride");
             if (_visual != null) Destroy(_visual);
             _visual = null;
             _body = null;
@@ -127,15 +130,34 @@ namespace ImagineVR
             _speed = 0f;
         }
 
-        /// <summary>Back to the middle of the world, where new places are built. Whatever is being ridden comes too.</summary>
+        /// <summary>
+        /// Back to the middle of the world, where new places are built, and facing along it:
+        /// places are laid out in front of +Z, so the user is turned to look that way from wherever
+        /// in their room they are standing and whichever way they had turned. Whatever is being
+        /// ridden comes too, and so does the terminal.
+        /// </summary>
         public void Home()
         {
-            Transform rig = _rig.transform;
+            Transform rig = _rig.transform, head = _rig.Head;
             Vector3 was = rig.position;
-            float yaw = rig.eulerAngles.y;
-            rig.SetPositionAndRotation(new Vector3(0f, _height, 0f), Quaternion.identity);
-            _terminal.Carry(rig.position - was, -yaw, rig.position);
+            float wasYaw = rig.eulerAngles.y;
+
+            // where the head is, and which way it looks, within the rig
+            Vector3 offset = Quaternion.Inverse(rig.rotation) * (head.position - rig.position);
+            Vector3 look = Quaternion.Inverse(rig.rotation) * head.forward;
+            look.y = 0f;
+            float lookYaw = Riding || look.sqrMagnitude < 0.01f ? 0f : Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg;
+            if (Riding) offset = Vector3.zero;   // a ride faces the way it drives, with its seat in the middle
+
+            Quaternion turned = Quaternion.Euler(0f, -lookYaw, 0f);
+            Vector3 stand = -(turned * offset);
+            rig.SetPositionAndRotation(new Vector3(stand.x, _height, stand.z), turned);
+            float turn = Mathf.DeltaAngle(wasYaw, -lookYaw);
+            _terminal.Carry(rig.position - was, turn, rig.position);
+            _world.Props.Carry(was, rig.position, Quaternion.Euler(0f, turn, 0f));
+            _lastYaw = rig.eulerAngles.y;
             _speed = 0f;
+            SessionLog.Write("home", "moved", (rig.position - was).magnitude, "turned", turn);
         }
 
         static readonly Collider[] Touching = new Collider[24];

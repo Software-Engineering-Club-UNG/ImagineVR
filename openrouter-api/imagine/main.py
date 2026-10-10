@@ -15,8 +15,10 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import LANGUAGE_VERSION, config, stt, tts, llm
 from .catalog import Catalog
+from .script import to_frame
 from .session import SessionStore
 from .turn import run_turn, reset_stt_slots
+from .rules import CAPABILITY, CAPABILITIES, RuleError, validate_snapshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("imagine")
@@ -98,6 +100,7 @@ async def health():
         "model": "offline" if config.OFFLINE else config.MODEL,
         "stt": f"local:{config.STT_MODEL}" if config.STT == "local" else config.STT,
         "tts": tts.enabled(),
+        "capabilities": [CAPABILITY],
     }
 
 
@@ -107,6 +110,8 @@ async def turn(
     x_app_token: str | None = Header(default=None),
     x_session_id: str | None = Header(default=None),
     x_catalog_version: str | None = Header(default=None),
+    x_user_pose: str | None = Header(default=None),
+    x_client_capabilities: str | None = Header(default=None),
 ):
     check_token(x_app_token)
     if not x_session_id:
@@ -149,8 +154,14 @@ async def turn(
     base_url = config.PUBLIC_URL or str(request.base_url).rstrip("/")
 
     async def stream():
+        allow_rules = CAPABILITY in (x_client_capabilities or '').split(',')
+        prompt = state.system_prompt
+        if allow_rules:
+            prompt += '\n\n' + (config.PROMPT_PATH.parent / 'rules-prompt.md').read_text(encoding='utf-8')
+            prompt += '\nRULE CAPABILITIES:\n' + json.dumps(CAPABILITIES, separators=(',', ':'))
         statements = run_turn(
-            session, state.catalog, state.system_prompt, text=text, audio=audio, base_url=base_url
+            session, state.catalog, prompt, text=text, audio=audio, base_url=base_url,
+            frame=to_frame(x_user_pose), allow_rules=allow_rules,
         )
         pending = None
         try:
@@ -182,8 +193,32 @@ async def turn(
 async def reset(x_app_token: str | None = Header(default=None), x_session_id: str | None = Header(default=None)):
     check_token(x_app_token)
     if x_session_id:
+        state.sessions.get(x_session_id)
         await state.sessions.reset(x_session_id)
-    return Response(status_code=204)
+    return Response(status_code=204, headers={'X-Session-Generation': str(state.sessions.get(x_session_id).generation)} if x_session_id else {})
+
+
+@app.post('/v1/session/runtime')
+async def runtime(request: Request, x_app_token: str | None = Header(default=None), x_session_id: str | None = Header(default=None)):
+    check_token(x_app_token)
+    if not x_session_id:
+        raise HTTPException(400, 'missing X-Session-Id')
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 512_000: raise HTTPException(413, 'runtime snapshot too large')
+    try:
+        snapshot = validate_snapshot(json.loads(body))
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise HTTPException(400, 'invalid runtime snapshot: ' + str(exc)) from exc
+    session = state.sessions.get(x_session_id)
+    async with session.lock:
+        if snapshot['generation'] != session.generation or snapshot['sequence'] <= session.runtime_sequence:
+            raise HTTPException(409, 'stale runtime snapshot; reset session')
+        session.world.runtime = snapshot
+        session.world.rules = {rule['id']: rule for rule in snapshot['rules']}
+        session.runtime_sequence = snapshot['sequence']
+    return {'ok': True, 'generation': session.generation, 'sequence': snapshot['sequence']}
 
 
 @app.get("/v1/audio/{clip_id}")

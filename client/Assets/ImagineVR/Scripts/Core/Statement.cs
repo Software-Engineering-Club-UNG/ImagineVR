@@ -19,6 +19,7 @@ namespace ImagineVR
         {
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
             "kit", "spawn", "scatter", "give", "ride", "goal", "player", "modify", "remove", "ambience",
+            "rule", "rule_remove",
         };
 
         public bool IsStream => StreamOps.Contains(Op);
@@ -77,14 +78,31 @@ namespace ImagineVR
         /// <summary>Transition time in seconds.</summary>
         public float T(float fallback = 1.5f, float longest = 6f) => Mathf.Clamp(Num("t", fallback), 0.2f, longest);
 
-        /// <summary>Reads a list of [x, y, z] points. False unless there are at least two.</summary>
+        /// <summary>
+        /// Where the user stood, and which way they faced, when this was asked for. The positions
+        /// in a statement are written as if the user were at the origin facing +Z; the server adds
+        /// `frame: [x, z, yaw]` when they were somewhere else, so that "in front of me" is in
+        /// front of them and not in front of the middle of the world. No frame is the world's own.
+        /// </summary>
+        public Pose Frame()
+        {
+            if (Fields.TryGetValue("frame", out object v) && v is List<object> f && f.Count == 3)
+                return new Pose(new Vector3(ToFloat(f[0], 0), 0f, ToFloat(f[1], 0)), Quaternion.Euler(0f, ToFloat(f[2], 0), 0f));
+            return Pose.identity;
+        }
+
+        /// <summary>A position written relative to the user, as a position in the world.</summary>
+        public static Vector3 InWorld(Pose frame, Vector3 local) => frame.rotation * local + frame.position;
+
+        /// <summary>Reads a list of [x, y, z] points, placed in the world. False unless there are at least two.</summary>
         public bool TryPath(string key, out List<Vector3> points)
         {
             points = new List<Vector3>();
             if (!Fields.TryGetValue(key, out object v) || !(v is List<object> list)) return false;
+            Pose frame = Frame();
             foreach (object item in list)
             {
-                if (item is List<object> p && p.Count == 3) points.Add(new Vector3(ToFloat(p[0], 0), ToFloat(p[1], 0), ToFloat(p[2], 0)));
+                if (item is List<object> p && p.Count == 3) points.Add(InWorld(frame, new Vector3(ToFloat(p[0], 0), ToFloat(p[1], 0), ToFloat(p[2], 0))));
             }
             return points.Count >= 2;
         }

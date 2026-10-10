@@ -13,15 +13,19 @@ validates it, and the headset applies it. It is the only thing that changes the 
 
 ## Conventions
 
-- Units are metres. The user stands at the origin, facing +Z; +Y is up; +X is to their right.
-  Ground level under the user is y = 0.
+- Units are metres. Model-authored positions put the user at the origin, facing +Z;
+  +Y is up and +X is to their right. The server supplies the optional placement `frame`
+  described below. Ground-relative height is y = 0 at the terrain surface.
 - Colours are `"#RRGGBB"` strings.
 - `id` is a short name chosen by the author of the statement (for example `"trees1"`) so
   later statements can refer to what this one created. IDs are unique within a world.
 - `t` is an optional transition time in seconds. Default 1.5. Clamped to 0.2–6.
 - Every catalog reference (`preset`, `type`, `kit`, `asset`, `material`, `loop`) is an ID from
-  `shared/catalog.json`. An unknown ID is replaced by the nearest catalog entry; failing
-  that, by a simple labelled shape. It is never an error.
+  `shared/catalog.json`. Name matching may select a catalog entry, but multiword asset
+  names must match their last word (for example, spider_man must not become spider_web).
+  Unknown spawn/scatter assets trigger a second model call to compose a replacement from
+  catalog shapes. If no replacement is produced, a labelled shape is emitted with
+  `stand_in: true`; world memory retains that marker so it does not claim a real asset exists.
 - Numbers outside a stated range are clamped. Counts above catalog limits are reduced.
 
 ## World statements
@@ -29,7 +33,7 @@ validates it, and the headset applies it. It is the only thing that changes the 
 | `op` | Fields | Effect |
 |------|--------|--------|
 | `say` | `text`, `audio?` | Assistant message shown in the terminal. If `audio` (a URL) is present, it is played. |
-| `clear` | `keep?` (array of `"sky"`, `"terrain"`, `"ambience"`), `t?` | Transitions out all objects and kits, and everything else not listed in `keep`. Used when the user asks for a different place. |
+| `clear` | `keep?` (array of `"sky"`, `"terrain"`, `"ambience"`, `"weather"`), `everything?` (bool), `t?` | Clears scenery and kits; ordinary clear preserves given items. `everything: true` also removes given/held items and paint, resets the environment, ride and player size, and returns to the dark/passthrough room, ignoring `keep`. |
 | `sky` | `preset?`, `top?`, `horizon?`, `bottom?`, `sun_elevation?` (-90–90), `sun_azimuth?` (0–360), `sun_color?`, `stars?` (0–1), `clouds?` (0–1), `t?` | Sets the sky. A preset also sets matching light, ambient, and fog. Individual fields override the preset. |
 | `light` | `intensity?` (0–2), `color?`, `ambient?` (colour), `t?` | Overrides light after `sky`. |
 | `fog` | `color?`, `density?` (0–1), `t?` | Sets atmosphere. 0 is none, 1 is thick. |
@@ -41,6 +45,38 @@ validates it, and the headset applies it. It is the only thing that changes the 
 | `modify` | `id`, any of `scale`, `tint`, `count`, `density`, `t?` | Changes something made earlier by `spawn`, `scatter`, `kit`, or `give`. |
 | `remove` | `id`, `t?` | Transitions out something made earlier. Unknown `id` is ignored. |
 | `ambience` | `loop`, `volume?` (0–1), `t?` | Cross-fades to a baked ambient sound loop. |
+
+## Placement frames and fallback markers
+
+The server adds `frame: [x, z, yaw]` to `spawn`, `scatter`, `goal`, and `ride` with a
+`path` when the request supplies a nonzero `X-User-Pose`. These are the user's horizontal
+world coordinates in metres and heading in degrees. The client rotates local positions
+and paths about +Y by yaw, then translates by `[x, 0, z]`. Spawn rotations receive the
+same yaw; heights remain relative to the terrain. Missing `frame` is the identity
+transform, preserving existing demo scripts. `give` uses the current head directly;
+terrain and kits retain their world layout.
+
+For example, a user at x=30 facing +X receives an object four metres ahead at x=34:
+
+```json
+{"op":"spawn","id":"car","asset":"car","at":[0,0,4],"frame":[30,0,90]}
+```
+
+`frame` is server-owned: model-provided frame values are discarded. Remembered `at`
+positions and paths are re-expressed relative to the user's pose on the next turn. A
+`clear` homes the client, so subsequent statements use the identity frame.
+
+`stand_in: true` is also server-owned and marks an unavailable asset rendered as a
+labelled fallback shape. It is retained in world state. A sculpted replacement instead
+uses existing primitive assets and dotted part IDs such as `batman.body` and
+`batman.cape`; these share one root object for spawn limits and group removal. This
+composes baked shapes; runtime generation of new meshes remains deferred.
+
+An ordinary `clear` preserves given items. If it leaves no scenery or ground, and no
+replacement sky is supplied, the client fades to the dark/passthrough room at turn end.
+`clear` with `everything: true` clears the whole world, including given items, even when
+`keep` is supplied. It is a scene operation; the controller's full reset additionally
+cancels pending work and starts a fresh conversation and terminal.
 
 ## Stream statements
 
@@ -141,3 +177,19 @@ implementation through `e5f8c5a`, including the exported catalog and prompt.
   and embedded in the catalog.
 - Adding an operation or an optional field does not change the version. Changing the meaning
   of an existing field or removing one does.
+
+## Runtime rules (capability `runtime-rules-v1`)
+
+`rule` installs or replaces an ID with a selector (instance/group/asset/tag), event,
+optional filters/conditions, and up to eight actions. `rule_remove` removes its ID.
+The shared contract is `shared/runtime-rules.json`; the full reference and examples
+are in `RUNTIME_EFFECTS_AND_TRIGGERS.md` and `shared/rule-examples/`.
+
+Rules execute bounded data-only actions; no generated code is evaluated. Position/path
+coordinates are authored relative to the current user and transformed by the server
+once on installation; offsets and vectors rotate with the user's heading. The stored
+and transmitted rules use world coordinates. Rule heights are absolute world heights.
+
+Ordinary clear drops rules unless `keep` includes `rules`; full clear ignores that
+exception. Full reset also cancels delayed actions/timers/effects, clears scores/state,
+removes held items and registry entries, and disables automatic player movement.

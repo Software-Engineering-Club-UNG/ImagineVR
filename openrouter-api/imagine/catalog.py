@@ -105,20 +105,26 @@ class Catalog:
         raw = str(name).strip().lower().replace(" ", "_").replace("-", "_")
         if raw in self._entries[kind]:
             return raw, False
-        match = self.nearest(kind, raw)
+        # An asset name of several words is a thing with a describer in front ("red car",
+        # "spider man"): the match has to be the thing, never just the describer.
+        match = self.nearest(kind, raw, head_only=kind == "asset")
         return match, match is not None
 
-    def nearest(self, kind: str, name: str, holdable_only: bool = False) -> str | None:
+    def nearest(self, kind: str, name: str, holdable_only: bool = False, head_only: bool = False) -> str | None:
         raw = name.strip().lower().replace(" ", "_").replace("-", "_")
-        query = {_stem(w) for w in words(raw)}
+        named = [_stem(w) for w in words(raw)]
+        query = set(named)
         if not query:
             return None
+        head = named[-1] if head_only and len(named) > 1 else None
         best_id, best_score = None, 0.0
         for eid, id_words, aliases, other_words in self._index[kind]:
             if holdable_only and not self._entries[kind][eid].get("holdable"):
                 continue
             if raw in aliases:
                 score = 100.0
+            elif head is not None and head not in id_words and head not in other_words:
+                continue  # "spider man" is not a spider web, "fire truck" is not a fire hydrant
             else:
                 score = 3.0 * len(query & id_words) + 1.5 * len(query & other_words)
                 if score == 0:

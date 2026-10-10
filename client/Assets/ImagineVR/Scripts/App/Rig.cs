@@ -13,10 +13,12 @@ namespace ImagineVR
     ///
     /// Controls:            headset                     desktop
     ///   talk               hold A (right)              hold Space
-    ///   grab / release     grip                        E (right hand), Q (left hand)
+    ///   take / let go      touch it, or grip           E (right hand), Q (left hand)
     ///   use held thing     trigger                     left mouse button
     ///   next colour / demo B (right)                   B
     ///   recentre terminal  X (left)                    R
+    ///   reset everything   hold X for two seconds      hold R (or F12 at once)
+    ///   tuck terminal away Y (left)                    C
     ///   move               right thumbstick            W A S D
     ///   step / smooth turn click right thumbstick      T
     ///   look                                           hold right mouse button
@@ -31,7 +33,18 @@ namespace ImagineVR
         public Grabber RightGrabber { get; private set; }
         public bool XrActive { get; private set; }
 
-        InputAction _talk, _alt, _menu, _gripL, _gripR, _triggerL, _triggerR, _stickR, _stickClick;
+        /// <summary>
+        /// Roughly where the A button is on the right controller, in the hand's own space, for the
+        /// hint that points at it. An estimate from the shape of a Touch controller: nudge it on the headset.
+        /// </summary>
+        public static readonly Vector3 AButton = new Vector3(0.012f, 0.022f, 0.03f);
+
+        /// <summary>Something was taken into a hand (true for the right one), or let go of.</summary>
+        public event System.Action<Prop, bool> Grabbed, Released;
+        internal void OnGrabbed(Prop prop, bool right) { Grabbed?.Invoke(prop, right); }
+        internal void OnReleased(Prop prop, bool right) { Released?.Invoke(prop, right); }
+
+        InputAction _talk, _alt, _menu, _fold, _gripL, _gripR, _triggerL, _triggerR, _stickR, _stickClick;
         InputAction _posL, _rotL, _posR, _rotR, _look, _lookHold;
         TrackedPoseDriver _headDriver;
         float _yaw, _pitch;
@@ -46,6 +59,8 @@ namespace ImagineVR
         public bool TalkReleased => _talk.WasReleasedThisFrame();
         public bool AltPressed => !Blocked && _alt.WasPressedThisFrame();
         public bool MenuPressed => !Blocked && _menu.WasPressedThisFrame();
+        public bool MenuHeld => !Blocked && _menu.IsPressed();
+        public bool FoldPressed => !Blocked && _fold.WasPressedThisFrame();
         public Vector2 Stick => _stickR.ReadValue<Vector2>();
         public bool StickClicked => !Blocked && _stickClick.WasPressedThisFrame();
 
@@ -88,6 +103,7 @@ namespace ImagineVR
             _talk = Button("Talk", "<XRController>{RightHand}/primaryButton", "<Keyboard>/space");
             _alt = Button("Alt", "<XRController>{RightHand}/secondaryButton", "<Keyboard>/b");
             _menu = Button("Menu", "<XRController>{LeftHand}/primaryButton", "<Keyboard>/r");
+            _fold = Button("Fold", "<XRController>{LeftHand}/secondaryButton", "<Keyboard>/c");
             _gripR = Axis("GripR", "<XRController>{RightHand}/grip", "<Keyboard>/e");
             _gripL = Axis("GripL", "<XRController>{LeftHand}/grip", "<Keyboard>/q");
             _triggerR = Axis("TriggerR", "<XRController>{RightHand}/trigger", "<Mouse>/leftButton");
@@ -195,6 +211,13 @@ namespace ImagineVR
                 DesktopLook();
             }
             UpdateHandPoses();
+
+            // every press goes in the session log, so a test can be replayed from it
+            if (TalkPressed) SessionLog.Write("press", "button", "talk");
+            if (AltPressed) SessionLog.Write("press", "button", "alt");
+            if (MenuPressed) SessionLog.Write("press", "button", "menu");
+            if (FoldPressed) SessionLog.Write("press", "button", "fold");
+            if (StickClicked) SessionLog.Write("press", "button", "stick");
         }
 
         static readonly List<XRInputSubsystem> Subsystems = new List<XRInputSubsystem>();
@@ -263,13 +286,21 @@ namespace ImagineVR
     /// <summary>
     /// One hand's ability to pick things up. Grip grabs what the hand is touching, or failing
     /// that, what it is pointing at (which then flies to the hand). Trigger uses the held thing.
+    ///
+    /// Something the user asked for and was given is easier still, because a newcomer does not
+    /// know what a grip button is: touching it, or pulling the trigger at it, takes it, and it
+    /// then stays in the hand on its own. Squeezing the grip lets a tool go; anything else is
+    /// then held by the grip in the usual way, and thrown by letting go.
     /// </summary>
     public sealed class Grabber : MonoBehaviour
     {
         Rig _rig;
         bool _right;
-        Prop _held;
+        Prop _held, _near;
         bool _gripDown, _triggerDown;
+        bool _latched;        // stays in the hand without the grip being held
+        bool _using, _replaceUse;
+        bool _waitTrigger;    // the trigger pull that took it must not also fire it
         Vector3 _lastPos, _velocity, _angular;
         Quaternion _lastRot = Quaternion.identity;
         Vector3 _gripOffset;
@@ -303,14 +334,28 @@ namespace ImagineVR
             _lastPos = transform.position;
             _lastRot = transform.rotation;
 
-            bool grip = _rig.Grip(_right) > 0.55f;
-            if (grip && !_gripDown) { if (_held == null) TryGrab(); }
-            else if (!grip && _gripDown) { if (_held != null) Release(true); }
-            _gripDown = grip;
-
             float trigger = _rig.Trigger(_right);
             bool trig = trigger > 0.4f;
-            if (_held != null) Use(trig, trigger);
+
+            bool grip = _rig.Grip(_right) > 0.55f;
+            if (grip && !_gripDown)
+            {
+                SessionLog.Write("press", "button", _right ? "grip_right" : "grip_left", "holding", _held != null ? _held.Def.Id : null);
+                if (_held == null) TryGrab(false);
+                else if (_latched && _held.Def.Tool) Release(true);
+                else _latched = false;   // now held by the grip: letting go throws it
+            }
+            else if (!grip && _gripDown) { if (_held != null && !_latched) Release(true); }
+            _gripDown = grip;
+
+            if (_held == null)
+            {
+                if (trig && !_triggerDown) TryGrab(true);
+                if (_held == null) Reach();
+            }
+            if (!trig) _waitTrigger = false;
+            if (_held != null && !_waitTrigger) Use(trig, trigger);
+            if (_held != null && !trig) EndUse(_held);
             _triggerDown = trig;
 
             if (_held != null && _held.Def.Behavior == "paint" && _rig.AltPressed && _right)
@@ -321,29 +366,79 @@ namespace ImagineVR
             }
         }
 
-        void TryGrab()
+        /// <summary>What the hand is touching and could pick up, nearest first; null when nothing.</summary>
+        Prop Touching(float radius, bool waitingOnly)
         {
             Prop best = null;
             float bestScore = float.MaxValue;
-            int n = Physics.OverlapSphereNonAlloc(transform.position, 0.16f, Hits);
+            int n = Physics.OverlapSphereNonAlloc(transform.position, radius, Hits);
             for (int i = 0; i < n; i++)
             {
                 Prop p = Hits[i].GetComponentInParent<Prop>();
-                if (p == null || p.Held) continue;
+                if (p == null || p.Held || (waitingOnly && !p.Floating)) continue;
                 float d = Vector3.Distance(p.transform.position, transform.position);
                 if (d < bestScore) { best = p; bestScore = d; }
             }
-            if (best == null && Physics.SphereCast(transform.position, 0.14f, transform.forward, out RaycastHit hit, 9f))
-            {
-                Prop p = hit.collider.GetComponentInParent<Prop>();
-                if (p != null && !p.Held) best = p;
-            }
-            if (best == null) return;
-            Grab(best);
+            return best;
         }
 
-        void Grab(Prop prop)
+        /// <summary>
+        /// Grip takes anything in reach or pointed at. The trigger takes only something that is
+        /// waiting to be taken (so it never grabs by accident), and that pull does not also fire it.
+        /// </summary>
+        void TryGrab(bool byTrigger)
         {
+            Prop best = Touching(0.16f, byTrigger);
+            if (best == null && Physics.SphereCast(transform.position, 0.14f, transform.forward, out RaycastHit hit, byTrigger ? 2.5f : 9f))
+            {
+                Prop p = hit.collider.GetComponentInParent<Prop>();
+                if (p != null && !p.Held && (!byTrigger || p.Floating)) best = p;
+            }
+            if (best == null)
+            {
+                if (!byTrigger) SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "nothing in reach");
+                return;
+            }
+            Grab(best, byTrigger ? "trigger" : "grip");
+            _latched = byTrigger || best.Def.Tool;   // a tool stays in the hand; the grip is squeezed again to put it down
+            _waitTrigger = byTrigger;
+        }
+
+        /// <summary>
+        /// An empty hand near things: something waiting to be taken jumps into the hand that
+        /// touches it, and anything else in reach answers with a small tick and swells a little,
+        /// so the user can feel and see what a squeeze of the grip would pick up.
+        /// </summary>
+        void Reach()
+        {
+            Prop waiting = Touching(0.11f, true);
+            if (waiting != null)
+            {
+                Near(null);
+                Grab(waiting, "touch");
+                _latched = true;
+                _waitTrigger = _triggerDown;
+                return;
+            }
+            Near(Touching(0.16f, false));
+        }
+
+        void Near(Prop prop)
+        {
+            if (prop == _near) return;
+            if (_near != null && _near.Visual != null) _near.Visual.localScale = Vector3.one;
+            _near = prop;
+            if (prop == null) return;
+            prop.Visual.localScale = Vector3.one * 1.1f;
+            _rig.Haptic(_right, 0.18f, 0.02f);
+        }
+
+        void Grab(Prop prop, string how)
+        {
+            Near(null);
+            SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "took", "asset", prop.Def.Id, "id", prop.GroupId, "how", how, "given", prop.Given);
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            if (rule != null) rule.Engine.Emit("grab", rule.Entity);
             _held = prop;
             prop.Holder = this;
             prop.Floating = false;
@@ -369,9 +464,11 @@ namespace ImagineVR
                 _gripRotation = Quaternion.Inverse(transform.rotation) * prop.transform.rotation;
             }
             _fly = 0f;
+            _latched = false;
             _rig.ShowHand(_right, false);
             _rig.Haptic(_right, 0.5f, 0.05f);
             Sfx.Play("grab", transform.position, 0.6f);
+            _rig.OnGrabbed(prop, _right);
         }
 
 
@@ -379,8 +476,11 @@ namespace ImagineVR
         {
             Prop prop = _held;
             _held = null;
+            _latched = false;
             EndUse(prop);
             if (prop == null) return;
+            SessionLog.Write("release", "hand", _right ? "right" : "left", "asset", prop.Def.Id, "thrown", thrown, "speed", _velocity.magnitude);
+            _rig.OnReleased(prop, _right);
             prop.Holder = null;
             prop.Visual.localPosition = Vector3.zero;
             prop.Visual.localRotation = Quaternion.identity;
@@ -391,6 +491,8 @@ namespace ImagineVR
                 prop.Body.linearVelocity = _velocity * 1.25f;
                 prop.Body.angularVelocity = _angular;
             }
+            RuleBody rule = prop.GetComponent<RuleBody>();
+            if (rule != null) rule.Released(thrown);
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }
@@ -406,7 +508,7 @@ namespace ImagineVR
         void FixedUpdate()
         {
             if (_held == null) return;
-            if (_held.Body == null) { _held = null; _rig.ShowHand(_right, true); return; }
+            if (_held.Body == null) { _held = null; _latched = false; _rig.ShowHand(_right, true); return; }
             _fly = Mathf.MoveTowards(_fly, 1f, Time.fixedDeltaTime / 0.14f);
             Vector3 target = Vector3.Lerp(_held.Body.position, TargetPosition, Mathf.Lerp(0.25f, 1f, _fly));
             _held.Body.MovePosition(target);
@@ -425,6 +527,13 @@ namespace ImagineVR
         void Use(bool pressed, float amount)
         {
             Prop prop = _held;
+            if (pressed && !_using)
+            {
+                _using = true;
+                RuleBody rule = prop.GetComponent<RuleBody>();
+                _replaceUse = rule != null && rule.Engine.Emit("use_start", rule.Entity);
+            }
+            if (_replaceUse) return;
             Vector3 tipPosition = TargetPosition + (TargetRotation * Vector3.up) * prop.Length;
             Vector3 aim = TargetRotation * Vector3.up;
             switch (prop.Def.Behavior)
@@ -485,6 +594,9 @@ namespace ImagineVR
 
         void EndUse(Prop prop)
         {
+            RuleBody rule = prop != null ? prop.GetComponent<RuleBody>() : null;
+            if (_using && rule != null) rule.Engine.Emit("use_end", rule.Entity);
+            _using = _replaceUse = false;
             if (_stroke != null && prop != null) prop.System.EndStroke(_stroke);
             _stroke = null;
         }
