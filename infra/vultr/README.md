@@ -9,8 +9,8 @@ This directory manages the existing ImagineVR/Hacklanta server with Terraform.
 | Public IPv4 | `64.177.52.162` |
 | Region | Atlanta (`atl`) |
 | OS | Ubuntu Server 26.04 LTS x64 (`2760`) |
-| Plan | `vc2-1c-1gb`: 1 vCPU, 1 GB RAM, 25 GB SSD |
-| Base price at deployment | $5/month, plus applicable taxes/usage charges |
+| Plan | `vc2-4c-8gb`: 4 vCPUs, 8 GB RAM, 160 GB SSD |
+| Base plan price | $40/month, plus applicable taxes/usage charges |
 | Inbound firewall | TCP 22 (SSH), TCP 80 (HTTP) |
 | Login | `ubuntu`, SSH key only, with sudo |
 
@@ -44,6 +44,11 @@ server's generated password. The provider lock file should be committed.
 State currently lives locally: coordinate with the other operator before applying
 changes. A shared remote backend should be configured before concurrent team use.
 After configuring shared state, migrate this local state with `terraform init -migrate-state`.
+
+The VM was resized in place on 2026-10-10 with a saved Terraform plan targeting
+only `vultr_instance.ubuntu`; its instance ID and public IP remain unchanged.
+The separate HTTPS firewall rule is still pending until backend provisioning.
+Do not interpret a successful resize as completing HTTPS or application setup.
 
 ## Connecting
 

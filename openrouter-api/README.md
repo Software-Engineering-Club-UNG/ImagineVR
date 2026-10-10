@@ -18,8 +18,9 @@ do not edit it by hand. TTS remains off.
 edit this folder's `prompt.md` and `script.py` directly. Configure local settings
 in `openrouter-api/.env`, not the old `server/.env`.
 
-This follows Israel's latest deployment handoff: keep the 1 CPU / 1 GB VM and
-Python 3.14, with hosted transcription rather than local Whisper. Do not install
+The VM is now sized at 4 CPUs / 8 GB RAM ($40/month), per Parker's explicit
+resize request. The backend still uses Python 3.14 and hosted transcription
+rather than local Whisper; resizing does not change the transcription provider. Do not install
 Whisper on production. The optional local adapter requires a separate Python
 3.13 environment with faster-whisper and numpy if used for development.
 
@@ -37,7 +38,7 @@ repository secrets**, in addition to the existing `VULTR_DEPLOY_SSH_KEY`:
   `C:\Users\parke\.ssh\hacklanta_vultr`.
 
 Merge backend changes onto current `main` without overwriting Israel's work.
-Apply the Terraform HTTPS firewall rule (no VM resize), then manually run
+Apply the remaining Terraform HTTPS firewall rule, then manually run
 **Provision ImagineVR API host** on `main`. This installs server configuration,
 runtime secrets, TLS for `64.177.52.162.sslip.io`, and certificate renewal. Then
 run **Test and deploy openrouter-api**. An initial application deployment before

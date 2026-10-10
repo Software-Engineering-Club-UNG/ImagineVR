@@ -39,7 +39,7 @@ resource "vultr_firewall_rule" "https" {
 
 resource "vultr_instance" "ubuntu" {
   region            = "atl"
-  plan              = "vc2-1c-1gb"
+  plan              = "vc2-4c-8gb"
   os_id             = 2760 # Ubuntu 26.04 LTS x64
   label             = "hacklanta-ubuntu"
   hostname          = "hacklanta-ubuntu"
