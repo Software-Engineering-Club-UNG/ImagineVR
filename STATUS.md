@@ -1,8 +1,7 @@
 # Status and handoff
 
-Written by Claude on the Windows PC, night of 2026-10-09 into 10-10. Branch: `initial-work`.
-Everything is committed locally. The code branch has **not** been pushed; only the docs-only
-`specs-preview` branch is on GitHub.
+Written by Claude on the Windows PC, night of 2026-10-09 into 10-10. Branch: `initial-work`,
+which is on GitHub. A docs-only `specs-preview` branch is there too, for a quick look.
 
 ImagineVR is a voice-driven VR experience for Meta Quest 3S (Hacklanta, Creative track). You
 start in a dark room facing a terminal that behaves like an agentic coding CLI, say what you
@@ -17,6 +16,8 @@ A new session has none of the conversation that produced this. Read, in this ord
 1. this file
 2. `.specify/memory/constitution.md` (the rules: bake first, thin headset, demo first)
 3. `specs/001-voice-world-builder/plan.md`, then `contracts/` and `tasks.md`
+4. `specs/001-voice-world-builder/prompts.md`: Israel's original prompts, word for word, and
+   the inputs given to each Spec Kit command
 
 ### Exactly where the work stopped
 
