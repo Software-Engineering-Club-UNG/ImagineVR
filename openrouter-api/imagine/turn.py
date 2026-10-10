@@ -18,6 +18,19 @@ log = logging.getLogger("imagine.turn")
 OUTCOMES = ("world_changed", "object_given", "answered", "ignored", "not_understood", "declined", "failed")
 
 
+def heard_here(session: Session) -> str:
+    """The names of what is in the user's world, as a sentence for the speech recogniser to lean on."""
+    names: list[str] = []
+    for stmt in session.world.things.values():
+        name = str(stmt.get("asset") or stmt.get("kit") or "").replace("_", " ")
+        if name and name not in names:
+            names.append(name)
+    ride = session.world.globals.get("ride", {}).get("asset")
+    if ride and ride.replace("_", " ") not in names:
+        names.append(ride.replace("_", " "))
+    return "Here now: " + ", ".join(names[:24]) + "." if names else ""
+
+
 def build_user_content(session: Session, text: str, frame: list | None = None) -> str:
     parts = ["CURRENT WORLD (ImagineScript):", session.world.render(frame), ""]
     if session.history:
@@ -118,7 +131,7 @@ async def _run_turn(
     if audio is not None:
         try:
             async with _stt_slots:
-                text = await stt.transcribe(audio)
+                text = await stt.transcribe(audio, heard_here(session))
         except Exception:  # noqa: BLE001
             log.exception("transcription failed")
             yield {"op": "transcript", "text": ""}

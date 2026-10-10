@@ -1,6 +1,6 @@
 {
   "language_version": 1,
-  "catalog_version": "1.242.7e663205",
+  "catalog_version": "1.242.06794194",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
@@ -263,6 +263,37 @@
       "tags": ["mesa", "cliff", "summit", "overlook", "epic"],
       "aliases": ["mesa", "cliff top", "summit", "mountain top"],
       "material": "rock"
+    },
+    {
+      "id": "wetlands",
+      "desc": "Low marshy ground riddled with pools and winding channels",
+      "tags": ["marsh", "swamp", "bog", "bayou", "fen", "delta"],
+      "aliases": ["marsh", "marshland", "bayou", "fen", "everglades"],
+      "material": "swamp",
+      "water": true
+    },
+    {
+      "id": "archipelago",
+      "desc": "A scatter of small islands across a shallow sea, you on the largest",
+      "tags": ["islands", "sea", "tropical", "lagoon", "keys"],
+      "aliases": ["islands", "island chain", "lagoon", "keys"],
+      "material": "sand",
+      "water": true
+    },
+    {
+      "id": "cliffs",
+      "desc": "A clifftop meadow that drops sheer to the sea ahead",
+      "tags": ["coast", "cliff", "headland", "sea", "dramatic"],
+      "aliases": ["sea cliff", "clifftop", "headland", "cliff edge"],
+      "material": "grass",
+      "water": true
+    },
+    {
+      "id": "mesas",
+      "desc": "A wide desert floor studded with flat-topped buttes",
+      "tags": ["buttes", "badlands", "western", "monument valley", "desert"],
+      "aliases": ["buttes", "badlands", "monument valley", "mesa country"],
+      "material": "mars"
     },
     {
       "id": "none",

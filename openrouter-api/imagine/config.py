@@ -24,7 +24,9 @@ REASONING = _env("IMAGINE_REASONING").lower()
 
 STT = _env("IMAGINE_STT", "local").lower()
 STT_MODEL = _env("IMAGINE_STT_MODEL", "base.en")
-STT_MODEL_PATH = _env("IMAGINE_STT_MODEL_PATH") or None
+# How many readings of the audio Whisper keeps in play. 5 hears a noisy room about as well as
+# the next model up does at 1, for a fraction of the time that model costs; 1 is the fastest.
+STT_BEAM = max(1, min(8, int(_env("IMAGINE_STT_BEAM", "5") or 5)))
 
 TTS = _env("IMAGINE_TTS", "off").lower() == "on"
 ELEVENLABS_API_KEY = _env("ELEVENLABS_API_KEY")
@@ -57,3 +59,15 @@ TURNS_PER_MINUTE = 20
 OFFLINE = not OPENROUTER_API_KEY or MODEL.lower() in ("offline", "fallback", "none")
 PRODUCTION = _env("IMAGINE_ENV") == "production"
 STT_CACHE = _env("IMAGINE_STT_CACHE") or None
+
+
+def stt_model_path(cache: str | None = STT_CACHE, model: str = STT_MODEL) -> str | None:
+    """Weights already on disk for the chosen model, so that changing IMAGINE_STT_MODEL is the whole switch."""
+    explicit = _env("IMAGINE_STT_MODEL_PATH")
+    if explicit:
+        return explicit
+    prepared = Path(cache) / f"whisper-{model}" if cache else None
+    return str(prepared) if prepared and (prepared / "model.bin").is_file() else None
+
+
+STT_MODEL_PATH = stt_model_path()

@@ -21,10 +21,14 @@ from pathlib import Path
 from faster_whisper import WhisperModel
 from faster_whisper.utils import download_model
 
-path = Path('/var/cache/openrouter-api/whisper-base.en')
-if not (path / 'model.bin').is_file():
-    download_model('base.en', output_dir=str(path))
-model = WhisperModel(str(path), device='cpu', compute_type='int8', cpu_threads=4,
-                     num_workers=1, local_files_only=True)
-print('Local Whisper base.en validated; normal startup requires no network or speech key.')
+# base.en is what runs. small.en is fetched too, so that trying it is one line in the service
+# unit (IMAGINE_STT_MODEL=small.en) and a restart, with no download at that moment.
+for name in ('base.en', 'small.en'):
+    path = Path('/var/cache/openrouter-api') / f'whisper-{name}'
+    if not (path / 'model.bin').is_file():
+        download_model(name, output_dir=str(path))
+    model = WhisperModel(str(path), device='cpu', compute_type='int8', cpu_threads=4,
+                         num_workers=1, local_files_only=True)
+    del model
+    print(f'Local Whisper {name} validated; normal startup requires no network or speech key.')
 PY

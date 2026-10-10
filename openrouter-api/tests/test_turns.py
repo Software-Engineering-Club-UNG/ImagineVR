@@ -69,12 +69,12 @@ def test_audio_validation(api, data, status):
 
 
 def test_audio_turn_and_transcription_error(api, monkeypatch):
-    async def transcribe(_):
+    async def transcribe(_, *hint):
         return 'build a forest'
     monkeypatch.setattr(stt, 'transcribe', transcribe)
     response = api.post('/v1/turn', headers={**HEADERS, 'Content-Type': 'audio/wav'}, content=wav())
     assert statements(response)[0] == {'op': 'transcript', 'text': 'build a forest'}
-    async def fail(_):
+    async def fail(_, *hint):
         raise RuntimeError('test')
     monkeypatch.setattr(stt, 'transcribe', fail)
     result = statements(api.post('/v1/turn', headers={**HEADERS, 'Content-Type': 'audio/wav'}, content=wav()))
@@ -315,7 +315,7 @@ def test_transcription_concurrency(monkeypatch, provider, expected_parallel):
         turn.reset_stt_slots()
         release, ready = asyncio.Event(), asyncio.Event()
         active = maximum = 0
-        async def transcribe(_):
+        async def transcribe(_, *hint):
             nonlocal active, maximum
             active += 1
             maximum = max(maximum, active)
@@ -562,3 +562,30 @@ def test_a_model_that_goes_quiet_is_given_up_on(monkeypatch):
     # keep-alives are not the model speaking
     asyncio.run(check(0.15, [(0.05, ': keepalive')] * 8, 'before answering'))
     asyncio.run(check(1, [(0, word)] + [(0.05, ': keepalive')] * 8, 'partway through'))
+
+
+def test_ground_features_lines_clumps_and_runs_survive_validation():
+    validator, world = Validator(_catalog(), frame=[10, 0, 90]), WorldState()
+    terrain = validator.check({'op': 'terrain', 'type': 'hills', 'features': ['River', 'path', 'lava'], 'patches': 'dirt',
+                               'roughness': 3}, world)[-1]
+    assert terrain['features'] == ['river', 'path'] and terrain['patches'] == 'dirt' and terrain['roughness'] == 1
+    # a later tweak keeps them; a new kind of ground starts clean, as it does in the headset
+    validator.check({'op': 'terrain', 'material': 'snow'}, world)
+    assert world.globals['terrain']['features'] == ['river', 'path']
+    validator.check({'op': 'terrain', 'type': 'mesas'}, world)
+    assert 'features' not in world.globals['terrain'] and 'patches' not in world.globals['terrain']
+    assert validator.check({'op': 'terrain', 'features': []}, world)[-1]['features'] == []
+
+    fence = validator.check({'op': 'scatter', 'id': 'fence', 'asset': 'fence', 'count': 12, 'along': [[0, 0, 5], [0, 0, 25], 'x'],
+                             'spread': 1, 'where': 'Flat', 'clusters': 99}, world)[-1]
+    assert fence['along'] == [[0, 0, 5], [0, 0, 25]] and fence['where'] == 'flat' and fence['clusters'] == 24
+    assert fence['frame'] == [10, 0, 90]
+    # seen again from somewhere else, the line is where it was laid, not where the user now stands
+    seen = json.loads(world.render([10, 0, 0]).splitlines()[-1])
+    assert seen['along'] == [[5.0, 0, 0.0], [25.0, 0, 0.0]]
+    assert 'where' not in validator.check({'op': 'scatter', 'id': 'x', 'asset': 'rock', 'where': 'moon'}, world)[-1]
+
+    stairs = validator.check({'op': 'spawn', 'id': 'stairs', 'asset': 'cube', 'at': [0, 0, 6], 'repeat': 400, 'step': [0, 0.25, 0.5],
+                              'ring': 0}, world)[-1]
+    assert stairs['repeat'] == 40 and stairs['step'] == [0, 0.25, 0.5] and stairs['ring'] == 0
+    assert world.count('spawn') == 1

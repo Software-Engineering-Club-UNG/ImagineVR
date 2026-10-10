@@ -161,6 +161,22 @@ implementation through `e5f8c5a`, including the exported catalog and prompt.
   `start` (0–1). `ride` accepts `path` and `loop` alongside its existing speed
   multiplier (0.2–3). Routes retain 2–24 valid points; heights are above ground.
   Too-short/invalid paths are dropped without dropping the remaining statement.
+- `terrain` accepts `features` (a list of `river`, `pond`, `path`, `terraces`, `outcrops`;
+  an empty list removes them), `patches` (a second ground material shown in broad
+  blotches) and `roughness` (0–1). A change of `type` drops all three and, without a
+  `seed`, takes a fresh one, so the same type is a different piece of ground each time.
+  A river or pond on a type with no water of its own lies 0.8 m below the user's feet,
+  and the rest of the land is kept above it.
+- `scatter` accepts `clusters` (1–24 clumps inside the area) and `spread` (0–40 m: the
+  width of a clump, or how far copies stray from a line); `along` (2–24 points,
+  `[x,height,z]`, user-relative like `path`) with `align` (default true: copies face
+  along the line); and `where` (`any`, `flat`, `steep`, `high`, `low`, `shore`), which
+  leaves out copies that find no suitable ground. `shore` on ground without water
+  means `low`.
+- `spawn` accepts `repeat` (1–40) with `step` (`[right, up, forward]` metres, in the
+  object's own rotated frame) for a run of copies, or with `ring` (up to 100 m; 0 is none) for a
+  circle of copies facing its centre. The copies are one object for limits, `modify`
+  and `remove`; `solid` gives each a body. Ignored with `physics`, `behavior` or `path`.
 - `goal`: `{"op":"goal","id":"finish","at":[0,0,40],"radius":3,"for":"user","text":"You made it"}`.
   Position is required; radius is bounded to 0.3–20 m, message to 80 characters.
   `for` defaults to `user`; Unity also accepts asset-name matching or `any`.

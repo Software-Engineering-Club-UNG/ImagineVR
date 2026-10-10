@@ -60,7 +60,7 @@ Shader "ImagineVR/Water"
                 o.positionCS = TransformWorldToHClip(ws);
                 o.positionWS = ws;
                 o.viewDir = _WorldSpaceCameraPos - ws;
-                o.fog = max(ImFog(ws, _WorldSpaceCameraPos), ImEdge(ws));
+                o.fog = 0;   // worked out per pixel: the sheet has four corners, all of them far away in the haze
                 return o;
             }
 
@@ -85,8 +85,9 @@ Shader "ImagineVR/Water"
                 float glint = pow(saturate(dot(n, halfDir)), 140.0);
                 col += _ImSunColor.rgb * glint * 1.5;
 
-                col = lerp(col, _ImFogColor.rgb, i.fog);
-                return half4(col, lerp(_Opacity, 1.0, saturate(fresnel + i.fog)));
+                half fog = max(ImFog(i.positionWS, _WorldSpaceCameraPos), ImEdge(i.positionWS));
+                col = lerp(col, _ImFogColor.rgb, fog);
+                return half4(col, lerp(_Opacity, 1.0, saturate(fresnel + fog)));
             }
             ENDHLSL
         }

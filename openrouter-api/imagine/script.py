@@ -22,6 +22,8 @@ STREAM_OPS = ("transcript", "status", "note", "error", "done")
 
 PLACES = ("front", "left", "right", "behind", "center", "above")
 AREAS = ("around", "front", "behind", "left", "right", "ring", "edges", "everywhere", "sky")
+FEATURES = ("river", "pond", "path", "terraces", "outcrops")
+WHERE = ("any", "flat", "steep", "high", "low", "shore")
 KEEP = ("sky", "terrain", "ambience", "weather", "rules")
 BEHAVIORS = ("chase", "wander", "flee", "still")
 NO_RIDE = ("none", "off", "stop", "exit", "out", "walk", "nothing", "foot", "on_foot")
@@ -105,6 +107,15 @@ def _enum(options):
     return lambda v, _c: v.lower() if isinstance(v, str) and v.lower() in options else None
 
 
+def _features(v, _c):
+    """Things worked into the ground: any of FEATURES, as a list. An empty list takes them away."""
+    if isinstance(v, str):
+        v = [v]
+    if not isinstance(v, list):
+        return None
+    return [f for f in FEATURES if f in {str(item).strip().lower() for item in v}]
+
+
 def _tags(v, _c):
     if isinstance(v, list) and len(v) <= 8 and all(isinstance(tag, str) and re.fullmatch(r'[a-zA-Z0-9_.-]{1,80}', tag) for tag in v):
         return v
@@ -139,6 +150,14 @@ def _path(v, _c):
         return None
     points = [p for p in (_vec3(item, _c) for item in v[:24]) if p is not None]
     return points if len(points) >= 2 else None
+
+
+def _step(v, _c):
+    """How far each copy of a repeated spawn stands from the last: [right, up, forward] in metres."""
+    if isinstance(v, (list, tuple)) and len(v) == 3:
+        parts = [to_num(p, -50, 50) for p in v]
+        return parts if None not in parts else None
+    return None
 
 
 def _scale1(v, _c):
@@ -204,6 +223,7 @@ FIELDS: dict[str, dict] = {
     "fog": {"color": _color, "density": _num(0, 1), "t": T},
     "terrain": {
         "tint": _color, "height": _num(0, 1), "seed": _int(0, 99999),
+        "features": _features, "roughness": _num(0, 1),
         "grid": _num(0, 1), "grid_color": _color, "water_color": _color, "t": T,
     },
     "weather": {"intensity": _num(0, 1), "color": _color, "t": T},
@@ -218,12 +238,14 @@ FIELDS: dict[str, dict] = {
         "scale": _scale, "rot_y": _num(-720, 720), "rot": _rot, "tint": _color,
         "motion": _motion, "physics": _bool, "solid": _bool, "behavior": _enum(BEHAVIORS), "t": T,
         "path": _path, "speed": _num(0.1, 40), "loop": _bool, "start": _num(0, 1),
+        "repeat": _int(1, 40), "step": _step, "ring": _num(0, 100),
     },
     "scatter": {
         "tags": _tags,
         "count": _int(1, 100000), "area": _enum(AREAS), "radius": _range2(0, 400),
         "height": _range2(-20, 200), "scale": _range2(0.05, 60), "tint": _color, "seed": _int(0, 99999),
         "motion": _motion, "physics": _bool, "solid": _bool, "behavior": _enum(BEHAVIORS), "t": T,
+        "clusters": _int(1, 24), "spread": _num(0, 40), "along": _path, "align": _bool, "where": _enum(WHERE),
     },
     "give": {"tint": _color},
     "ride": {"tint": _color, "speed": _num(0.2, 3), "path": _path, "loop": _bool},
@@ -308,8 +330,9 @@ def _seen_from(stmt: dict, now: list | None) -> dict:
         local = {"left": [-d, h, 0], "right": [d, h, 0], "behind": [0, h, -d],
                  "center": [0, h, 0], "above": [0, max(d, 3) + h, 0]}.get(place, [0, h, d])
         out["at"] = move(local)
-    if "path" in out:
-        out["path"] = [move(p) for p in out["path"]]
+    for route in ("path", "along"):
+        if route in out:
+            out[route] = [move(p) for p in out[route]]
     return out
 
 
@@ -634,6 +657,11 @@ class Validator:
                     resolved, _ = self.catalog.resolve("material", to_id(mat) or "")
                     if resolved:
                         out["material"] = resolved
+                second = raw.get("patches")
+                if isinstance(second, str) and second.strip():
+                    resolved, _ = self.catalog.resolve("material", to_id(second) or "")
+                    if resolved:
+                        out["patches"] = resolved
 
         # --- plain fields
         for field, convert in FIELDS[op].items():

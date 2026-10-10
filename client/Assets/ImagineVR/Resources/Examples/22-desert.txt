@@ -1,7 +1,7 @@
 # The middle of the desert
 {"op":"clear"}
 {"op":"sky","preset":"desert_noon","t":4}
-{"op":"terrain","type":"dunes","material":"sand","height":0.4,"t":3}
+{"op":"terrain","type":"dunes","material":"sand","height":0.4,"features":["outcrops"],"patches":"dirt","t":3}
 {"op":"kit","id":"desert","kit":"desert","density":0.7,"size":0.9,"params":{"oasis":"true"}}
 {"op":"weather","type":"dust","intensity":0.3}
 {"op":"ambience","loop":"desert_wind"}
