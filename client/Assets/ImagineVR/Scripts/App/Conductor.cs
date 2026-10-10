@@ -119,6 +119,9 @@ namespace ImagineVR
                 case "note":
                     Terminal.Note(s.Str("text", ""));
                     return;
+                case "think":
+                    Terminal.Think(s.Str("text", ""));
+                    return;
                 case "error":
                     _problem = true;
                     Terminal.Error(s.Str("message", "Something went wrong."));

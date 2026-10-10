@@ -13,7 +13,7 @@ import re
 from .catalog import Catalog
 
 WORLD_OPS = (
-    "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
+    "think", "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
     "kit", "spawn", "scatter", "give", "ride", "goal", "player", "modify", "remove", "ambience",
 )
 STREAM_OPS = ("transcript", "status", "note", "error", "done")
@@ -183,6 +183,7 @@ T = _num(0.2, 6)
 
 # op -> {field: converter}. Catalog references are handled separately in check().
 FIELDS: dict[str, dict] = {
+    "think": {"text": _text(220)},
     "say": {"text": _text(400)},
     "clear": {"keep": _keep, "t": T},
     "sky": {
@@ -452,9 +453,11 @@ class Validator:
                     out[field] = value
 
         # --- per-op rules
-        if op == "say":
+        if op in ("say", "think"):
             if "text" not in out:
                 return []
+            if op == "think":
+                return [out]   # shown, never remembered: it is not part of the world
         elif op in ("sky", "light", "fog", "physics"):
             if len(out) == 1:
                 return notes

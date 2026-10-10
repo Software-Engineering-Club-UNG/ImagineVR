@@ -104,7 +104,7 @@ async def run_turn(
                         said.append(stmt["text"])
                         if tts.enabled():
                             stmt["audio"] = f"{base_url}/v1/audio/{tts.start(stmt['text'])}"
-                    elif kind != "note":
+                    elif kind not in ("note", "think"):
                         if not building:
                             building = True
                             first_at = time.perf_counter() - started

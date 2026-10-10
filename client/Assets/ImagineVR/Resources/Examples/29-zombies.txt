@@ -1,4 +1,5 @@
 # I want a gun and I want to shoot zombies
+{"op":"think","text":"A dead street at night, a barricade to stand behind, the horde ahead, and a blaster in reach."}
 {"op":"clear"}
 {"op":"sky","preset":"spooky","t":4}
 {"op":"terrain","type":"flat","material":"dirt","t":3}

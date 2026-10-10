@@ -196,6 +196,8 @@ def _place(catalog: Catalog, t: str, world: WorldState, rng: random.Random, sky_
     out: list[dict] = []
     entry = catalog.get("kit", kit_id) or {}
     defaults = entry.get("defaults") or {}
+    plan = str(entry.get("desc", kit_id.replace("_", " "))).split(": ")[0].split(". ")[0].rstrip(".")
+    out.append({"op": "think", "text": plan[:1].upper() + plan[1:] + ". Sky first, then the ground, then the rest."})
     if not world.is_empty():
         out.append({"op": "clear"})
     out.append({"op": "sky", "preset": sky_preset or defaults.get("sky") or _first_existing(catalog, "sky", ("clear_noon",)) or catalog.ids("sky")[0], "t": 3})

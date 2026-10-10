@@ -14,7 +14,7 @@ namespace ImagineVR
         public string Op;
         public Dictionary<string, object> Fields;
 
-        static readonly HashSet<string> StreamOps = new HashSet<string> { "transcript", "status", "note", "error", "done" };
+        static readonly HashSet<string> StreamOps = new HashSet<string> { "transcript", "status", "note", "think", "error", "done" };
         static readonly HashSet<string> WorldOps = new HashSet<string>
         {
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
