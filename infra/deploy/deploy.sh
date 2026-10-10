@@ -9,6 +9,14 @@ base=/srv/openrouter-api
 archive="$base/incoming/$revision.tar.gz"
 [[ -f "$archive" ]] || { echo 'Deployment archive is missing' >&2; exit 1; }
 
+# Application deployment must not replace a healthy app before host provisioning.
+unit=$(systemctl cat openrouter-api.service)
+if ! grep -Fq 'Environment=IMAGINE_ENV=production' <<< "$unit" ||
+   ! grep -Fq 'Environment=IMAGINE_STT=elevenlabs' <<< "$unit"; then
+  echo 'Run Provision ImagineVR API host with the required secrets before deploying. Existing release unchanged.' >&2
+  exit 1
+fi
+
 exec 9>"$base/deploy.lock"
 flock -w 300 9
 release=$(mktemp -d "$base/releases/$revision.XXXXXX")

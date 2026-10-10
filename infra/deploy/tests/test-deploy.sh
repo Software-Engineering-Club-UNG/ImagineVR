@@ -32,6 +32,13 @@ set -euo pipefail
 printf 'restart\n' >> "$TEST_BASE/restarts"
 MOCK
 
+cat > "$test_dir/bin/systemctl" <<'MOCK'
+#!/usr/bin/env bash
+[[ "$*" == 'cat openrouter-api.service' ]] || exit 1
+[[ "${UNPROVISIONED:-0}" == 0 ]] || exit 0
+printf 'Environment=IMAGINE_ENV=production\nEnvironment=IMAGINE_STT=elevenlabs\n'
+MOCK
+
 cat > "$test_dir/bin/curl" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -48,6 +55,13 @@ good_revision=$(printf 'a%.0s' {1..40})
 bad_revision=$(printf 'b%.0s' {1..40})
 tar -czf "$TEST_BASE/incoming/$good_revision.tar.gz" -C "$test_dir/source" requirements.txt
 cp "$TEST_BASE/incoming/$good_revision.tar.gz" "$TEST_BASE/incoming/$bad_revision.tar.gz"
+
+if UNPROVISIONED=1 bash "$test_dir/deploy.sh" "$good_revision"; then
+  echo 'Unprovisioned deployment unexpectedly succeeded' >&2
+  exit 1
+fi
+[[ $(readlink "$TEST_BASE/current") == "$TEST_BASE/releases/previous" ]]
+[[ ! -e "$TEST_BASE/restarts" ]]
 
 bash "$test_dir/deploy.sh" "$good_revision"
 good_release=$(readlink "$TEST_BASE/current")
@@ -66,4 +80,4 @@ if bash "$test_dir/deploy.sh" 'invalid-revision'; then
   exit 1
 fi
 [[ $(readlink "$TEST_BASE/current") == "$good_release" ]]
-echo 'Deployment tests passed: success, rollback, and invalid revision.'
+echo 'Deployment tests passed: provisioning gate, success, rollback, and invalid revision.'

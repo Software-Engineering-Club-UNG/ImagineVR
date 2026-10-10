@@ -1,4 +1,4 @@
-"""Server settings, read once from the environment (and server/.env if present)."""
+"""Server settings, read once from the environment (and openrouter-api/.env)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,16 @@ TTS_VOICE = _env("IMAGINE_TTS_VOICE", "21m00Tcm4TlvDq8ikWAM")
 APP_TOKEN = _env("IMAGINE_APP_TOKEN", "dev-token")
 PUBLIC_URL = _env("IMAGINE_PUBLIC_URL").rstrip("/")
 
-CATALOG_PATH = Path(_env("IMAGINE_CATALOG") or (REPO_DIR / "shared" / "catalog.json"))
+def catalog_path(server_dir: Path = SERVER_DIR) -> Path:
+    """Resolve an explicit override, bundled release catalog, or repository catalog."""
+    override = _env("IMAGINE_CATALOG")
+    if override:
+        return Path(override)
+    bundled = server_dir / "shared" / "catalog.json"
+    return bundled if bundled.is_file() else server_dir.parent / "shared" / "catalog.json"
+
+
+CATALOG_PATH = catalog_path()
 PROMPT_PATH = Path(__file__).resolve().parent / "prompt.md"
 
 MAX_AUDIO_SECONDS = 30
