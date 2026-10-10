@@ -36,6 +36,9 @@ namespace ImagineVR
 
         public int TriangleCount => (_tris.Count + _glowTris.Count) / 3;
 
+        /// <summary>Size of the solid geometry from the last Build, ignoring halos.</summary>
+        public Bounds SolidBounds { get; private set; }
+
         // ------------------------------------------------------------------ state
 
         public MeshBuilder Col(Color c) { _color = c; _gradient = false; return this; }
@@ -104,12 +107,12 @@ namespace ImagineVR
         /// Adds one triangle. `outside` is any direction (local space) that points away from the
         /// solid at this face; the triangle is wound so its normal agrees with it.
         /// </summary>
-        public void Tri(Vector3 a, Vector3 b, Vector3 c, Vector3 outside)
+        public MeshBuilder Tri(Vector3 a, Vector3 b, Vector3 c, Vector3 outside)
         {
             Vector3 centroidLocal = (a + b + c) / 3f;
             Vector3 pa = Place(a), pb = Place(b), pc = Place(c);
             Vector3 n = Vector3.Cross(pb - pa, pc - pa);
-            if (n.sqrMagnitude < 1e-12f) return;
+            if (n.sqrMagnitude < 1e-12f) return this;
             Vector3 centroid = _xf.MultiplyPoint3x4(centroidLocal);
             Vector3 outsidePoint = _xf.MultiplyPoint3x4(centroidLocal + outside.normalized * 0.01f);
             if (Vector3.Dot(n, outsidePoint - centroid) < 0f)
@@ -124,6 +127,7 @@ namespace ImagineVR
             AddVertex(pb, n, shade);
             AddVertex(pc, n, shade);
             _tris.Add(start); _tris.Add(start + 1); _tris.Add(start + 2);
+            return this;
         }
 
         void AddVertex(Vector3 p, Vector3 n, float shade)
@@ -136,25 +140,28 @@ namespace ImagineVR
             _uv1.Add(new Vector2(sway * sway, 0f));
         }
 
-        public void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 outside)
+        public MeshBuilder Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 outside)
         {
             Tri(a, b, c, outside);
             Tri(a, c, d, outside);
+            return this;
         }
 
         /// <summary>A flat quad visible from both sides (leaves, flags, signs).</summary>
-        public void QuadTwoSided(Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+        public MeshBuilder QuadTwoSided(Vector3 a, Vector3 b, Vector3 c, Vector3 d)
         {
             Vector3 n = Vector3.Cross(b - a, c - a);
             Quad(a, b, c, d, n);
             Quad(a, b, c, d, -n);
+            return this;
         }
 
-        public void TriTwoSided(Vector3 a, Vector3 b, Vector3 c)
+        public MeshBuilder TriTwoSided(Vector3 a, Vector3 b, Vector3 c)
         {
             Vector3 n = Vector3.Cross(b - a, c - a);
             Tri(a, b, c, n);
             Tri(a, b, c, -n);
+            return this;
         }
 
         // ------------------------------------------------------------------ primitives
@@ -220,6 +227,14 @@ namespace ImagineVR
         /// <summary>Cylinder or cone standing on `baseCenter`. Set a radius to 0 for a point.</summary>
         public MeshBuilder Cyl(Vector3 baseCenter, float radiusBottom, float radiusTop, float height, int sides = 8, bool caps = true)
         {
+            if (height < 0f)
+            {
+                // hanging downward: build it upright and mirror it (winding is fixed automatically)
+                Push(baseCenter, Vector3.zero, new Vector3(1f, -1f, 1f));
+                Cyl(Vector3.zero, radiusBottom, radiusTop, -height, sides, caps);
+                Pop();
+                return this;
+            }
             Scratch.Clear();
             if (caps && radiusBottom > 0f) Scratch.Add(new Vector2(0f, 0f));
             Scratch.Add(new Vector2(radiusBottom, 0f));
@@ -468,6 +483,14 @@ namespace ImagineVR
             mesh.SetTriangles(_tris, 0, false);
             if (hasGlow) mesh.SetTriangles(_glowTris, 1, false);
             mesh.RecalculateBounds();
+            SolidBounds = mesh.bounds;
+            if (hasGlow && _tris.Count > 0)
+            {
+                // the solid part alone: halos are single points and must not count towards size
+                var solid = new Bounds(_verts[_tris[0]], Vector3.zero);
+                for (int i = 0; i < _tris.Count; i++) solid.Encapsulate(_verts[_tris[i]]);
+                SolidBounds = solid;
+            }
             if (hasGlow)
             {
                 // halos extend past their single-point geometry

@@ -87,6 +87,7 @@ namespace ImagineVR
         public float Pitch = 1f;                // for things that make a sound when hit
 
         Mesh _mesh;
+        Bounds _bounds;
         public Mesh Mesh
         {
             get
@@ -96,10 +97,14 @@ namespace ImagineVR
                     var mb = new MeshBuilder();
                     Recipe(mb);
                     _mesh = mb.Build(Id);
+                    _bounds = mb.SolidBounds;
                 }
                 return _mesh;
             }
         }
+
+        /// <summary>Size of the solid part of the model (halos excluded). Use this, not Mesh.bounds, for physics and fitting.</summary>
+        public Bounds Bounds { get { Mesh m = Mesh; return m != null ? _bounds : default; } }
 
         public AssetDef Hold() { Holdable = true; Prop = true; return this; }
         public AssetDef AsTool() { Holdable = true; Prop = true; Tool = true; return this; }
@@ -137,6 +142,8 @@ namespace ImagineVR
         static partial void RegisterWeather();
         static partial void RegisterAmbience();
         static partial void RegisterKits();
+        static partial void RegisterAnimals();
+        static partial void RegisterMoreHoldables();
 
         /// <summary>Registers everything. Safe to call more than once.</summary>
         public static void EnsureLoaded()
@@ -148,6 +155,8 @@ namespace ImagineVR
             RegisterCity();
             RegisterProps();
             RegisterHoldables();
+            RegisterMoreHoldables();
+            RegisterAnimals();
             RegisterThemes();
             RegisterSkyPresets();
             RegisterGround();

@@ -182,6 +182,20 @@ namespace ImagineVR
             }
         }
 
+        /// <summary>Hangs an asset in the air at an exact height above y = 0 (planets, balloons, far scenery).</summary>
+        public void Float(string asset, float x, float y, float z, float yaw = 0f, float scale = 1f, Color? tint = null)
+        {
+            AssetDef def = Library.Asset(asset) ?? Library.FindAsset(asset) ?? Library.Asset("cube");
+            Group.Add(new Placement(def.Mesh, new Vector3(x, y, z), yaw, scale, tint ?? NoTint, false));
+        }
+
+        /// <summary>A loose physics object that belongs to the kit: something to pick up, hit or knock over.</summary>
+        public void Loose(string asset, float x, float z, float lift = 0.05f, float yaw = 0f, float scale = 1f, Color? tint = null)
+        {
+            AssetDef def = Library.Asset(asset) ?? Library.FindAsset(asset) ?? Library.Asset("cube");
+            World.Props.SpawnLoose(Group.Id, def, new Vector3(x, Ground(x, z) + lift, z), Quaternion.Euler(0f, yaw, 0f), Vector3.one * scale, tint ?? NoTint);
+        }
+
         /// <summary>Adds a mesh the kit built itself, already in world coordinates.</summary>
         public void AddOwn(Mesh mesh, Color? tint = null)
         {
@@ -324,6 +338,7 @@ namespace ImagineVR
 
         void Run(Group g, Live live)
         {
+            _world.Props.RemoveQuietly(g.Id);   // loose things the kit made last time
             foreach (GameObject extra in g.Extras) if (extra != null) UnityEngine.Object.Destroy(extra);
             g.Extras.Clear();
             foreach (Mesh m in g.OwnedMeshes) if (m != null) UnityEngine.Object.Destroy(m);

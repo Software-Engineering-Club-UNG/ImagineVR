@@ -386,6 +386,17 @@ namespace ImagineVR.EditorTools
             string file = Path.Combine(shared, "catalog.json");
             File.WriteAllText(file, MiniJson.Serialize(root, true) + "\n", new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(Application.dataPath, "ImagineVR", "Resources", "CatalogVersion.txt"), version + "\n", new UTF8Encoding(false));
+            // The built-in demos are the example scripts, copied to where the app can load them.
+            string examples = Path.Combine(shared, "examples");
+            string builtIn = Path.Combine(Application.dataPath, "ImagineVR", "Resources", "Examples");
+            if (Directory.Exists(examples))
+            {
+                Directory.CreateDirectory(builtIn);
+                foreach (string old in Directory.GetFiles(builtIn, "*.txt")) File.Delete(old);
+                foreach (string source in Directory.GetFiles(examples, "*.ndjson"))
+                    File.Copy(source, Path.Combine(builtIn, Path.GetFileNameWithoutExtension(source) + ".txt"), true);
+            }
+
             AssetDatabase.Refresh();
             Debug.Log("ImagineVR: exported catalog " + version + " (" + assets.Count + " assets, " + kits.Count + " kits, " +
                       skies.Count + " skies) to " + file);
@@ -442,6 +453,7 @@ namespace ImagineVR.EditorTools
             SessionState.SetString("ImagineSnap.Yaws", Arg("-snapYaws", "0"));
             SessionState.SetFloat("ImagineSnap.Pitch", float.Parse(Arg("-snapPitch", "-4"), System.Globalization.CultureInfo.InvariantCulture));
             SessionState.SetBool("ImagineSnap.Welcome", Arg("-snapWelcome", "0") == "1");
+            SessionState.SetString("ImagineSnap.Sheet", Arg("-snapSheet", ""));
             Setup.OpenMainScene();
             EditorApplication.EnterPlaymode();
         }

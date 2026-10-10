@@ -352,9 +352,9 @@ namespace ImagineVR
             else if (prop.Def.Holdable)
             {
                 // sits in the palm by its centre, keeping whatever way up it was
-                float r = prop.Def.Mesh.bounds.extents.magnitude * prop.transform.localScale.x;
+                float r = prop.Def.Bounds.extents.magnitude * prop.transform.localScale.x;
                 _gripRotation = Quaternion.Inverse(transform.rotation) * prop.transform.rotation;
-                Vector3 centre = Vector3.Scale(prop.Def.Mesh.bounds.center, prop.transform.localScale);
+                Vector3 centre = Vector3.Scale(prop.Def.Bounds.center, prop.transform.localScale);
                 _gripOffset = new Vector3(0f, 0f, Mathf.Min(0.04f + r * 0.6f, 0.2f)) - _gripRotation * centre;
             }
             else

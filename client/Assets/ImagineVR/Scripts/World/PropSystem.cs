@@ -187,7 +187,7 @@ namespace ImagineVR
                 ? new[] { _world.Objects.LitMaterial, _world.Objects.GlowMaterial }
                 : new[] { _world.Objects.LitMaterial };
 
-            Bounds b = mesh.bounds;
+            Bounds b = def.Bounds;
             switch (def.Shape)
             {
                 case ColliderShape.Sphere:
@@ -262,6 +262,23 @@ namespace ImagineVR
             Create(def, id, p, rotation, scale, tint);
         }
 
+        /// <summary>A physics prop made by a kit. It is removed with the kit.</summary>
+        public Prop SpawnLoose(string groupId, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale, Color tint)
+        {
+            return Create(def, groupId, position, rotation, scale, tint);
+        }
+
+        public void RemoveQuietly(string id)
+        {
+            foreach (Prop p in Matching(id))
+            {
+                if (p.Given) continue;
+                if (p.Holder != null) p.Holder.ForceRelease();
+                _props.Remove(p);
+                Object.Destroy(p.gameObject);
+            }
+        }
+
         public void ScatterPhysics(Statement s, AssetDef def, int count)
         {
             string id = s.Str("id") ?? NextId("scatter");
@@ -304,7 +321,7 @@ namespace ImagineVR
             float scale = 1f;
             if (!def.Holdable)
             {
-                float biggest = Mathf.Max(def.Mesh.bounds.size.x, def.Mesh.bounds.size.y, def.Mesh.bounds.size.z);
+                float biggest = Mathf.Max(def.Bounds.size.x, def.Bounds.size.y, def.Bounds.size.z);
                 scale = Mathf.Min(1f, 0.32f / Mathf.Max(biggest, 0.01f));
             }
 

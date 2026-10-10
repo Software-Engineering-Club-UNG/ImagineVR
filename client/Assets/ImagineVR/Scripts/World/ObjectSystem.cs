@@ -159,9 +159,9 @@ namespace ImagineVR
             }
         }
 
-        static float Fit(Mesh mesh)
+        static float Fit(AssetDef def)
         {
-            Bounds b = mesh.bounds;
+            Bounds b = def.Bounds;
             return Mathf.Max(b.extents.x, b.extents.z);
         }
 
@@ -174,7 +174,7 @@ namespace ImagineVR
             if (CountKind("spawn") >= MaxSpawned && Get(s.Str("id")) == null) { _world.Note("object limit reached, skipped one"); return null; }
 
             Vector3 scale = s.Scale("scale", 1f);
-            float footprint = Fit(def.Mesh) * Mathf.Max(scale.x, scale.z);
+            float footprint = Fit(def) * Mathf.Max(scale.x, scale.z);
             Vector3 pos;
             bool free = false;   // exact position requested: do not push it out of the safe area
             if (s.TryVec3("at", out Vector3 at))
@@ -214,7 +214,7 @@ namespace ImagineVR
             if (s.TryColor("tint", out Color tint)) g.Tint = tint;
             g.Motion = MotionFor(s.Str("motion", "none"), def);
             g.Add(new Placement { Mesh = def.Mesh, Position = pos, Rotation = rot, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
-            if (standIn) _world.AddLabel(g, name.Replace('_', ' '), pos, def.Mesh.bounds.size.y * scale.y + 0.35f);
+            if (standIn) _world.AddLabel(g, name.Replace('_', ' '), pos, def.Bounds.size.y * scale.y + 0.35f);
             return g;
         }
 
@@ -252,7 +252,7 @@ namespace ImagineVR
             string area = s.Str("area", def.Airborne ? "sky" : "around");
             int seed = s.Has("seed") ? s.Int("seed") : (g.Id.GetHashCode() & 0x7FFFFFFF);
             var rng = new System.Random(seed);
-            float footprint = Fit(def.Mesh);
+            float footprint = Fit(def);
 
             float rMin, rMax, arcCenter = 0f, arcHalf = 180f;
             switch (area)

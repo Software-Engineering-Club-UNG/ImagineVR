@@ -1,0 +1,7 @@
+# Somewhere really spooky
+{"op":"clear"}
+{"op":"sky","preset":"spooky","t":4}
+{"op":"terrain","type":"rolling","material":"swamp","height":0.25,"t":3}
+{"op":"kit","id":"graves","kit":"graveyard","density":0.8,"size":0.6}
+{"op":"ambience","loop":"spooky"}
+{"op":"say","text":"Something moved over there. Probably the wind."}

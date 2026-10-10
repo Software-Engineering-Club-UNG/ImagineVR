@@ -145,7 +145,7 @@ namespace ImagineVR
         }
 
         /// <summary>A floating name tag, used above stand-in shapes.</summary>
-        public void AddLabel(Group group, string text, Vector3 position, float height)
+        public void AddLabel(Group group, string text, Vector3 position, float height, float size = 2.2f)
         {
             if (Font == null) return;
             var go = new GameObject("Label");
@@ -155,7 +155,7 @@ namespace ImagineVR
             var tmp = go.AddComponent<TextMeshPro>();
             tmp.font = Font;
             tmp.text = text;
-            tmp.fontSize = 2.2f;
+            tmp.fontSize = size;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = new Color(1f, 0.85f, 0.6f);
             tmp.rectTransform.sizeDelta = new Vector2(4f, 0.6f);

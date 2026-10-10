@@ -20,6 +20,7 @@ namespace ImagineVR
         public float[] Yaws = { 0f };
         public float Pitch = -4f;
         public int Width = 1280, Height = 720;
+        public string Sheet = "";      // "category" or "category:page": lay the library out for inspection
         float _deadline;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -37,6 +38,7 @@ namespace ImagineVR
             r.Times = ParseList(UnityEditor.SessionState.GetString("ImagineSnap.Times", ""), new[] { 6f });
             r.Yaws = ParseList(UnityEditor.SessionState.GetString("ImagineSnap.Yaws", ""), new[] { 0f });
             r.Pitch = UnityEditor.SessionState.GetFloat("ImagineSnap.Pitch", -4f);
+            r.Sheet = UnityEditor.SessionState.GetString("ImagineSnap.Sheet", "");
         }
 
         IEnumerator Start()
@@ -57,6 +59,13 @@ namespace ImagineVR
             }
             Directory.CreateDirectory(OutputDir);
 
+            if (Sheet.Length > 0)
+            {
+                foreach (string sheet in Sheet.Split(';')) yield return ShootSheet(app, sheet);
+                Debug.Log("Snapshot: done");
+                UnityEditor.EditorApplication.Exit(0);
+                yield break;
+            }
             if (ScriptFiles.Length == 0)
             {
                 yield return Shoot(app, "welcome", null);
@@ -90,6 +99,52 @@ namespace ImagineVR
                 }
                 app.Rig.DesktopLookAt(0f, Pitch);   // face the terminal again so it does not wander off
             }
+        }
+
+        /// <summary>
+        /// Stands every asset of a category in rows on a plain floor, each scaled to the same
+        /// size and labelled with its id, and takes one picture. A quick way to look over the library.
+        /// </summary>
+        IEnumerator ShootSheet(ImagineApp app, string spec)
+        {
+            string[] parts = spec.Split(':');
+            string category = parts[0];
+            int page = parts.Length > 1 ? int.Parse(parts[1]) : 0;
+            const int perRow = 7, rows = 3, perPage = perRow * rows;
+            var picked = new List<AssetDef>();
+            foreach (AssetDef a in Library.AssetList) if (category == "all" || a.Category == category) picked.Add(a);
+
+            app.Terminal.gameObject.SetActive(false);
+            app.Rig.ShowHand(true, false);
+            app.Rig.ShowHand(false, false);
+            app.World.ResetToDark(0.2f);
+            yield return new WaitForSeconds(0.6f);
+            app.World.Apply(Statement.Make("sky", "preset", parts.Length > 2 ? parts[2] : "morning", "t", 0.2));
+            app.World.Apply(Statement.Make("terrain", "type", "flat", "material", "concrete", "t", 0.2));
+            yield return new WaitForSeconds(0.8f);
+            for (int i = page * perPage; i < Mathf.Min(picked.Count, (page + 1) * perPage); i++)
+            {
+                AssetDef def = picked[i];
+                int slot = i - page * perPage, row = slot / perRow, col = slot % perRow;
+                Bounds b = def.Bounds;
+                float biggest = Mathf.Max(b.size.x, b.size.y, b.size.z, 0.01f);
+                float scale = 2.3f / biggest;
+                float x = (col - (perRow - 1) * 0.5f) * 3.1f, z = 15f + row * 3f, y = row * 3.1f - b.min.y * scale;
+                Statement s = Statement.Make("spawn", "id", "sheet" + i, "asset", def.Id, "scale", (double)scale, "t", 0.2,
+                    "at", new List<object> { (double)x, (double)y, (double)z });
+                Group g = app.World.Objects.Spawn(s);
+                if (g != null) app.World.AddLabel(g, def.Id, new Vector3(x, row * 3.1f - 0.4f, z - 1.2f), 0f, 3.2f);
+            }
+            yield return new WaitForSeconds(1.6f);
+            app.Rig.DesktopLookAt(0f, -6.5f);
+            float fov = app.Rig.Cam.fieldOfView;
+            app.Rig.Cam.fieldOfView = 38f;
+            yield return null;
+            yield return null;
+            Capture(app, Path.Combine(OutputDir, "sheet_" + category + "_" + page + ".png"));
+            app.Rig.Cam.fieldOfView = fov;
+            app.Terminal.gameObject.SetActive(true);
+            Debug.Log("Snapshot: sheet " + category + " page " + page + " shows " + Mathf.Max(0, Mathf.Min(picked.Count - page * perPage, perPage)) + " of " + picked.Count);
         }
 
         void Update()

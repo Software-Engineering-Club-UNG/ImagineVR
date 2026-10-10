@@ -1,0 +1,7 @@
+# A park with a playground
+{"op":"clear"}
+{"op":"sky","preset":"clear_noon","t":4}
+{"op":"terrain","type":"flat","material":"grass","t":2}
+{"op":"kit","id":"park","kit":"playground","density":0.7,"size":0.7}
+{"op":"ambience","loop":"birds_breeze"}
+{"op":"say","text":"There are balls at your feet and a trampoline to bounce them on."}

@@ -1,0 +1,7 @@
+# Ancient Greek ruins
+{"op":"clear"}
+{"op":"sky","preset":"golden_hour","t":4}
+{"op":"terrain","type":"rolling","material":"dry_grass","height":0.2,"t":3}
+{"op":"kit","id":"ruins","kit":"ancient_ruins","density":0.7,"size":0.7}
+{"op":"ambience","loop":"wind","volume":0.4}
+{"op":"say","text":"Somebody built all this three thousand years ago."}
