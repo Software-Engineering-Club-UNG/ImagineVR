@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 namespace ImagineVR
@@ -15,10 +17,36 @@ namespace ImagineVR
         [Tooltip("Give up on a turn after this long in total.")]
         public float TotalTimeout = 45f;
 
+        /// <summary>
+        /// A file on the device that overrides the built-in address and token, so the real token never
+        /// has to be committed or baked into the APK, and the server can change without a rebuild:
+        ///   {"server_url": "https://1-2-3-4.sslip.io", "app_token": "..."}
+        /// On the Quest it is /sdcard/Android/data/com.hacklanta.imaginevr/files/imagine.json.
+        /// </summary>
+        public static string OverridePath => Path.Combine(Application.persistentDataPath, "imagine.json");
+
+        /// <summary>Where the address came from, for the terminal: "built in" or "imagine.json".</summary>
+        public string Source = "built in";
+
         public static ImagineSettings Load()
         {
-            ImagineSettings s = Resources.Load<ImagineSettings>("ImagineSettings");
-            return s != null ? s : CreateInstance<ImagineSettings>();
+            ImagineSettings built = Resources.Load<ImagineSettings>("ImagineSettings");
+            // a copy, so that an override on this machine is never written back into the asset
+            ImagineSettings s = built != null ? Instantiate(built) : CreateInstance<ImagineSettings>();
+            try
+            {
+                if (File.Exists(OverridePath) && MiniJson.Parse(File.ReadAllText(OverridePath)) is Dictionary<string, object> file)
+                {
+                    if (file.TryGetValue("server_url", out object url) && url is string u && u.Trim().Length > 0) s.ServerUrl = u.Trim().TrimEnd('/');
+                    if (file.TryGetValue("app_token", out object token) && token is string t && t.Trim().Length > 0) s.AppToken = t.Trim();
+                    s.Source = "imagine.json";
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("ImagineVR: could not read " + OverridePath + ": " + e.Message);
+            }
+            return s;
         }
     }
 }
