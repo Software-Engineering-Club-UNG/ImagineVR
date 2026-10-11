@@ -152,6 +152,38 @@ namespace ImagineVR
             }
         }
 
+        /// <summary>
+        /// An empty hand pointed at something to ride, and the trigger pulled: the user is in or on it,
+        /// where it stood. A car parked by a `spawn`, one of a scattered herd, a creature walking past.
+        /// </summary>
+        public bool TryBoard(Transform hand)
+        {
+            if (Vehicle == null || Vehicle.Riding || hand == null) return false;
+            const float reach = 3.5f;
+            if (Objects.PointedAt(hand.position, hand.forward, reach, out Group group, out int index))
+            {
+                AssetDef def = Library.FindAsset(group.Asset);
+                Placement p = Objects.Take(group, index);
+                Vector3 at = new Vector3(p.Position.x, SurfaceHeight(p.Position.x, p.Position.z), p.Position.z);
+                Vehicle.Board(def, group.Tint, at, p.Rotation.eulerAngles.y);
+                return true;
+            }
+            foreach (Creature c in Creature.All)
+            {
+                if (c == null || !c.Up || !ObjectSystem.Rideable(c.Def)) continue;
+                Vector3 centre = c.transform.position + Vector3.up * (c.Height * 0.5f);
+                float along = Vector3.Dot(centre - hand.position, hand.forward), radius = Mathf.Max(c.Height * 0.7f, 0.5f);
+                if (along < -radius || along > reach + radius || (hand.position + hand.forward * Mathf.Max(along, 0f) - centre).magnitude > radius) continue;
+                Vector3 at = c.transform.position;
+                float yaw = c.transform.eulerAngles.y;
+                AssetDef def = c.Def;
+                c.Vanish();
+                Vehicle.Board(def, Color.white, at, yaw);
+                return true;
+            }
+            return false;
+        }
+
         /// <summary>Ids of what grows on the ground by itself. Not the model's: it never sees, counts or removes them.</summary>
         public const string Cover = "ground.";
 

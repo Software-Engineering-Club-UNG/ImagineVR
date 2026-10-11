@@ -277,10 +277,86 @@ namespace ImagineVR.Tests
             Assert.Greater(Drawn("left").Length, 0);
             Assert.Greater(Drawn("right").Length, 0);
             Assert.Greater(Drawn("steps").Length, 0);
-            Assert.AreEqual(8 + 8 + 6, _root.GetComponentsInChildren<BoxCollider>().Count(c => c.name == "Solid"));
+            // a line holds only as many as fit along it: eight towers 13 m wide do not go into 80 m
+            int towers = _world.Objects.Get("left").Items.Count, blocks = _world.Objects.Get("right").Items.Count;
+            Assert.That(towers, Is.InRange(4, 6)); Assert.That(blocks, Is.InRange(4, 6));
+            AssertApart("left", 13f); AssertApart("right", 15f);
+            Assert.AreEqual(towers + blocks + 6, _root.GetComponentsInChildren<BoxCollider>().Count(c => c.name == "Solid"));
             Assert.AreEqual(1, Object.FindObjectsByType<Mover>(FindObjectsSortMode.None).Length);
             _world.Objects.Census(out int renderers, out int items, out int triangles);
-            Assert.AreEqual(22, items);
+            Assert.AreEqual(towers + blocks + 6, items);
+        }
+
+        void AssertApart(string id, float least)
+        {
+            var items = _world.Objects.Get(id).Items;
+            for (int i = 0; i < items.Count; i++)
+                for (int j = i + 1; j < items.Count; j++)
+                {
+                    Vector3 d = items[i].Position - items[j].Position; d.y = 0f;
+                    Assert.GreaterOrEqual(d.magnitude, least - 0.01f, id + " " + i + " and " + j + " stand inside one another");
+                }
+        }
+
+        /// <summary>
+        /// Asked for a city in the 23:35 session, the model scattered towers and office blocks "around"
+        /// and they came out inside one another. Whatever is scattered, each copy has ground of its own,
+        /// and one statement's things keep clear of another's.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator NothingScatteredStandsInsideAnythingElse()
+        {
+            Play("{\"op\":\"terrain\",\"type\":\"flat\",\"material\":\"asphalt\"}");
+            Play("{\"op\":\"scatter\",\"id\":\"blocks\",\"asset\":\"office_block\",\"count\":16,\"area\":\"around\",\"radius\":[18,50]}");
+            Play("{\"op\":\"scatter\",\"id\":\"towers\",\"asset\":\"skyscraper\",\"count\":14,\"area\":\"edges\",\"radius\":[40,80]}");
+            Play("{\"op\":\"scatter\",\"id\":\"bins\",\"asset\":\"trash_can\",\"count\":12,\"area\":\"around\",\"radius\":[3,6]}");
+            yield return Settle();
+            Assert.Greater(_world.Objects.Get("blocks").Items.Count, 3);
+            AssertApart("blocks", 18f); AssertApart("towers", 17f); AssertApart("bins", 0.5f);
+            foreach (Placement a in _world.Objects.Get("blocks").Items)
+                foreach (Placement b in _world.Objects.Get("towers").Items)
+                { Vector3 d = a.Position - b.Position; d.y = 0f; Assert.Greater(d.magnitude, 17f, "a tower stands in an office block"); }
+            // rows: a square grid with lanes, squared to the user, who stands where two lanes cross
+            Play("{\"op\":\"clear\"}");
+            Play("{\"op\":\"scatter\",\"id\":\"grid\",\"asset\":\"tower\",\"count\":12,\"arrange\":\"rows\",\"gap\":12}");
+            yield return Settle();
+            var grid = _world.Objects.Get("grid").Items;
+            Assert.AreEqual(12, grid.Count);
+            AssertApart("grid", 24.9f);
+            foreach (Placement p in grid) { Assert.Greater(Mathf.Abs(p.Position.x), 6f); Assert.Greater(Mathf.Abs(p.Position.z), 6f); }
+        }
+
+        /// <summary>A row written tighter than the things are wide is opened out; plain shapes are left as written (steps, walls).</summary>
+        [Test]
+        public void ARowOfThingsIsOpenedOutToFitThem()
+        {
+            Play("{\"op\":\"spawn\",\"id\":\"desks\",\"asset\":\"table\",\"at\":[0,0,6],\"repeat\":5,\"step\":[0.4,0,0]}");
+            AssertApart("desks", Mathf.Min(Library.Asset("table").Bounds.size.x, Library.Asset("table").Bounds.size.z) * 0.94f);
+            Play("{\"op\":\"spawn\",\"id\":\"wall\",\"asset\":\"cube\",\"at\":[0,0,9],\"repeat\":4,\"step\":[0.5,0,0]}");
+            Assert.AreEqual(0.5f, (_world.Objects.Get("wall").Items[1].Position - _world.Objects.Get("wall").Items[0].Position).magnitude, 0.001f);
+        }
+
+        /// <summary>
+        /// Anything made to carry someone that stands in the world can be got into by pointing at it,
+        /// leaves the world when it is, and is left standing again where its rider gets off.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator AThingToRideIsFoundByPointingAtIt()
+        {
+            Play("{\"op\":\"terrain\",\"type\":\"flat\"}");
+            Play("{\"op\":\"spawn\",\"id\":\"taxi\",\"asset\":\"car\",\"at\":[0,0,3]}");
+            Play("{\"op\":\"spawn\",\"id\":\"lamp\",\"asset\":\"street_lamp\",\"at\":[3,0,0]}");
+            yield return Settle();
+            Assert.IsTrue(_world.Objects.PointedAt(new Vector3(0, 1.2f, 0), Vector3.forward, 3.5f, out Group group, out int index));
+            Assert.AreEqual("taxi", group.Id);
+            Assert.IsFalse(_world.Objects.PointedAt(new Vector3(0, 1.2f, 0), Vector3.right, 3.5f, out _, out _), "a lamp post is not ridden");
+            Assert.IsFalse(_world.Objects.PointedAt(new Vector3(0, 1.2f, 0), Vector3.back, 3.5f, out _, out _));
+            _world.Objects.Take(group, index);
+            Assert.AreEqual(0, group.Items.Count);
+            Group parked = _world.Objects.Park(Library.Asset("car"), new Vector3(20, 0, 20), 90f, Color.red);
+            Assert.AreEqual(1, parked.Items.Count);
+            Assert.IsTrue(_world.Objects.PointedAt(new Vector3(20, 1.2f, 17), Vector3.forward, 3.5f, out group, out _));
+            Assert.AreEqual("parked_car", group.Id);
         }
 
         [UnityTest]

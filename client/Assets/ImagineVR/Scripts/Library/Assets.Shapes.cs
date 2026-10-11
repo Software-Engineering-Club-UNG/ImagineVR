@@ -29,6 +29,8 @@ namespace ImagineVR
             Shape("torus", "Plain ring lying flat", mb => mb.Torus(new Vector3(0f, 0.12f, 0f), 0.38f, 0.12f, 18, 8));
             Shape("disc", "Plain thin disc lying flat", mb => mb.Cyl(Vector3.zero, 0.5f, 0.5f, 0.06f, 20));
             Shape("wedge", "Plain ramp, high at the far end", mb => mb.Wedge(Vector3.zero, Vector3.one));
+            Shape("blob", "Plain lumpy ball: a rock, a slime, a bush, a cloud", mb => mb.Blob(new Vector3(0f, 0.5f, 0f), 0.5f, 0.18f, 3, 2), ColliderShape.Sphere);
+            Shape("dome", "Plain half ball standing on its flat side", mb => mb.Dome(Vector3.zero, 0.5f, 0.5f, 14, 5));
             Shape("plank", "Plain long flat board, 2 m by 0.3 m", mb => mb.BoxOn(Vector3.zero, new Vector3(0.3f, 0.06f, 2f)));
         }
     }

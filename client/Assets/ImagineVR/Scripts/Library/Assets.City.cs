@@ -52,20 +52,109 @@ namespace ImagineVR
             mb.Emit();
         }
 
+        /// <summary>
+        /// What a building has at the level people walk past it: a darker base, a band of shop glass
+        /// with a doorway on each street side, and awnings in colours of its own.
+        /// </summary>
+        static void StreetLevel(MeshBuilder mb, float w, float d, Color wall, int seed)
+        {
+            const float top = 4.2f;
+            mb.Emit().Col(Pal.Dark(wall, 0.45f)).Box(V(0, top * 0.5f - 0.75f, 0), V(w + 0.3f, top + 1.5f, d + 0.3f));
+            mb.Col(Pal.Dark(wall, 0.2f)).Box(V(0, top + 0.15f, 0), V(w + 0.7f, 0.3f, d + 0.7f));
+            Color[] cloth = { Pal.Red, Pal.Hex("#2F6F4F"), Pal.Hex("#2A4E86"), Pal.Hex("#C98A2B"), Pal.Hex("#6A3A6E") };
+            for (int side = 0; side < 4; side++)
+            {
+                float span = side % 2 == 0 ? w : d, depth = (side % 2 == 0 ? d : w) * 0.5f + 0.17f;
+                Vector3 normal = side == 0 ? Vector3.forward : side == 1 ? Vector3.right : side == 2 ? Vector3.back : Vector3.left;
+                Vector3 along = side % 2 == 0 ? Vector3.right : Vector3.forward;
+                int bays = Mathf.Max(1, Mathf.FloorToInt((span - 1f) / 4.5f));
+                float bay = (span - 1f) / bays;
+                for (int k = 0; k < bays; k++)
+                {
+                    Vector3 mid = normal * depth + along * ((k - (bays - 1) * 0.5f) * bay);
+                    Vector3 hx = along * (bay * 0.42f);
+                    bool door = Hash01(seed + side, k, 3) < 0.4f;
+                    if (door)
+                    {
+                        mb.Emit().Col(Pal.WoodDark).Quad(mid - along * 0.7f, mid + along * 0.7f, mid + along * 0.7f + Vector3.up * 2.4f, mid - along * 0.7f + Vector3.up * 2.4f, normal);
+                        mb.Window().Col(Pal.Cream).Quad(mid - along * 0.7f + Vector3.up * 2.5f, mid + along * 0.7f + Vector3.up * 2.5f, mid + along * 0.7f + Vector3.up * 3.1f, mid - along * 0.7f + Vector3.up * 3.1f, normal);
+                    }
+                    else
+                    {
+                        mb.Window().Col(Pal.Hex("#9CC4DE")).Quad(mid - hx + Vector3.up * 0.7f, mid + hx + Vector3.up * 0.7f, mid + hx + Vector3.up * 3f, mid - hx + Vector3.up * 3f, normal);
+                        if (Hash01(seed + 9, side, k) < 0.6f)
+                        {
+                            mb.Emit().Col(cloth[(int)(Hash01(seed, side * 7 + k, 5) * cloth.Length) % cloth.Length]);
+                            mb.QuadTwoSided(mid - hx + Vector3.up * 3.5f, mid + hx + Vector3.up * 3.5f, mid + hx + Vector3.up * 3.05f + normal * 1.2f, mid - hx + Vector3.up * 3.05f + normal * 1.2f);
+                        }
+                    }
+                }
+            }
+            mb.Emit();
+        }
+
+        /// <summary>What stands on a flat roof: a parapet, air handlers, and by its seed a water tank, a mast or a stair head.</summary>
+        static void Rooftop(MeshBuilder mb, float w, float d, float y, Color wall, int seed)
+        {
+            Color trim = Pal.Dark(wall, 0.3f);
+            mb.Emit().Col(trim);
+            mb.Box(V(0, y + 0.3f, d * 0.5f - 0.15f), V(w, 0.6f, 0.3f)).Box(V(0, y + 0.3f, -d * 0.5f + 0.15f), V(w, 0.6f, 0.3f));
+            mb.Box(V(w * 0.5f - 0.15f, y + 0.3f, 0), V(0.3f, 0.6f, d)).Box(V(-w * 0.5f + 0.15f, y + 0.3f, 0), V(0.3f, 0.6f, d));
+            mb.Col(Pal.Metal);
+            for (int k = 0; k < 3; k++)
+            {
+                float x = (Hash01(seed, k, 1) - 0.5f) * (w - 4f), z = (Hash01(seed, k, 2) - 0.5f) * (d - 4f);
+                mb.BoxOn(V(x, y, z), V(1.6f, 0.9f, 1.2f));
+            }
+            float kind = Hash01(seed, 4, 4);
+            Vector3 at = V((Hash01(seed, 5, 1) - 0.5f) * (w - 5f), y, (Hash01(seed, 5, 2) - 0.5f) * (d - 5f));
+            if (kind < 0.4f)
+            {
+                // a water tank on legs
+                mb.Col(Pal.MetalDark);
+                foreach (float x in new[] { -0.8f, 0.8f }) foreach (float z in new[] { -0.8f, 0.8f }) mb.BoxOn(at + V(x, 0, z), V(0.12f, 1.6f, 0.12f));
+                mb.Col(Pal.Wood).Cyl(at + V(0, 1.6f, 0), 1.25f, 1.25f, 2.2f, 10);
+                mb.Col(Pal.WoodDark).Cone(at + V(0, 3.8f, 0), 1.35f, 0.8f, 10);
+            }
+            else if (kind < 0.7f)
+            {
+                mb.Col(Pal.MetalDark).Cyl(at, 0.12f, 0.04f, 7f, 5);
+                mb.Emit(1f).Col(Pal.Red).Sphere(at + V(0, 7.1f, 0), 0.18f, 0);
+                mb.Emit();
+            }
+            else mb.Col(trim).BoxOn(at, V(3f, 2.6f, 3f));
+            mb.Emit();
+        }
+
+        /// <summary>Thin courses standing proud of the wall every few floors, and piers up the corners: what stops a tower being a box.</summary>
+        static void Courses(MeshBuilder mb, float w, float d, float y0, float y1, Color wall, int seed)
+        {
+            mb.Emit().Col(Pal.Dark(wall, 0.18f));
+            float every = 3.4f * (3 + seed % 3);
+            for (float y = y0 + every; y < y1 - 2f; y += every) mb.Box(V(0, y, 0), V(w + 0.36f, 0.3f, d + 0.36f));
+            foreach (float x in new[] { -1f, 1f }) foreach (float z in new[] { -1f, 1f })
+                mb.Box(V(x * w * 0.5f, (y0 + y1) * 0.5f, z * d * 0.5f), V(0.7f, y1 - y0, 0.7f));
+        }
+
         static void Tower(MeshBuilder mb, float w, float d, float h, Color wall, int seed, bool setbacks)
         {
             mb.Shade(0.03f).Grad(Pal.Dark(wall, 0.2f), wall, 0f, h);
             if (!setbacks)
             {
                 mb.Box(V(0, h * 0.5f - 1.5f, 0), V(w, h + 3f, d));
-                Windows(mb, Vector3.zero, w, d, 1.5f, h - 1.2f, 3.4f, 3f, seed);
-                mb.Col(Pal.Dark(wall, 0.35f)).BoxOn(V(0, h, 0), V(w * 0.5f, 1.4f, d * 0.5f));
+                Windows(mb, Vector3.zero, w, d, 4.8f, h - 1.2f, 3.4f, 3f, seed);
+                Courses(mb, w, d, 4.4f, h, wall, seed);
+                StreetLevel(mb, w, d, wall, seed);
+                Rooftop(mb, w, d, h, wall, seed);
             }
             else
             {
                 float h1 = h * 0.55f, h2 = h * 0.85f;
                 mb.Box(V(0, h1 * 0.5f - 1.5f, 0), V(w, h1 + 3f, d));
-                Windows(mb, Vector3.zero, w, d, 1.5f, h1 - 0.8f, 3.4f, 3f, seed);
+                Windows(mb, Vector3.zero, w, d, 4.8f, h1 - 0.8f, 3.4f, 3f, seed);
+                Courses(mb, w, d, 4.4f, h1, wall, seed);
+                StreetLevel(mb, w, d, wall, seed);
+                mb.Shade(0.03f);
                 mb.Grad(Pal.Dark(wall, 0.1f), wall, h1, h);
                 mb.BoxOn(V(0, h1, 0), V(w * 0.74f, h2 - h1, d * 0.74f));
                 Windows(mb, V(0, 0, 0), w * 0.74f, d * 0.74f, h1 + 0.8f, h2 - 0.6f, 3.4f, 3f, seed + 5);
@@ -184,6 +273,60 @@ namespace ImagineVR
                     mb.Shade(0.05f).Col(Pal.OffWhite);
                     for (int i = 0; i < 9; i++) { float x = -1.4f + i * 0.35f; mb.BoxOn(V(x, 0, 0), V(0.12f, 1f, 0.04f)); mb.Pyramid(V(x, 1f, 0), 0.12f, 0.12f); }
                     mb.Box(V(0, 0.35f, -0.04f), V(3f, 0.08f, 0.04f)); mb.Box(V(0, 0.8f, -0.04f), V(3f, 0.08f, 0.04f));
+                });
+
+            // ---- the street itself
+            Add("road", "city", 0.05f, "Stretch of road 8 m wide and 12 m long, with kerbs and a dashed centre line. Lay a street with `repeat` and `step` [0,0,12]", "street,city,asphalt,lane,highway,avenue", "street,road section,highway,avenue,lane",
+                mb =>
+                {
+                    mb.Col(Pal.Hex("#2E3034")).Box(V(0, 0.02f, 0), V(8f, 0.04f, 12f));
+                    mb.Col(Pal.Hex("#9A9A94")).Box(V(-4.3f, 0.07f, 0), V(0.6f, 0.14f, 12f)).Box(V(4.3f, 0.07f, 0), V(0.6f, 0.14f, 12f));
+                    mb.Col(Pal.Hex("#E8E2C0"));
+                    for (int i = 0; i < 3; i++) mb.Box(V(0, 0.045f, -4f + i * 4f), V(0.16f, 0.01f, 2f));
+                    mb.Col(Pal.White).Box(V(-3.7f, 0.045f, 0), V(0.1f, 0.01f, 12f)).Box(V(3.7f, 0.045f, 0), V(0.1f, 0.01f, 12f));
+                });
+            Add("crossroads", "city", 0.05f, "Road junction 8 m square with zebra crossings on all four sides: joins `road`s", "street,city,junction,intersection,crossing", "intersection,junction,crossing,zebra crossing",
+                mb =>
+                {
+                    mb.Col(Pal.Hex("#2E3034")).Box(V(0, 0.02f, 0), V(8f, 0.04f, 8f));
+                    mb.Col(Pal.White);
+                    for (int side = 0; side < 4; side++)
+                    {
+                        mb.Push(Vector3.zero, V(0, side * 90f, 0));
+                        for (int i = 0; i < 6; i++) mb.Box(V(-3.1f + i * 1.24f, 0.045f, 3.3f), V(0.6f, 0.01f, 1.2f));
+                        mb.Pop();
+                    }
+                });
+            Add("bus_stop", "city", 2.6f, "Bus shelter with a bench and a lit sign", "city,street,shelter,transit,stop", "bus shelter,shelter,tram stop",
+                mb =>
+                {
+                    mb.Shade(0.03f).Col(Pal.MetalDark);
+                    foreach (float x in new[] { -1.6f, 1.6f }) mb.BoxOn(V(x, 0, -0.6f), V(0.08f, 2.4f, 0.08f)).BoxOn(V(x, 0, 0.6f), V(0.08f, 2.4f, 0.08f));
+                    mb.Box(V(0, 2.45f, 0), V(3.5f, 0.1f, 1.5f));
+                    mb.Col(Pal.GlassDark).Box(V(0, 1.3f, -0.62f), V(3.2f, 1.9f, 0.04f));
+                    mb.Col(Pal.Wood).Box(V(0, 0.45f, -0.3f), V(2.4f, 0.06f, 0.4f));
+                    mb.Col(Pal.MetalDark).BoxOn(V(-1f, 0, -0.3f), V(0.06f, 0.45f, 0.3f)).BoxOn(V(1f, 0, -0.3f), V(0.06f, 0.45f, 0.3f));
+                    mb.Window().Col(Pal.Hex("#7FC8FF")).Box(V(1.62f, 1.5f, 0), V(0.06f, 1.5f, 1f));
+                    mb.Emit();
+                });
+            Add("mailbox", "city", 1.2f, "Blue street mailbox", "city,street,post,letters", "postbox,post box,letterbox",
+                mb =>
+                {
+                    mb.Col(Pal.MetalDark);
+                    foreach (float x in new[] { -0.2f, 0.2f }) foreach (float z in new[] { -0.2f, 0.2f }) mb.BoxOn(V(x, 0, z), V(0.05f, 0.2f, 0.05f));
+                    mb.Shade(0.04f).Col(Pal.Hex("#2A4E86")).BoxOn(V(0, 0.2f, 0), V(0.55f, 0.75f, 0.5f));
+                    mb.Push(V(0, 0.95f, 0), V(0, 0, 90f)).Cyl(V(0, -0.275f, 0), 0.25f, 0.25f, 0.55f, 10).Pop();
+                    mb.Col(Pal.Black).Box(V(0, 0.9f, 0.255f), V(0.36f, 0.04f, 0.01f));
+                }).Solid(25f, 0.1f);
+            Add("billboard", "city", 9f, "Big lit advertising board on a steel post: tint it any colour", "city,street,sign,advert,roadside,highway", "hoarding,advertising board,ad board",
+                mb =>
+                {
+                    mb.Col(Pal.MetalDark).Cyl(Vector3.zero, 0.3f, 0.22f, 6f, 8);
+                    mb.Box(V(0, 7.5f, -0.15f), V(8.4f, 3.4f, 0.2f));
+                    mb.Window().Col(Pal.White).Box(V(0, 7.5f, 0f), V(8f, 3f, 0.08f));
+                    mb.Emit().Col(Pal.MetalDark).Box(V(0, 5.7f, 0.5f), V(8.4f, 0.06f, 1f));
+                    foreach (float x in new[] { -3f, 0f, 3f }) mb.Emit(1f).Col(Pal.Cream).Box(V(x, 5.75f, 0.9f), V(0.3f, 0.1f, 0.2f));
+                    mb.Emit();
                 });
 
             // ---- vehicles (white body, so a tint paints the car)

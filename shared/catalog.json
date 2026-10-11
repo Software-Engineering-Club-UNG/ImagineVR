@@ -1,11 +1,10 @@
 {
-  "language_version": 1,
-  "catalog_version": "1.245.2007a222",
+  "language_version": 2,
+  "catalog_version": "1.250.0bfd5c9f",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
     "max_scatter_total": 1500,
-    "max_kits": 3,
     "max_physics": 40,
     "safe_radius_m": 3,
     "world_radius_m": 120
@@ -413,521 +412,6 @@
       "aliases": ["sea floor", "ocean floor"]
     }
   ],
-  "kits": [
-    {
-      "id": "golf_course",
-      "desc": "A golf hole: tee at your feet, mown fairway, green with a flag and a real hole, bunkers, trees",
-      "tags": ["golf", "sport", "course", "fairway", "green", "links"],
-      "aliases": ["golf", "golf hole", "links", "country club", "driving range"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.25
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Welcome to the first tee. The green is straight ahead."
-    },
-    {
-      "id": "city",
-      "desc": "A downtown street grid: you stand at a crossroads between blocks of towers, with lamps, cars and lit windows at night",
-      "tags": ["urban", "downtown", "street", "buildings", "skyscrapers", "metropolis"],
-      "aliases": ["city", "town", "downtown", "metropolis", "new york", "tokyo", "urban", "streets"],
-      "defaults": {
-        "sky": "night_city",
-        "terrain": {
-          "type": "flat",
-          "material": "asphalt"
-        },
-        "ambience": "city_night"
-      },
-      "greeting": "The city never sleeps. Look up."
-    },
-    {
-      "id": "forest",
-      "desc": "A deep woodland: mixed trees all around, a clearing where you stand, ferns, mushrooms, logs, deer",
-      "tags": ["woods", "trees", "nature", "woodland", "wild"],
-      "aliases": ["woods", "woodland", "jungle", "the woods", "grove"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "rolling",
-          "material": "forest_floor",
-          "height": 0.3
-        },
-        "ambience": "forest"
-      },
-      "params": {
-        "season": "summer, autumn, winter or spring"
-      },
-      "greeting": "Deep in the woods. Listen."
-    },
-    {
-      "id": "beach",
-      "desc": "A sandy shore: sea ahead, palms behind, parasols, deck chairs, a sandcastle, boats on the water",
-      "tags": ["sea", "coast", "shore", "summer", "holiday", "ocean", "tropical"],
-      "aliases": ["seaside", "shore", "coast", "tropical beach", "the beach"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "beach",
-          "material": "sand"
-        },
-        "ambience": "ocean_waves"
-      },
-      "greeting": "Sand under your feet, sea ahead."
-    },
-    {
-      "id": "tropical_island",
-      "desc": "A small desert island ringed by sea: palms, a treasure chest, a rowing boat, crabs",
-      "tags": ["island", "sea", "castaway", "pirate", "tropical"],
-      "aliases": ["desert island", "island", "castaway island", "atoll"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "island",
-          "material": "sand"
-        },
-        "ambience": "ocean_waves"
-      },
-      "greeting": "Your own island. Nobody for miles."
-    },
-    {
-      "id": "desert",
-      "desc": "A wide desert: cacti, wind-carved rock spires, bleached bones, a great pyramid on the horizon",
-      "tags": ["sand", "dunes", "dry", "hot", "sahara", "egypt"],
-      "aliases": ["sahara", "dunes", "wasteland", "egypt"],
-      "defaults": {
-        "sky": "desert_noon",
-        "terrain": {
-          "type": "dunes",
-          "material": "sand"
-        },
-        "ambience": "desert_wind"
-      },
-      "params": {
-        "oasis": "true adds a palm-ringed pool"
-      },
-      "greeting": "Nothing but sand and sky."
-    },
-    {
-      "id": "moon_base",
-      "desc": "The surface of the Moon: craters, a lander, a rocket, astronauts, the Earth hanging in a black sky, low gravity",
-      "tags": ["space", "moon", "lunar", "nasa", "astronaut", "low gravity"],
-      "aliases": ["moon", "the moon", "lunar surface", "lunar base", "space"],
-      "defaults": {
-        "sky": "deep_space",
-        "terrain": {
-          "type": "craters",
-          "material": "moon"
-        },
-        "ambience": "space_hum",
-        "gravity": 0.16
-      },
-      "greeting": "One small step. Things fall slowly here."
-    },
-    {
-      "id": "deep_space",
-      "desc": "Floating in open space on a small platform: asteroids drifting past, planets, a satellite, no gravity",
-      "tags": ["space", "stars", "zero gravity", "floating", "cosmos", "galaxy"],
-      "aliases": ["outer space", "space", "galaxy", "orbit", "zero gravity"],
-      "defaults": {
-        "sky": "deep_space",
-        "terrain": {
-          "type": "none"
-        },
-        "ambience": "space_hum",
-        "gravity": 0
-      },
-      "greeting": "Nothing holds you down out here."
-    },
-    {
-      "id": "winter_village",
-      "desc": "A snowy village: log cabins with lit windows, snow-laden pines, snowmen, a decorated tree",
-      "tags": ["snow", "christmas", "winter", "cold", "holiday", "cabin"],
-      "aliases": ["snowy village", "christmas village", "winter wonderland", "north pole", "snow"],
-      "defaults": {
-        "sky": "winter_day",
-        "terrain": {
-          "type": "rolling",
-          "material": "snow",
-          "height": 0.3
-        },
-        "ambience": "wind",
-        "weather": "snow"
-      },
-      "greeting": "Snow is falling. The cabins are warm."
-    },
-    {
-      "id": "coral_reef",
-      "desc": "Under the sea: coral, swaying kelp, schools of fish, jellyfish, a turtle, a sunken chest",
-      "tags": ["underwater", "ocean", "sea", "reef", "fish", "diving"],
-      "aliases": ["underwater", "under the sea", "ocean floor", "sea bed", "aquarium"],
-      "defaults": {
-        "sky": "underwater",
-        "terrain": {
-          "type": "rolling",
-          "material": "seabed",
-          "height": 0.35
-        },
-        "ambience": "underwater",
-        "weather": "bubbles",
-        "gravity": 0.25
-      },
-      "greeting": "Deep breath. You're under the sea."
-    },
-    {
-      "id": "farm",
-      "desc": "A working farm: red barn, windmill, fenced field of animals, hay bales, a scarecrow",
-      "tags": ["countryside", "barn", "animals", "rural", "ranch"],
-      "aliases": ["ranch", "countryside", "farmyard", "the farm"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.2
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Morning on the farm."
-    },
-    {
-      "id": "castle",
-      "desc": "A stone castle: walls and corner towers around a courtyard, a gatehouse facing you, knights, torches",
-      "tags": ["medieval", "fortress", "knight", "kingdom", "fantasy"],
-      "aliases": ["fortress", "citadel", "kingdom", "medieval castle", "stronghold"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.15
-        },
-        "ambience": "wind"
-      },
-      "greeting": "The gates are open. Welcome to the castle."
-    },
-    {
-      "id": "medieval_village",
-      "desc": "A timber-framed village around a square: houses, a well, market torches, villagers",
-      "tags": ["medieval", "town", "fantasy", "tavern", "market"],
-      "aliases": ["village", "medieval town", "fantasy village", "hamlet", "town square"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "flat",
-          "material": "dirt"
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "The village square, just before dusk."
-    },
-    {
-      "id": "japanese_garden",
-      "desc": "A serene garden: red torii gate, pagoda, cherry trees in blossom, stone lanterns, a bridge over a pond",
-      "tags": ["japan", "zen", "temple", "sakura", "asia", "peaceful"],
-      "aliases": ["zen garden", "japan", "japanese temple", "kyoto", "sakura garden"],
-      "defaults": {
-        "sky": "sunset_pink",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.12
-        },
-        "ambience": "zen_chimes",
-        "weather": "petals"
-      },
-      "greeting": "Petals on the wind. Take your time."
-    },
-    {
-      "id": "synthwave",
-      "desc": "A retro-future highway: glowing grid to the horizon, a huge low sun, neon palms, purple mountains",
-      "tags": ["retro", "neon", "80s", "vaporwave", "outrun", "grid", "cyber"],
-      "aliases": ["retro", "retro world", "vaporwave", "outrun", "retrowave", "80s", "eighties", "neon grid", "neon world", "tron", "arcade"],
-      "defaults": {
-        "sky": "synthwave",
-        "terrain": {
-          "type": "flat",
-          "material": "neon",
-          "grid": 0.9,
-          "grid_color": "#FF4FD8"
-        },
-        "ambience": "synth_pad"
-      },
-      "greeting": "Welcome to 1986. Sort of."
-    },
-    {
-      "id": "campsite",
-      "desc": "A campsite at night: tent, crackling fire ringed with logs, lantern, pines, fireflies",
-      "tags": ["camping", "fire", "night", "outdoors", "woods", "cozy"],
-      "aliases": ["camp", "camping", "campfire", "camping trip"],
-      "defaults": {
-        "sky": "night_stars",
-        "terrain": {
-          "type": "rolling",
-          "material": "forest_floor",
-          "height": 0.2
-        },
-        "ambience": "fire_crackle",
-        "weather": "fireflies"
-      },
-      "greeting": "Pull up a log. The fire's going."
-    },
-    {
-      "id": "graveyard",
-      "desc": "A haunted graveyard: crooked headstones, bare trees, a mansion on the hill, drifting ghosts, bats",
-      "tags": ["halloween", "haunted", "spooky", "ghost", "cemetery", "horror"],
-      "aliases": ["cemetery", "haunted graveyard", "halloween", "spooky", "haunted"],
-      "defaults": {
-        "sky": "spooky",
-        "terrain": {
-          "type": "rolling",
-          "material": "swamp",
-          "height": 0.25
-        },
-        "ambience": "spooky"
-      },
-      "greeting": "Something moved. Probably the wind."
-    },
-    {
-      "id": "last_stand",
-      "desc": "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a rifle or a blaster to go with it",
-      "tags": ["zombie", "undead", "horror", "apocalypse", "survival", "shoot", "fight", "battle", "enemies", "monsters", "defend"],
-      "aliases": ["zombies", "zombie apocalypse", "zombie outbreak", "zombie horde", "zombie shooter", "shoot zombies", "walking dead", "undead", "apocalypse", "last stand", "shooting gallery", "invasion", "uprising", "monster attack"],
-      "defaults": {
-        "sky": "spooky",
-        "terrain": {
-          "type": "flat",
-          "material": "dirt"
-        },
-        "ambience": "spooky"
-      },
-      "params": {
-        "enemy": "any character or animal asset id: zombie (default), robot, alien, skeleton, knight, t_rex ..."
-      },
-      "greeting": "They're coming. Grab the blaster and pull the trigger."
-    },
-    {
-      "id": "maze",
-      "desc": "A maze to find your way out of: solid walls you cannot walk through, you start in the middle, and a flag marks the way out. Size sets how big (7 to 15 cells across)",
-      "tags": ["maze", "labyrinth", "puzzle", "walls", "lost", "explore", "game"],
-      "aliases": ["labyrinth", "hedge maze", "corn maze", "maze runner", "puzzle"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "flat",
-          "material": "grass"
-        },
-        "ambience": "birds_breeze"
-      },
-      "params": {
-        "walls": "hedge (default), stone, neon or ice"
-      },
-      "greeting": "You're in the middle. The flag is the way out."
-    },
-    {
-      "id": "candyland",
-      "desc": "A land made of sweets: giant lollipops, candy canes, cupcakes, doughnuts and a towering cake",
-      "tags": ["sweet", "candy", "dessert", "pastel", "kids", "cute"],
-      "aliases": ["candy land", "candy world", "sweet land", "sugar land", "dessert world"],
-      "defaults": {
-        "sky": "candy",
-        "terrain": {
-          "type": "rolling",
-          "material": "candy",
-          "height": 0.25
-        }
-      },
-      "greeting": "Everything here is edible. Probably."
-    },
-    {
-      "id": "ancient_ruins",
-      "desc": "Ruins of a forgotten temple: rows of marble columns, broken arches, statues, an obelisk",
-      "tags": ["greek", "roman", "temple", "ancient", "archaeology"],
-      "aliases": ["ruins", "temple ruins", "greek temple", "roman ruins", "acropolis", "stonehenge"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "rolling",
-          "material": "dry_grass",
-          "height": 0.2
-        },
-        "ambience": "wind"
-      },
-      "greeting": "Somebody built this three thousand years ago."
-    },
-    {
-      "id": "playground",
-      "desc": "A park playground: swings, a slide, a seesaw, a trampoline, benches, trees, balls to kick about",
-      "tags": ["park", "kids", "play", "swings", "fun", "garden"],
-      "aliases": ["park", "play park", "the park", "kids park"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "flat",
-          "material": "grass"
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Go on. Nobody's watching."
-    },
-    {
-      "id": "art_gallery",
-      "desc": "A bright white gallery: framed paintings all around, sculptures on plinths, an easel and paints beside you",
-      "tags": ["art", "museum", "studio", "gallery", "creative", "painting", "white"],
-      "aliases": ["gallery", "museum", "art studio", "studio", "exhibition", "art museum"],
-      "defaults": {
-        "sky": "white_room",
-        "terrain": {
-          "type": "flat",
-          "material": "marble"
-        }
-      },
-      "greeting": "The gallery is yours. Pick up a brush."
-    },
-    {
-      "id": "sports_court",
-      "desc": "An outdoor court: basketball hoop ahead with balls at your feet, a football goal behind, court lines",
-      "tags": ["basketball", "sport", "game", "football", "soccer", "court"],
-      "aliases": ["basketball", "basketball court", "court", "pitch", "sports field", "stadium", "gym"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "flat",
-          "material": "concrete"
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Ball's at your feet. Take the shot."
-    },
-    {
-      "id": "bowling_alley",
-      "desc": "A bowling lane: polished wood running ahead to ten pins, bowling balls beside you",
-      "tags": ["bowling", "sport", "game", "pins", "strike"],
-      "aliases": ["bowling", "bowling lane", "ten pin"],
-      "defaults": {
-        "sky": "night_city",
-        "terrain": {
-          "type": "flat",
-          "material": "concrete"
-        }
-      },
-      "greeting": "Ten pins, twelve metres. Grab a ball."
-    },
-    {
-      "id": "dinosaur_valley",
-      "desc": "A prehistoric valley: giant ferns and palms, a towering long-neck, a T. rex, a smoking volcano",
-      "tags": ["dinosaur", "jurassic", "prehistoric", "jungle", "volcano"],
-      "aliases": ["jurassic park", "dinosaurs", "prehistoric", "dino land", "lost world"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "valley",
-          "material": "forest_floor",
-          "height": 0.4
-        },
-        "ambience": "forest"
-      },
-      "greeting": "Sixty-five million years ago. Stay still."
-    },
-    {
-      "id": "safari",
-      "desc": "African savanna: golden grass, flat-topped trees, elephants, giraffes and lions in the distance",
-      "tags": ["africa", "savanna", "wildlife", "animals", "grassland"],
-      "aliases": ["savanna", "savannah", "africa", "serengeti", "wildlife park"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "rolling",
-          "material": "dry_grass",
-          "height": 0.15
-        },
-        "ambience": "wind"
-      },
-      "greeting": "Golden hour on the savanna."
-    },
-    {
-      "id": "fairground",
-      "desc": "A funfair at dusk: a giant Ferris wheel, striped tents, balloons, lights, a crowd",
-      "tags": ["carnival", "fair", "amusement park", "rides", "circus", "festival"],
-      "aliases": ["carnival", "funfair", "amusement park", "theme park", "circus", "fair"],
-      "defaults": {
-        "sky": "dusk",
-        "terrain": {
-          "type": "flat",
-          "material": "grass"
-        },
-        "ambience": "city_night"
-      },
-      "greeting": "Roll up. The wheel's turning."
-    },
-    {
-      "id": "harbor",
-      "desc": "A quiet harbour: a wooden pier, boats at anchor, a lighthouse, crates and barrels on the quay",
-      "tags": ["port", "dock", "sea", "boats", "fishing", "coast"],
-      "aliases": ["harbour", "port", "docks", "marina", "fishing village", "quay"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "beach",
-          "material": "rock"
-        },
-        "ambience": "ocean_waves"
-      },
-      "greeting": "Tide's in. Boats are ready."
-    },
-    {
-      "id": "western_town",
-      "desc": "A Wild West main street: saloons on both sides, cacti, barrels, horses, tumbleweed blowing through",
-      "tags": ["cowboy", "wild west", "frontier", "saloon", "desert"],
-      "aliases": ["wild west", "old west", "cowboy town", "frontier town", "ghost town"],
-      "defaults": {
-        "sky": "desert_noon",
-        "terrain": {
-          "type": "flat",
-          "material": "dirt"
-        },
-        "ambience": "desert_wind",
-        "weather": "dust"
-      },
-      "greeting": "This town ain't big enough."
-    },
-    {
-      "id": "volcano_land",
-      "desc": "A volcanic wasteland: black rock, rivers of glowing lava, burnt trees, an erupting cone, falling embers",
-      "tags": ["lava", "fire", "hell", "volcanic", "eruption", "danger"],
-      "aliases": ["volcano", "lava land", "hell", "inferno", "mordor"],
-      "defaults": {
-        "sky": "volcanic",
-        "terrain": {
-          "type": "hills",
-          "material": "lava_rock",
-          "height": 0.3
-        },
-        "ambience": "fire_crackle",
-        "weather": "embers"
-      },
-      "greeting": "Mind the lava."
-    },
-    {
-      "id": "cloud_kingdom",
-      "desc": "Above the clouds: a floating platform in a sea of cloud, a rainbow, balloons and lanterns drifting by",
-      "tags": ["sky", "heaven", "clouds", "dream", "floating", "flying"],
-      "aliases": ["heaven", "sky kingdom", "above the clouds", "dream world", "the sky"],
-      "defaults": {
-        "sky": "dreamy",
-        "terrain": {
-          "type": "none"
-        },
-        "ambience": "zen_chimes",
-        "gravity": 0.4
-      },
-      "greeting": "Nothing below but cloud."
-    }
-  ],
   "assets": [
     {
       "id": "pine_tree",
@@ -1237,6 +721,47 @@
       "aliases": ["picket fence", "railing", "fencing"],
       "category": "city",
       "size_m": 1.1
+    },
+    {
+      "id": "road",
+      "desc": "Stretch of road 8 m wide and 12 m long, with kerbs and a dashed centre line. Lay a street with `repeat` and `step` [0,0,12]",
+      "tags": ["street", "city", "asphalt", "lane", "highway", "avenue"],
+      "aliases": ["street", "road section", "highway", "avenue", "lane"],
+      "category": "city",
+      "size_m": 0.05
+    },
+    {
+      "id": "crossroads",
+      "desc": "Road junction 8 m square with zebra crossings on all four sides: joins `road`s",
+      "tags": ["street", "city", "junction", "intersection", "crossing"],
+      "aliases": ["intersection", "junction", "crossing", "zebra crossing"],
+      "category": "city",
+      "size_m": 0.05
+    },
+    {
+      "id": "bus_stop",
+      "desc": "Bus shelter with a bench and a lit sign",
+      "tags": ["city", "street", "shelter", "transit", "stop"],
+      "aliases": ["bus shelter", "shelter", "tram stop"],
+      "category": "city",
+      "size_m": 2.6
+    },
+    {
+      "id": "mailbox",
+      "desc": "Blue street mailbox",
+      "tags": ["city", "street", "post", "letters"],
+      "aliases": ["postbox", "post box", "letterbox"],
+      "category": "city",
+      "size_m": 1.2,
+      "prop": true
+    },
+    {
+      "id": "billboard",
+      "desc": "Big lit advertising board on a steel post: tint it any colour",
+      "tags": ["city", "street", "sign", "advert", "roadside", "highway"],
+      "aliases": ["hoarding", "advertising board", "ad board"],
+      "category": "city",
+      "size_m": 9
     },
     {
       "id": "car",
@@ -3027,7 +2552,7 @@
       "size_m": 1.2
     }
   ],
-  "primitives": ["cube", "sphere", "cylinder", "cone", "capsule", "pyramid", "torus", "disc", "wedge", "plank"],
+  "primitives": ["cube", "sphere", "cylinder", "cone", "capsule", "pyramid", "torus", "disc", "wedge", "blob", "dome", "plank"],
   "motions": ["none", "bob", "spin", "hover", "sway", "orbit", "drift"],
   "weather": [
     {

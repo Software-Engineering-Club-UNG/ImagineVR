@@ -142,10 +142,10 @@ class Catalog:
     def alias(self, kind: str, name: str) -> str | None:
         """The entry that lists exactly this name as an alias, if one does."""
         raw = name.strip().lower().replace(" ", "_").replace("-", "_")
-        for eid, _id_words, aliases, _other in self._index[kind]:
-            if raw in aliases:
-                return eid
-        return None
+        claimed = [eid for eid, _id_words, aliases, _other in self._index[kind] if raw in aliases]
+        # A word several things answer to names none of them: asked for "a club" to fight ogres
+        # with, the user was handed a golf club, because that entry happened to come first.
+        return claimed[0] if len(claimed) == 1 else None
 
     def vocabulary(self) -> set[str]:
         """Every word the catalog knows, for the speech recogniser to lean on."""

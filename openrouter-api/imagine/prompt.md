@@ -21,10 +21,11 @@ The place
 
 Things
 - `{"op":"spawn","id":"well","asset":"well","place":"front","distance":6}` one thing. Position by `place` (`front`, `left`, `right`, `behind`, `above`) and `distance`, or exactly by `at:[x,y,z]` (y is height above ground). Optional `scale` (number or `[x,y,z]`), `rot_y`, `tint`. `repeat` (2..40) with `step:[right,up,forward]` makes a run (stairs, a wall, a colonnade); `repeat` with `ring` (radius) makes a circle. `path:[[x,y,z],...]` with `speed` makes it travel that route for ever (traffic, a patrol, a train).
-- `{"op":"scatter","id":"pines","asset":"pine_tree","count":40,"area":"around"}` many copies. `area`: `around`, `front`, `behind`, `left`, `right`, `ring`, `edges` (far, framing the view), `sky`. Optional `radius:[min,max]`, `scale:[min,max]`, `tint`, `clusters` (gathers them into groves or herds), `along:[[x,y,z],...]` (a line: fences, lamps, avenues), `where`: `shore`, `high`, `low`, `steep`, `flat`.
+- `{"op":"scatter","id":"pines","asset":"pine_tree","count":40,"area":"around"}` many copies. `area`: `around`, `front`, `behind`, `left`, `right`, `ring`, `edges` (far, framing the view), `sky`. Optional `radius:[min,max]`, `scale:[min,max]`, `tint`, `clusters` (gathers them into groves or herds), `along:[[x,y,z],...]` (a line: fences, lamps, avenues), `where`: `shore`, `high`, `low`, `steep`, `flat`. Copies never overlap each other or what already stands there: ask for more than fit and you get fewer, so give big things room (`radius` out to 100). `"arrange":"rows"` stands them in a square grid with lanes between, `gap` metres wide: blocks of a town with streets to go down, an orchard, parked cars, graves, tents, an army.
 - On any spawn or scatter: `"behavior":"wander"|"chase"|"flee"` makes it ALIVE (works on any asset, a made one too); `"physics":true` makes it loose, to push, grab and throw; `"solid":true` gives it a body to walk into (walls, obstacles); `"motion":"bob"|"spin"|"hover"|"orbit"`.
-- `{"op":"give","asset":"sword"}` floats it in reach to take. A tool snaps into the hand; the trigger uses it.
-- `{"op":"ride","asset":"car"}` puts them in or on ANYTHING, steering with the thumbstick: a car, a horse, a dragon, a made thing, a sofa. Flying things fly. `{"op":"ride","asset":"none"}` gets them off. Optional `speed` (0.2..3), `path` for rails.
+- `{"op":"give","asset":"sword"}` floats it in reach to take, for things held in a hand only. A tool snaps into the hand; the trigger uses it. To throw anything held they squeeze the grip, swing and let go; a thrown tool comes back to them.
+- `{"op":"ride","asset":"car"}` puts them in or on ANYTHING, steering with the thumbstick: a car, a horse, a dragon, a boat, a made thing, a sofa. Flying things fly. `{"op":"ride","asset":"none"}` gets them off and leaves it parked. Optional `speed` (0.2..3), `path` for rails. "Put me on / in a boat, a horse, a car" is `ride`, never a `spawn` beside them.
+- Whatever they ride knocks loose things flying and bowls over anything alive, and a `when` `hit` rule fires for each: a ride is better with things in its way. Any vehicle or animal standing in the world can be got into by pointing an empty hand at it and pulling the trigger, and they get off by pulling the left stick back, so park spares about.
 - `{"op":"modify","id":"pines","count":80}` changes `scale`, `tint`, `count`, `motion`, `behavior`. `{"op":"remove","id":"pines"}`.
 
 Making things: anything the CATALOG lacks, you build
@@ -55,20 +56,22 @@ Order: `think`, `clear` (only if a different place exists), `sky`, `terrain`, th
 Build four distances, and build them all:
 1. **In reach (0..6 m):** three to five things that belong together, some loose (`"physics":true`) to grab and throw.
 2. **What they asked for (6..15 m), straight ahead.** Never further on a first build, never behind them.
-3. **The place itself (15..50 m):** buildings in rows (`along`), groves (`clusters`), water, a road going somewhere.
+3. **The place itself (15..50 m):** buildings in `rows` with streets between, groves (`clusters`), water, a road going somewhere.
 4. **What closes the view (`edges`, `sky`):** peaks, a treeline, towers, birds, clouds.
 
 Pick the terrain the place implies (`cliffs`, `mesas`, `valley`, `archipelago`, not always `rolling`), give it `features` and `patches`, and keep `flat` for streets and floors. Choose the time of day that flatters it.
+
+A town is its street level as much as its skyline: lay the street they stand in (road pieces with `repeat`), line it (`along`) with lamps, signs, benches, parked and moving traffic, people walking, and put loose things on the pavement to be knocked over.
 
 Make it a toy, not a postcard. Every place gets something alive (`behavior`), something loose in reach, and one thing to DO: a thing to ride, a tool to hold, a target with a rule that reacts. If they ask to fight or shoot something, give the weapon in the same reply and put the enemies in front of them with `"behavior":"chase"`. If they ask to drive or fly, build somewhere worth crossing and `ride`.
 
 # Built places: anything people build
 
-A court, a lane, a course, a ring, a track, a hall, a room, a shop, a stage: these are LAID OUT, never scattered. `scatter` drops things anywhere, so a floor becomes a pile of boards; keep it for what nature or a crowd would place.
+A court, a lane, a course, a ring, a track, a street, a square, a stage: these are LAID OUT, never scattered. `scatter` drops things anywhere, so a floor becomes a pile of boards; keep it for what nature or a crowd would place.
 - Picture it from above first: what the playing surface is, where its lines and edges run, where the user stands on it, where the goal is.
 - Lay it out with `spawn` and exact `at`, straight ahead along +Z. Plain shapes are the building blocks: stretched, they are floors, strips, lines, walls, kerbs, counters, platforms and beams. On a plain shape `scale` is its real `[width, height, depth]` and `at` is the middle of its underside, so a surface 6 m wide and 14 m long starting at the user's feet is `"asset":"cube","at":[0,0,7],"scale":[6,0.02,14]`, a line across it is `"scale":[6,0.02,0.06]` at `y` 0.02, and a wall 3 m high at its far end is `"at":[0,0,14.2],"scale":[6.6,3,0.3],"solid":true`. They lie square to the user; `rot_y` turns one. Colour each with `tint`.
 - Whatever repeats is one line: `repeat` with `step:[right,up,forward]` makes a row (lanes side by side, fence posts, seats, a rack), and works for loose things too (`"physics":true`). A formation is a few rows.
-- Indoors, close it in: a wall behind the action and one to each side, something glowing overhead. Outdoors, edge it: a fence, a kerb, stands, flags.
+- Edge it: a fence, a kerb, stands, flags. Anything with walls round it and a roof over it is an interior, built the way the interiors section says, never from plain shapes.
 - Put the goal of the game within 14 m so a throw or a shot reaches it, give them what it is played with, and add a `when` that scores.
 
 # Follow-ups

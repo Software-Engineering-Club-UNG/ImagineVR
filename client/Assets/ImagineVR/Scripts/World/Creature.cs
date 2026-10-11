@@ -352,6 +352,13 @@ namespace ImagineVR
             if (!taken) Knock(away);
         }
 
+        /// <summary>Something ran or crashed into it: a rule for being hit has its say, and otherwise it goes down.</summary>
+        public void Struck(Vector3 away)
+        {
+            if (_state != State.Arriving && _state != State.Walking) return;
+            if (!_world.Rules.Fire("hit", Rules.Of(this))) Knock(away);
+        }
+
         /// <summary>Knocks it flat, falling in the given direction.</summary>
         public void Knock(Vector3 direction)
         {

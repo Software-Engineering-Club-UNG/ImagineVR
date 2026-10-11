@@ -145,5 +145,76 @@ namespace ImagineVR.Tests
             Assert.AreEqual(world.Terrain.HeightAt(rig.Head.position.x, rig.Head.position.z), rigObject.transform.position.y, 0.05f);
             Object.Destroy(rigObject); world.Vehicle = null; yield return null;
         }
+
+        void Play(string json) { Assert.IsTrue(Statement.TryParse(json, out var s), json); world.Apply(s); }
+
+        const string Cabin = "{\"op\":\"structure\",\"id\":\"jet\",\"theme\":\"plain\",\"entry\":\"cabin\",\"ceiling\":\"vault\",\"altitude\":40,\"halls\":false," +
+            "\"rooms\":[{\"id\":\"cabin\"},{\"id\":\"cockpit\"}],\"zones\":[" +
+            "{\"id\":\"cabin\",\"center\":[0,0,-1.45],\"size\":[4,2.4,18],\"openings\":[{\"side\":\"north\"}],\"windows\":[\"east\",\"west\"]}," +
+            "{\"id\":\"cockpit\",\"center\":[0,0,9.2],\"size\":[3,2.4,2.5],\"openings\":[{\"side\":\"south\"}],\"windows\":[\"north\",\"east\",\"west\"]}," +
+            "{\"id\":\"corridor_1\",\"center\":[0,0,7.75],\"size\":[2,2.4,0.4],\"openings\":[{\"side\":\"north\"},{\"side\":\"south\"}]}],\"doors\":[]}";
+
+        /// <summary>
+        /// "Put me in the cockpit of an airplane" came out as a windowless 5 by 6 box on the ground.
+        /// An interior is the size and shape of the thing: narrow, long, arched, windowed, high up,
+        /// its rooms wall to wall with an open doorway between.
+        /// </summary>
+        [UnityTest] public IEnumerator AnInteriorIsTheShapeOfTheThingItIs()
+        {
+            Assert.IsTrue(Build(Cabin)); yield return null; Physics.SyncTransforms();
+            Assert.AreEqual(3, world.Structures.ZoneCount); Assert.AreEqual(0, world.Structures.DoorCount);
+            float floor = world.Structures.FloorAt(Vector3.zero);
+            Assert.Greater(floor, 39f, "it is up in the air");
+            // glass or wall, nothing passes; and the way from cabin to cockpit is open
+            Assert.IsTrue(Physics.Raycast(new Vector3(0, floor + 1.4f, 0), Vector3.right, out var wall, 4)); Assert.AreEqual("Wall", wall.collider.name);
+            Assert.IsFalse(Physics.Raycast(new Vector3(0, floor + 1, 0), Vector3.forward, 9.5f), "the doorway to the cockpit is open");
+            Assert.IsTrue(world.Structures.TryRoom("cockpit", out var cockpit, out var pose));
+            Assert.IsFalse(world.Structures.TryRoom("corridor_1", out _, out _), "the wall between two rooms is not a room");
+            Assert.AreEqual("cabin", world.Structures.RoomAt(new Vector3(1, 0, -3)).Id);
+            Assert.IsTrue(cockpit.Windows.Contains("north") && !cockpit.Windows.Contains("south"));
+            // a window is a hole in the wall's mesh: a windowed cabin has more to its walls than a plain one, and an arch overhead
+            MeshFilter cabin = root.GetComponentsInChildren<MeshFilter>().First(m => m.name == "Room_cabin");
+            Bounds b = cabin.sharedMesh.bounds;
+            Assert.AreEqual(2.4f, b.max.y, 0.35f, "the arch rises to the room's height");
+            world.Structures.Clear(); yield return null;
+            Assert.IsFalse(world.Structures.Active);
+        }
+
+        /// <summary>
+        /// Twelve desks scattered "front, radius 2 to 4" landed in a heap in a classroom, and the
+        /// desks for the next room landed there too. In a room, many of one thing are arranged.
+        /// </summary>
+        [UnityTest] public IEnumerator ManyOfOneThingInARoomAreArrangedThere()
+        {
+            const string big = "{\"id\":\"entry\",\"center\":[0,0,0],\"size\":[9,3,8],\"openings\":[{\"side\":\"south\",\"door\":\"test_exit\"}]}";
+            Assert.IsTrue(Build("{\"op\":\"structure\",\"id\":\"test\",\"theme\":\"house\",\"entry\":\"entry\",\"rooms\":[{\"id\":\"entry\"}],\"zones\":[" + big + "],\"doors\":[{\"id\":\"test_exit\"}]}"));
+            yield return null;
+            Play("{\"op\":\"scatter\",\"id\":\"desks\",\"asset\":\"table\",\"count\":12,\"room\":\"entry\",\"arrange\":\"rows\"}");
+            Play("{\"op\":\"scatter\",\"id\":\"chairs\",\"asset\":\"chair\",\"count\":12,\"room\":\"entry\",\"arrange\":\"rows\",\"at\":[0,0,-0.7]}");
+            Play("{\"op\":\"scatter\",\"id\":\"lockers\",\"asset\":\"bookshelf\",\"count\":8,\"room\":\"entry\",\"arrange\":\"walls\"}");
+            Play("{\"op\":\"scatter\",\"id\":\"crates\",\"asset\":\"crate\",\"count\":6,\"area\":\"front\",\"radius\":[2,4]}");
+            var desks = world.Objects.Get("desks").Items; var chairs = world.Objects.Get("chairs").Items;
+            Assert.AreEqual(12, desks.Count); Assert.AreEqual(12, chairs.Count);
+            Bounds table = Library.Asset("table").Bounds;
+            for (int i = 0; i < desks.Count; i++)
+            {
+                Assert.Less(Mathf.Abs(desks[i].Position.x), 4.5f - table.extents.x); Assert.Less(Mathf.Abs(desks[i].Position.z), 4f - table.extents.z);
+                Assert.Greater(Mathf.Abs(desks[i].Position.x), 0.5f, "an aisle runs down the middle");
+                Assert.AreEqual(0.7f, (desks[i].Position - chairs[i].Position).magnitude, 0.01f, "each chair is behind its desk");
+                for (int j = i + 1; j < desks.Count; j++)
+                {
+                    Vector3 d = desks[i].Position - desks[j].Position;
+                    Assert.IsTrue(Mathf.Abs(d.x) >= table.size.x * 0.99f || Mathf.Abs(d.z) >= table.size.z * 0.99f, "desks " + i + " and " + j + " overlap");
+                }
+            }
+            var lockers = world.Objects.Get("lockers").Items;
+            Assert.Greater(lockers.Count, 3);
+            foreach (Placement p in lockers)
+                Assert.IsTrue(4.5f - Mathf.Abs(p.Position.x) < 1f || 4f - Mathf.Abs(p.Position.z) < 1f, "a locker stands away from every wall");
+            // said without a room by someone standing in one, it still lands inside it
+            foreach (Placement p in world.Objects.Get("crates").Items) { Assert.Less(Mathf.Abs(p.Position.x), 4.5f); Assert.Less(Mathf.Abs(p.Position.z), 4f); }
+            world.Structures.Clear(); yield return null;
+            Assert.IsNull(world.Objects.Get("desks"), "what furnished the interior goes with it");
+        }
     }
 }

@@ -23,6 +23,7 @@ namespace ImagineVR
         public float Length = 0.3f; // how far the business end is from the grip, for tools
         public float Born;
         public float LetGoAt;       // when a hand last let go of it
+        public bool Thrown;         // it left the hand at speed, and was not just put down
         public float RuledAt = -1f;     // when a rule last fired for it being hit, so one knock is one hit
         public float AwaySince = -1f;   // when it was first found waiting out of the user's reach; negative while in reach
 
@@ -280,17 +281,46 @@ namespace ImagineVR
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
             bool hasTint = s.Has("tint");
             Pose frame = s.Frame();
+            float body = Mathf.Max(def.Bounds.extents.x, def.Bounds.extents.z);
+
+            // Loose things asked for indoors land in a room: the one named, or the one the user is in.
+            StructureSystem.Room room = null;
+            Pose roomPose = Pose.identity;
+            if (s.Has("room")) _world.Structures.TryRoom(s.Str("room"), out room, out roomPose);
+            else { StructureSystem.Room here = _world.Structures.RoomAt(frame.position); if (here != null) _world.Structures.TryRoom(here.Id, out room, out roomPose); }
+            if (room != null)
+            {
+                _world.Structures.TrackFurnishing(id);
+                foreach (Pose spot in ObjectSystem.InRoom(room, roomPose, s, def, count, s.Str("arrange", "loose"), s.Has("gap") ? s.Num("gap") : -1f, (sMin + sMax) * 0.5f, rng))
+                {
+                    float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
+                    float floor = _world.SurfaceHeight(spot.position.x, spot.position.z);
+                    Create(def, id, new Vector3(spot.position.x, floor + spot.position.y + 0.05f, spot.position.z), spot.rotation, Vector3.one * scale, hasTint ? tint : Color.white);
+                }
+                return;
+            }
+
+            // dropped in from a little way up, each on ground of its own: a pile of things that
+            // started inside one another bursts apart when the physics wakes up
+            var taken = new List<Vector3>();
             for (int i = 0; i < count; i++)
             {
-                float angle = (arcCenter + ((float)rng.NextDouble() * 2f - 1f) * arcHalf) * Mathf.Deg2Rad;
-                float radius = Mathf.Lerp(rMin, rMax, (float)rng.NextDouble());
-                Vector3 spot = Statement.InWorld(frame, new Vector3(Mathf.Sin(angle) * radius, 0f, Mathf.Cos(angle) * radius));
-                float x = spot.x, z = spot.z;
-                // dropped from a little way up so they tumble into place
-                float y = _world.Terrain.HeightAt(x, z) + 0.4f + i * 0.12f + (float)rng.NextDouble() * 0.5f;
                 float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
-                Color col = hasTint ? tint : Color.white;
-                Create(def, id, new Vector3(x, y, z), Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f), Vector3.one * scale, col);
+                float claim = body * scale;
+                Vector3 spot = Vector3.zero;
+                for (int attempt = 0; attempt < 16; attempt++)
+                {
+                    float angle = (arcCenter + ((float)rng.NextDouble() * 2f - 1f) * arcHalf) * Mathf.Deg2Rad;
+                    float radius = Mathf.Lerp(rMin, rMax + attempt * 0.15f, (float)rng.NextDouble());
+                    spot = Statement.InWorld(frame, new Vector3(Mathf.Sin(angle) * radius, 0f, Mathf.Cos(angle) * radius));
+                    bool clear = true;
+                    foreach (Vector3 other in taken)
+                        if (new Vector2(other.x - spot.x, other.y - spot.z).magnitude < (other.z + claim) * 1.05f) { clear = false; break; }
+                    if (clear) break;
+                }
+                taken.Add(new Vector3(spot.x, spot.z, claim));
+                float y = _world.SurfaceHeight(spot.x, spot.z) + 0.3f + (float)rng.NextDouble() * 0.3f;
+                Create(def, id, new Vector3(spot.x, y, spot.z), Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f), Vector3.one * scale, hasTint ? tint : Color.white);
             }
         }
 
@@ -327,7 +357,8 @@ namespace ImagineVR
 
         /// <summary>How far from the user's head something waiting to be taken still counts as within reach.</summary>
         public const float Reach = 1.5f;
-        const float ComesBackAfter = 2.5f;
+        /// <summary>How far the user walks from something waiting for them before it comes along.</summary>
+        const float LeftBehind = 4f;
 
         /// <summary>A free spot in the air in front of the user, at the height of a hand: where things wait to be taken.</summary>
         Vector3 InReach()
@@ -339,8 +370,10 @@ namespace ImagineVR
             Vector3 origin = head != null ? head.position : new Vector3(0f, 1.6f, 0f);
             int waiting = 0;
             foreach (Prop p in _props) if (p != null && p.Floating && !p.Held && (p.transform.position - origin).magnitude < Reach) waiting++;
-            Vector3 side = Vector3.Cross(Vector3.up, forward) * (((waiting + 1) / 2) * 0.28f * (waiting % 2 == 0 ? 1f : -1f));
-            Vector3 position = origin + forward * 0.5f + side + Vector3.down * 0.32f;
+            // At the hip and off to one side, where a hand finds it and the eyes need not: hung at
+            // chest height straight ahead, a thing the user had put down was "getting in my face".
+            Vector3 side = Vector3.Cross(Vector3.up, forward) * ((waiting / 2 + 1) * 0.3f * (waiting % 2 == 0 ? 1f : -1f));
+            Vector3 position = origin + forward * 0.45f + side + Vector3.down * 0.45f;
             position.y = Mathf.Max(position.y, 0.6f);
             return position;
         }
@@ -442,18 +475,15 @@ namespace ImagineVR
                 Prop p = _props[i];
                 if (p == null) { _props.RemoveAt(i); continue; }
                 Vector3 pos = p.transform.position;
-                // A tool the user was given and has let go of comes back to wait within reach: dropped
-                // by accident it is otherwise lost at their feet or across the street, and they have
-                // to ask for another. Thrown on purpose, it is back in a moment to throw again.
                 // Something waiting to be taken waits where the user can take it. They may have been put
                 // somewhere else since it was hung in the air: set down from a ride, shrunk from a giant
-                // (in the 20:45 session the blaster was left floating overhead), or simply walked off.
+                // (in the 20:45 session the blaster was left floating overhead), or walked well away.
                 if (p.Given && p.Floating && !p.Held && _world.Head != null)
                 {
-                    bool away = (pos - _world.Head.position).magnitude > Reach;
+                    bool away = (pos - _world.Head.position).magnitude > LeftBehind;
                     if (!away) p.AwaySince = -1f;
                     else if (p.AwaySince < 0f) p.AwaySince = Time.time;
-                    else if (Time.time - p.AwaySince > 1f)
+                    else if (Time.time - p.AwaySince > 2f)
                     {
                         Vector3 near = InReach();
                         p.FloatAt(near);
@@ -461,8 +491,14 @@ namespace ImagineVR
                         SessionLog.Write("recover", "asset", p.Def.Id, "id", p.GroupId, "from", pos, "to", near, "why", "waiting out of reach, brought back");
                     }
                 }
-                if (p.Given && p.Def.Tool && !p.Held && !p.Floating && Time.time - p.LetGoAt > ComesBackAfter)
+                // A tool that was THROWN comes back once it has landed, to be thrown again. One that was
+                // put down stays down, where a point and a squeeze of the grip picks it up: coming
+                // back to hang in front of someone who had just dropped it on purpose annoyed everyone.
+                float since = Time.time - p.LetGoAt;
+                if (p.Given && p.Def.Tool && p.Thrown && !p.Held && !p.Floating
+                    && ((since > 1.2f && p.Body.linearVelocity.sqrMagnitude < 0.05f) || since > 4f))
                 {
+                    p.Thrown = false;
                     Vector3 back = InReach();
                     p.Body.linearVelocity = Vector3.zero;
                     p.Body.angularVelocity = Vector3.zero;
@@ -471,6 +507,19 @@ namespace ImagineVR
                     SessionLog.Write("recover", "asset", p.Def.Id, "id", p.GroupId, "from", pos, "to", back, "why", "dropped tool came back to reach");
                     _world.OnGiven(p);
                     continue;
+                }
+                // Nothing loose is lost under the ground. The ground's collider is made a moment after the
+                // ground is (and a fast throw can pass through it): whatever is found below the surface
+                // is stood back on it. With no ground at all, things fall away as they should.
+                if (!p.Held && !p.Floating && !p.Body.isKinematic && (_world.Terrain.HasGround || !float.IsNaN(_world.Structures.FloorAt(pos))))
+                {
+                    float ground = _world.SurfaceHeight(pos.x, pos.z);
+                    if (pos.y < ground - 0.5f)
+                    {
+                        p.Body.position = p.transform.position = new Vector3(pos.x, ground + 0.05f - p.Def.Bounds.min.y * p.transform.localScale.y, pos.z);
+                        p.Body.linearVelocity = new Vector3(p.Body.linearVelocity.x * 0.5f, 0f, p.Body.linearVelocity.z * 0.5f);
+                        continue;
+                    }
                 }
                 if (pos.y < -30f || pos.sqrMagnitude > 250f * 250f)
                 {
