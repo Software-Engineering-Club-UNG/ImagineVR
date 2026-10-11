@@ -99,7 +99,7 @@ namespace ImagineVR
         readonly List<GameObject> _strokes = new List<GameObject>();
         static readonly Dictionary<int, PhysicsMaterial> Materials = new Dictionary<int, PhysicsMaterial>();
         Material _stroke;
-        float _gravity = 1f;
+        float _gravity = 1f, _lastShotBurst = -1f;
         int _auto;
 
         public IReadOnlyList<Prop> All => _props;
@@ -223,14 +223,17 @@ namespace ImagineVR
 
         string NextId(string kind) => kind + "_p" + (++_auto);
 
-        public void SpawnPhysics(Statement s, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale)
+        /// <summary>One loose thing, or a run of them when the statement says `repeat`: a row of pins, a stack of crates.</summary>
+        public void SpawnPhysics(Statement s, AssetDef def, List<Pose> copies, Vector3 scale)
         {
             string id = s.Str("id") ?? NextId("spawn");
             Remove(id);
-            float ground = _world.SurfaceHeight(position.x, position.z);
-            Vector3 p = new Vector3(position.x, ground + position.y + 0.05f, position.z);
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
-            Create(def, id, p, rotation, scale, tint);
+            foreach (Pose copy in copies)
+            {
+                float ground = _world.SurfaceHeight(copy.position.x, copy.position.z);
+                Create(def, id, new Vector3(copy.position.x, ground + copy.position.y + 0.05f, copy.position.z), copy.rotation, scale, tint);
+            }
         }
 
         /// <summary>A physics prop made by a kit. It is removed with the kit.</summary>
@@ -584,10 +587,17 @@ namespace ImagineVR
             trail.emitting = false;
         }
 
-        /// <summary>Glowing balls fired from a toy gun. They bounce and knock things over; each gun fires them its own way.</summary>
-        public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null)
+        /// <summary>
+        /// Glowing balls fired from a toy gun. They bounce and knock things over; each gun fires them its own way.
+        /// A shot starts with its middle on the muzzle and passes through the gun it came from (`from`):
+        /// a made gun's muzzle is the very end of its barrel, so every shot began inside the gun's
+        /// own body, counted as a hit on it and was gone before it had moved.
+        /// </summary>
+        public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null, Prop from = null)
         {
-            AssetDef def = Library.Asset("energy_ball") ?? Library.Asset("sphere");
+            // a gun may throw anything: fish, arrows, a cow. Whatever it is, it is still a shot, and what it strikes is hit.
+            AssetDef thrown = gun != null && gun.ShotAsset.Length > 0 ? Library.FindAsset(gun.ShotAsset) : null;
+            AssetDef def = thrown ?? Library.Asset("energy_ball") ?? Library.Asset("sphere");
             int pellets = gun != null ? Mathf.Max(1, gun.Pellets) : 1;
             float speed = gun != null ? gun.ShotSpeed : 20f, size = gun != null ? gun.ShotSize : 1f, life = gun != null ? gun.ShotLife : 6f;
             direction = direction.normalized;
@@ -595,14 +605,28 @@ namespace ImagineVR
             {
                 Vector3 aim = direction;
                 if (gun != null && gun.Spread > 0f) aim = Quaternion.Euler(Random.Range(-gun.Spread, gun.Spread), Random.Range(-gun.Spread, gun.Spread), 0f) * aim;
-                Prop shot = Create(def, "shot", position + aim * (0.02f * i), Quaternion.identity, Vector3.one * size, color);
+                Quaternion facing = thrown != null ? Quaternion.LookRotation(aim) : Quaternion.identity;
+                Color tint = thrown != null && (gun == null || !gun.ShotColored) ? Color.white : color;
+                Prop shot = Create(def, "shot", position + aim * (0.02f * i) - facing * def.Bounds.center * size, facing, Vector3.one * size, tint);
+                if (from != null)
+                {
+                    Collider own = shot.GetComponent<Collider>();
+                    foreach (Collider c in from.GetComponentsInChildren<Collider>()) Physics.IgnoreCollision(own, c);
+                }
                 shot.Body.useGravity = true;
                 shot.Body.linearVelocity = aim * speed;
                 Object.Destroy(shot.gameObject, life);
             }
             Sfx.Play(gun != null ? gun.ShotSound : "zap", position, 0.75f, 0.92f + Random.value * 0.2f);
             Color flash = color; flash.a = 1f;
-            Fx.Burst(position, flash, Color.white, pellets > 1 ? 14 : 6, pellets > 1 ? 3.5f : 2.2f, 0.035f, 0.09f, 0f, true);
+            if (gun != null && gun.ShotBurst.Length > 0)
+            {
+                // not with every round of a fast gun: a burst is dozens of particles
+                if (Time.time - _lastShotBurst < 0.12f) return;
+                _lastShotBurst = Time.time;
+                Rules.Burst(gun.ShotBurst, position + direction * 0.15f, gun.ShotColored ? flash : (Color?)null);
+            }
+            else Fx.Burst(position, flash, Color.white, pellets > 1 ? 14 : 6, pellets > 1 ? 3.5f : 2.2f, 0.035f, 0.09f, 0f, true);
         }
     }
 }

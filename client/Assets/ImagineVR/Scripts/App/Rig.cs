@@ -51,7 +51,7 @@ namespace ImagineVR
         internal void OnFlailed(Prop prop, bool right) { Flailed?.Invoke(prop, right); }
 
         InputAction _talk, _alt, _menu, _fold, _gripL, _gripR, _triggerL, _triggerR, _stickL, _stickR, _stickClick;
-        InputAction _posL, _rotL, _posR, _rotR, _look, _lookHold;
+        InputAction _posL, _rotL, _posR, _rotR, _aimL, _aimR, _look, _lookHold;
         TrackedPoseDriver _headDriver;
         float _yaw, _pitch;
         bool _floorSet;
@@ -125,6 +125,8 @@ namespace ImagineVR
             _rotL = Pose("RotL", "<XRController>{LeftHand}/deviceRotation", "Quaternion");
             _posR = Pose("PosR", "<XRController>{RightHand}/devicePosition", "Vector3");
             _rotR = Pose("RotR", "<XRController>{RightHand}/deviceRotation", "Quaternion");
+            _aimL = Pose("AimL", "<XRController>{LeftHand}/pointerRotation", "Quaternion");
+            _aimR = Pose("AimR", "<XRController>{RightHand}/pointerRotation", "Quaternion");
             _look = new InputAction("Look", InputActionType.Value, "<Mouse>/delta", expectedControlType: "Vector2");
             _look.Enable();
             _lookHold = Button("LookHold", "<Mouse>/rightButton", null);
@@ -221,6 +223,7 @@ namespace ImagineVR
                 DesktopLook();
             }
             UpdateHandPoses();
+            if (Stick.magnitude > 0.5f || MoveStick.magnitude > 0.5f) ActedAt = Time.time;
 
             // every press goes in the session log, so a test can be replayed from it
             if (TalkPressed) SessionLog.Write("press", "button", "talk");
@@ -285,6 +288,23 @@ namespace ImagineVR
             return q.x == 0f && q.y == 0f && q.z == 0f && q.w == 0f ? Quaternion.identity : q;
         }
 
+        /// <summary>
+        /// The turn from the way a hand lies to the way its controller points. The hand follows the
+        /// fist (a sword's blade leaves the top of it), and a controller points well below that, so
+        /// a gun held like a sword has its barrel in the air. Nothing to turn by when no headset
+        /// is on, or when the controller does not say where it points.
+        /// </summary>
+        public Quaternion AimOffset(bool right)
+        {
+            if (!XrActive) return Quaternion.identity;
+            Quaternion aim = (right ? _aimR : _aimL).ReadValue<Quaternion>();
+            if (aim.x == 0f && aim.y == 0f && aim.z == 0f && aim.w == 0f) return Quaternion.identity;
+            return Quaternion.Inverse((right ? RightHand : LeftHand).localRotation) * aim;
+        }
+
+        /// <summary>When the user last did something in the world with their hands or the stick.</summary>
+        public float ActedAt { get; internal set; } = -100f;
+
         public void Haptic(bool right, float amplitude, float seconds)
         {
             if (!XrActive) return;
@@ -318,6 +338,8 @@ namespace ImagineVR
         Quaternion _lastRot = Quaternion.identity;
         Vector3 _gripOffset;
         Quaternion _gripRotation = Quaternion.identity;
+        bool _aimed;          // a gun: its barrel follows where the controller points, not the fist
+        static readonly Quaternion ToolGrip = Quaternion.Euler(90f, 0f, 0f);
         float _fly = 1f;
         TrailRenderer _stroke;
         Transform _tip;
@@ -502,7 +524,10 @@ namespace ImagineVR
         void Grab(Prop prop, string how)
         {
             Near(null);
-            SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "took", "asset", prop.Def.Id, "id", prop.GroupId, "how", how, "given", prop.Given);
+            _aimed = prop.Def.Tool && prop.Def.HasMuzzle;
+            SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "took", "asset", prop.Def.Id, "id", prop.GroupId, "how", how, "given", prop.Given,
+                "aim", _aimed ? (object)_rig.AimOffset(_right).eulerAngles : null);
+            _rig.ActedAt = Time.time;
             if (World.Instance != null) World.Instance.Rules.Fire("grab", Rules.Of(prop));
             _held = prop;
             prop.Holder = this;
@@ -510,9 +535,9 @@ namespace ImagineVR
             prop.Body.isKinematic = true;
             if (prop.Def.Tool)
             {
-                // a tool's handle sits in the fist and its length runs along the controller's forward axis
+                // a tool's handle sits in the fist and its length runs out of the top of it, as a sword's does
                 _gripOffset = Vector3.zero;
-                _gripRotation = Quaternion.Euler(90f, 0f, 0f);
+                _gripRotation = ToolGrip;
             }
             else if (prop.Def.Holdable)
             {
@@ -571,7 +596,7 @@ namespace ImagineVR
         }
 
         Vector3 TargetPosition => transform.TransformPoint(_gripOffset);
-        Quaternion TargetRotation => transform.rotation * _gripRotation;
+        Quaternion TargetRotation => transform.rotation * (_aimed ? _rig.AimOffset(_right) * ToolGrip : _gripRotation);
 
         void FixedUpdate()
         {
@@ -598,6 +623,7 @@ namespace ImagineVR
             if (pressed && !_using)
             {
                 _using = true;
+                _rig.ActedAt = Time.time;
                 _replaceUse = World.Instance != null && World.Instance.Rules.Fire("use", Rules.Of(prop));
                 SessionLog.Write("use", "hand", _right ? "right" : "left", "asset", prop.Def.Id, "id", prop.GroupId, "rule", _replaceUse, "fires", prop.Def.Behavior);
             }
@@ -633,7 +659,7 @@ namespace ImagineVR
                         _lastShot = Time.time;
                         Color c = prop.Tint != Color.white ? prop.Tint : gun.ShotColored ? gun.ShotColor : Pal.Neon;
                         Vector3 muzzle = gun.HasMuzzle ? TargetPosition + TargetRotation * Vector3.Scale(gun.Muzzle, prop.transform.localScale) : tipPosition + aim * 0.1f;
-                        prop.System.Fire(muzzle, aim, c, gun);
+                        prop.System.Fire(muzzle, aim, c, gun, prop);
                         _rig.Haptic(_right, gun.Pellets > 1 ? 1f : 0.8f, gun.Pellets > 1 ? 0.12f : 0.06f);
                     }
                     break;

@@ -261,14 +261,18 @@ namespace ImagineVR
             return result;
         }
 
-        void AddWrapped(string prefixRich, int prefixLength, string color, string text, float speed, bool tick = false)
+        /// <summary>Prints text over as many lines as it needs, and returns the first of them.</summary>
+        Line AddWrapped(string prefixRich, int prefixLength, string color, string text, float speed, bool tick = false)
         {
             List<string> parts = Wrap(Plain(text), _cols - prefixLength);
+            Line first = null;
             for (int i = 0; i < parts.Count; i++)
             {
                 string lead = i == 0 ? prefixRich : new string(' ', prefixLength);
-                Add(lead + Tag(color, parts[i]), prefixLength + parts[i].Length, speed, tick);
+                Line line = Add(lead + Tag(color, parts[i]), prefixLength + parts[i].Length, speed, tick);
+                if (i == 0) first = line;
             }
+            return first;
         }
 
         public void Blank() { Add("", 0, 1000f); }
@@ -280,9 +284,8 @@ namespace ImagineVR
         public object Prompt(string text)
         {
             Blank();
-            int first = _lines.Count;
-            AddWrapped(Tag(Accent, ">") + " ", 2, Bright, text, 120f);
-            return _lines[first];
+            // (not found by its place in the list: once the list is full, adding a line drops the oldest)
+            return AddWrapped(Tag(Accent, ">") + " ", 2, Bright, text, 120f);
         }
 
         /// <summary>Replaces the text of a prompt line created earlier (used once speech is transcribed).</summary>
@@ -405,6 +408,9 @@ namespace ImagineVR
         }
 
         public void Toggle() { SetCollapsed(!Collapsed); }
+
+        /// <summary>True while something printed is still being typed out.</summary>
+        public bool Printing => _revealing < _lines.Count;
 
         /// <summary>Wipes everything printed so far, as when the app has just started.</summary>
         public void Clear()

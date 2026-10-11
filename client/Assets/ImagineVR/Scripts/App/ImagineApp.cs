@@ -106,6 +106,52 @@ namespace ImagineVR
             World.Happened += OnWorldEvent;
             World.Emptied += Conductor.ResetFirstLight;
             Conductor.TurnEnded += _ => NextIdea();
+            Conductor.Showing += OnShowing;
+            Conductor.TurnEnded += OnTurnEnded;
+        }
+
+        // ------------------------------------------------------------------ the terminal gets out of the way
+        //
+        // The window is for watching a reply being written and a place being built. Once that is
+        // done it is a board hung in front of whatever was just made, so it folds itself down to
+        // its status strip: a few seconds after the last word has been typed, or at once when the
+        // user starts doing something. The strip is where listening and thinking show, so talking
+        // does not bring the window back; the first line of a reply does. In the dark room there
+        // is nothing else to look at and it stays open. The fold button still works: what the user
+        // chooses with it stands until the next reply has come and gone.
+
+        const float ReadSeconds = 4f;
+        float _foldAt = -1f, _endedAt;
+        bool _foldChosen;
+
+        void OnShowing()
+        {
+            _foldAt = -1f;
+            if (!_foldChosen) Terminal.SetCollapsed(false);
+        }
+
+        void OnTurnEnded(bool changedWorld)
+        {
+            _foldChosen = false;
+            _endedAt = Time.time;
+            _foldAt = Time.time + ReadSeconds;
+        }
+
+        void AutoFold()
+        {
+            if (Rig.FoldPressed && !Typing)
+            {
+                Terminal.Toggle();
+                _foldChosen = true;
+                _foldAt = -1f;
+            }
+            if (_foldAt < 0f || Conductor.Busy) return;
+            // nothing built to get out of the way of, or something wrong they should read
+            if (World.IsDark || Terminal.State == TerminalState.Problem) { _foldAt = -1f; return; }
+            if (Terminal.Printing) _foldAt = Mathf.Max(_foldAt, Time.time + ReadSeconds);
+            if (Time.time < _foldAt && Rig.ActedAt <= _endedAt) return;
+            _foldAt = -1f;
+            Terminal.SetCollapsed(true);
         }
 
         /// <summary>
@@ -310,7 +356,7 @@ namespace ImagineVR
             Sample();
             DarkRoomSound();
 
-            if (Rig.FoldPressed && !Typing) Terminal.Toggle();
+            AutoFold();
 
             // X (or R): a tap recentres the terminal, and holding it down resets everything
             if (Rig.MenuPressed && !Typing)
@@ -383,6 +429,8 @@ namespace ImagineVR
             World.ResetEverything(1.5f);   // also lets go of whatever is in the hands
 
             Terminal.Clear();
+            _foldAt = -1f;
+            _foldChosen = false;
             Terminal.SetCollapsed(false);
             Terminal.SetState(TerminalState.Ready);
             Terminal.SetMic(0f);

@@ -442,6 +442,7 @@ class Checker:
                 "spread": num(fires.get("spread"), 0, 30),
                 "color": color(fires.get("color")),
                 "muzzle": vec(fires.get("muzzle"), 3, -5, 5),
+                "shoots": self._shoots(fires.get("shoots") or fires.get("projectile")),
             }.items() if v is not None}
         if out["kind"] == "tool":
             out["grip"] = vec(raw.get("grip"), 3, -5, 5)
@@ -449,6 +450,14 @@ class Checker:
         if name in self.missing:
             self.missing.remove(name)
         return out
+
+    def _shoots(self, value) -> str | None:
+        """What a gun throws in place of a ball of light: a kind of burst, or any asset there is."""
+        name = name_of(value)
+        if not name or name in BURSTS:
+            return name or None
+        found = self.asset(name, strict=False)
+        return found if found and self.knows(found) else None
 
     # ---- putting things in the world
 

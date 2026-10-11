@@ -245,6 +245,15 @@ namespace ImagineVR
             }
         }
 
+        public static bool IsBurst(string kind)
+        {
+            switch (kind)
+            {
+                case "confetti": case "sparks": case "smoke": case "sparkles": case "dust": case "splash": case "fire": return true;
+                default: return false;
+            }
+        }
+
         public static void Burst(string kind, Vector3 at, Color? color = null)
         {
             switch (kind)
