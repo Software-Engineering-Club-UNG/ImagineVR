@@ -128,6 +128,8 @@ namespace ImagineVR
         public Vector3 Muzzle;                  // where a shot leaves, in the model's own space
         public bool HasMuzzle;
         public string ShotSound = "zap";
+        public string ShotAsset = "";           // what leaves the barrel in place of a ball of light: any asset, made ones too
+        public string ShotBurst = "";           // a burst at the muzzle with each shot: confetti, fire, sparks...
         public float FireEvery = 0.15f;         // seconds between shots
         public bool Automatic;                  // keeps firing while the trigger is held
         public float ShotSpeed = 20f, ShotSize = 1f, ShotLife = 6f, Spread;

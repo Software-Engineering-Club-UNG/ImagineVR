@@ -45,6 +45,17 @@ def test_a_make_with_faults_still_makes_something():
     assert c.check({"op": "scatter", "asset": "fire_truck", "count": 3, "behavior": "wander"})["behavior"] == "wander"
 
 
+def test_a_gun_may_shoot_a_burst_or_anything_there_is():
+    c = checker()
+    def shoots(value):
+        return c.check({"op": "make", "name": "g", "parts": [{"shape": "cube"}], "fires": {"shoots": value}})["fires"].get("shoots")
+    assert shoots("confetti") == "confetti"
+    assert shoots("sheep") == "sheep"
+    assert shoots("no such thing at all") is None, "an unknown name is dropped, and the gun fires light"
+    c.check({"op": "make", "name": "arrow", "parts": [{"shape": "cone"}]})
+    assert shoots("arrow") == "arrow", "something made earlier in the reply counts"
+
+
 def test_something_that_fires_is_a_tool():
     out = checker().check({"op": "make", "name": "raygun", "parts": [{"shape": "cube"}], "fires": {"sound": "laser", "every": 0.001, "auto": "true"}})
     assert out["kind"] == "tool" and out["fires"] == {"sound": "zap", "every": 0.05, "auto": True}

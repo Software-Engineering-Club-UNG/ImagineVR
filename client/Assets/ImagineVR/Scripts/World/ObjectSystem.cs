@@ -274,7 +274,10 @@ namespace ImagineVR
             }
             if (!free && def.Airborne && pos.y < 1f) pos.y = 6f;
 
-            float yaw = Mathf.Atan2(-pos.x, -pos.z) * Mathf.Rad2Deg + s.Num("rot_y", 0f);
+            // A thing turns to face the user. A plain shape does not: it is a building block (a lane, a
+            // wall, a counter) and lies square to them, its width across and its depth away as written.
+            // Turned to face them, every stretched block off to one side came out skewed.
+            float yaw = (def.Primitive ? 0f : Mathf.Atan2(-pos.x, -pos.z) * Mathf.Rad2Deg) + s.Num("rot_y", 0f);
             Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
             if (s.TryVec3("rot", out Vector3 euler)) rot = Quaternion.Euler(euler.x, yaw + euler.y, euler.z);
 
@@ -286,7 +289,7 @@ namespace ImagineVR
 
             if (s.Flag("physics") && _world.Props != null && (def.Prop || def.Primitive))
             {
-                _world.Props.SpawnPhysics(s, def, pos, rot, scale);
+                _world.Props.SpawnPhysics(s, def, Copies(s, pos, rot), scale);
                 return null;
             }
 
@@ -316,8 +319,8 @@ namespace ImagineVR
 
         /// <summary>
         /// Where one `spawn` stands. Usually a single place, but `repeat` makes a run of copies,
-        /// each a `step` on from the last in the object's own directions (a flight of stairs, a
-        /// colonnade, a row of houses, a stack), and `ring` stands them in a circle of that
+        /// each a `step` on from the last, measured as the user sees it: right, up, away (a flight of
+        /// stairs, a colonnade, a row of houses, a stack), and `ring` stands them in a circle of that
         /// radius, facing its middle (a stone circle, an arena of seats, a ring of torches).
         /// One statement, one object to the limits, however many copies.
         /// </summary>
@@ -338,7 +341,8 @@ namespace ImagineVR
                     // each one turned to look at the middle, then by whatever turn the statement gave it
                     copies.Add(new Pose(pos + spoke * ring + Vector3.up * (step.y * i), Quaternion.LookRotation(-spoke) * Quaternion.Inverse(facing) * rot));
                 }
-                else copies.Add(new Pose(pos + rot * (step * i), rot));
+                // (not in the object's own directions: it faces the user, so its right is their left)
+                else copies.Add(new Pose(pos + facing * (step * i), rot));
             }
             return copies;
         }

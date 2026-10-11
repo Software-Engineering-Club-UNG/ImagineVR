@@ -154,7 +154,6 @@ namespace ImagineVR
             Rig.Grabbed += OnGrabbed;
             Rig.Flailed += OnFlailed;
             Rig.Released += (prop, right) => { if (_drop != null) { _drop.Dismiss(); _drop = null; } };
-            Conductor.TurnEnded += OnTurnEnded;
             if (World.Vehicle != null) World.Vehicle.Mounted += OnMounted;
         }
 
@@ -199,7 +198,7 @@ namespace ImagineVR
                 _folds = TeachFolds;   // they have found it
                 if (_fold != null) { _fold.Dismiss(); _fold = null; }
             }
-            else if (!World.IsDark && Rig.Stick.magnitude > 0.6f) OfferFold();   // walking with the terminal in the way
+            else if (!World.IsDark && !Conductor.Busy && Rig.Stick.magnitude > 0.6f) OfferFold();   // walking with the terminal in the way
         }
 
         bool Moving => World.Vehicle != null && Mathf.Abs(World.Vehicle.Speed) > 0.5f;
@@ -217,11 +216,6 @@ namespace ImagineVR
             string text = Xr ? "push this <b>thumbstick</b> forward to " + go + "  ·  sideways steers" : "<b>W A S D</b> to " + go;
             _ride = Callout.Show(Rig.RightHand, Vector3.zero, 0.2f, text, HandText, 0f);
             SessionLog.Write("hint", "what", "ride", "asset", World.Vehicle.Asset);
-        }
-
-        void OnTurnEnded(bool changedWorld)
-        {
-            if (changedWorld && !World.IsDark) OfferFold();
         }
 
         void OfferFold()

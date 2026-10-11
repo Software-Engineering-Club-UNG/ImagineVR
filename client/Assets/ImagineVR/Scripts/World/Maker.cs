@@ -73,6 +73,10 @@ namespace ImagineVR
                     def.Spread = Mathf.Clamp(f.Num("spread", def.Pellets > 1 ? 5f : 0f), 0f, 30f);
                     def.ShotLife = def.Automatic ? 2.5f : 5f;
                     if (f.TryColor("color", out Color shot)) def.Shoots(shot);
+                    // `shoots`: a kind of burst, or the name of anything at all (looked up when fired, so it may be made later)
+                    string shoots = f.Str("shoots", "");
+                    if (Rules.IsBurst(shoots)) def.ShotBurst = shoots;
+                    else if (shoots != name) def.ShotAsset = shoots;
                     def.Behavior = "blaster";
                 }
             }
