@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import math
 import re
 
 from .catalog import Catalog
+
+log = logging.getLogger("imagine.script")
 
 WORLD_OPS = (
     "think", "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
@@ -599,13 +602,17 @@ class Validator:
                         if not self.catalog.has('asset',e['asset']) and e['asset'] not in registry: raise RuleError('unknown projectile asset; define it first')
                 elif op=='blueprint_edit':
                     strict(raw,('op','selector','blueprint'),('op','selector','blueprint')); selector(raw['selector'])
+                    # the recipe inside an edit is a blueprint whether or not the model repeats the op on it
+                    if isinstance(raw['blueprint'],dict): raw={**raw,'blueprint':{'op':'blueprint',**raw['blueprint']}}
                     out=copy.deepcopy(raw); out['blueprint']=validate_blueprint(_blueprint_coordinates(validate_blueprint(raw['blueprint'],self.catalog),self.frame),self.catalog)
                     for e in out['blueprint'].get('capabilities',{}).get('emitters',[]):
                         if not self.catalog.has('asset',e['asset']) and e['asset'] not in world.blueprints: raise RuleError('unknown projectile asset')
                 else:
                     strict(raw,('op','id'),('op','id')); identifier(raw['id']); out=dict(raw)
                 world.apply(out); return [out]
-            except RuleError as exc: return [_note(f'Blueprint rejected: {exc}; existing objects unchanged.')]
+            except RuleError as exc:
+                log.warning('blueprint rejected (%s): %.2000s', exc, json.dumps(raw, separators=(',', ':')))
+                return [_note(f'Blueprint rejected: {exc}; existing objects unchanged.')]
         if op in ('rule', 'rule_remove'):
             if not self.allow_rules:
                 return [_note('This client does not support runtime rules; update the Unity app.')]
@@ -629,6 +636,7 @@ class Validator:
                 world.apply(out)
                 return [out]
             except RuleError as exc:
+                log.warning('rule rejected (%s): %.2000s', exc, json.dumps(raw, separators=(',', ':')))
                 return [_note(f'Rule rejected: {exc}; previous rule unchanged.')]
         if op not in WORLD_OPS:
             return []  # includes stream ops, which the model may not write

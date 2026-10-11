@@ -148,20 +148,22 @@ namespace ImagineVR
             string kind=BlueprintData.Wrap(config).Str("target",fallback);
             return kind=="player" && World.Head!=null?World.Head.position:(Vector3?)null;
         }
-        public void Fire(string name)
+        public bool Fire(string name)
         {
             var emitter=_emitterDefs.Find(e=>(string)e["name"]==name);
-            if(emitter==null) { World.Rules.Fail("Unknown emitter "+name); return; }
-            if(!_emitters.Contains(name) || Entity==null || !Entity.Alive || Entity.Health==0) return;
+            if(emitter==null) { World.Rules.Fail("Unknown emitter "+name); return false; }
+            if(!_emitters.Contains(name) || Entity==null || !Entity.Alive || Entity.Health==0) return false;
             Statement e=BlueprintData.Wrap(emitter);
-            if(_lastShot.TryGetValue(name,out float last) && Time.time-last<e.Num("cooldown",1)) return;
+            if(_lastShot.TryGetValue(name,out float last) && Time.time-last<e.Num("cooldown",1)) return false;
             string socketPart=(string)BlueprintData.List(Recipe,"sockets").First(s=>(string)s["name"]==e.Str("socket"))["part"];
-            if(!PartVisible(socketPart)) return;
-            Vector3? target=TargetPoint(emitter,"forward"); if(e.Str("target")=="player" && !target.HasValue) return;
-            if(e.Obj("target")!=null && !target.HasValue) return;
-            if(target.HasValue && !World.Rules.LineOfSight(Sockets[e.Str("socket")].position,target.Value,Entity)) return;
-            _lastShot[name]=Time.time; System.Emit(this,emitter);
+            if(!PartVisible(socketPart)) return false;
+            Vector3? target=TargetPoint(emitter,"forward"); if(e.Str("target")=="player" && !target.HasValue) return false;
+            if(e.Obj("target")!=null && !target.HasValue) return false;
+            if(target.HasValue && !World.Rules.LineOfSight(Sockets[e.Str("socket")].position,target.Value,Entity)) return false;
+            _lastShot[name]=Time.time; System.Emit(this,emitter); return true;
         }
+        /// <summary>The trigger of a held thing: every emitter that is switched on fires, each at its own pace.</summary>
+        public int FireHeld() { int shots=0; foreach(string name in _emitters.ToArray()) if(Fire(name)) shots++; return shots; }
         public void Contact(string part,Collider other,bool entering)
         {
             if(Entity==null || !Entity.Alive || !PartVisible(part)) return;

@@ -468,7 +468,11 @@ namespace ImagineVR
             var grip=blueprint!=null?BlueprintData.Wrap(blueprint.Recipe).Obj("capabilities")?.TryGetValue("grip",out object gripData)==true?gripData as Dictionary<string,object>:null:null;
             if(grip!=null)
             {
-                _gripRotation=Quaternion.Euler(BlueprintData.Vec(grip,"rotation",Vector3.zero));
+                // with no rotation asked for, something long and upright (a sword, a torch) runs along the
+                // controller as a baked tool does, and does not stand up out of the fist into the user's face
+                Vector3 size=blueprint.Bounds.size;
+                Vector3 natural=size.y>Mathf.Max(size.x,size.z)*1.5f?new Vector3(90f,0f,0f):Vector3.zero;
+                _gripRotation=Quaternion.Euler(BlueprintData.Vec(grip,"rotation",natural));
                 _gripOffset=-(_gripRotation*Vector3.Scale(BlueprintData.Vec(grip,"position",Vector3.zero),prop.transform.localScale));
             }
             else if (prop.Def.Tool)
@@ -562,8 +566,18 @@ namespace ImagineVR
                 _using = true;
                 RuleBody rule = prop.GetComponent<RuleBody>();
                 _replaceUse = rule != null && rule.Engine.Emit("use_start", rule.Entity);
+                BlueprintActor made = prop.GetComponent<BlueprintActor>();
+                SessionLog.Write("use", "hand", _right ? "right" : "left", "asset", prop.Def.Id, "id", prop.GroupId, "rule", _replaceUse, "emitters", made != null ? made.ActiveEmitters.Count : 0);
             }
             if (_replaceUse) return;
+            // Something built at runtime has no behaviour of its own, so with no rule written for
+            // its trigger, the trigger fires whatever it can fire: a gun shoots because it is a gun.
+            BlueprintActor actor = prop.GetComponent<BlueprintActor>();
+            if (actor != null)
+            {
+                if (pressed && actor.FireHeld() > 0) _rig.Haptic(_right, 0.8f, 0.06f);
+                return;
+            }
             Vector3 tipPosition = TargetPosition + (TargetRotation * Vector3.up) * prop.Length;
             Vector3 aim = TargetRotation * Vector3.up;
             switch (prop.Def.Behavior)

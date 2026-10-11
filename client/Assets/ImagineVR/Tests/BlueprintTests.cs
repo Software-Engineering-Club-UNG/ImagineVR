@@ -35,6 +35,16 @@ namespace ImagineVR.Tests
             _world.Blueprints.DamagePlayer(20); Assert.AreEqual(100,_world.Blueprints.PlayerHealth); _world.Blueprints.PlayerDamageEnabled=true; _world.Blueprints.DamagePlayer(20); Assert.AreEqual(80,_world.Blueprints.PlayerHealth);
             _world.ResetEverything(0); Assert.IsFalse(_world.Blueprints.PlayerDamageEnabled); Assert.AreEqual(100,_world.Blueprints.PlayerHealth);
         }
+        [UnityTest] public IEnumerator HeldThingFiresItsEnabledEmittersWithNoRuleWritten()
+        {
+            // what the model sent in the 20:18 headset session: a gun with an emitter and nothing wired to the trigger
+            _world.Apply(Parse("{\"op\":\"blueprint\",\"id\":\"ray_gun\",\"parts\":[{\"id\":\"body\",\"shape\":\"cube\",\"scale\":[0.05,0.06,0.22],\"collider\":\"box\"}],\"sockets\":[{\"name\":\"muzzle\",\"part\":\"body\",\"position\":[0,0,0.14]}],\"capabilities\":{\"grabbable\":true,\"grip\":{\"position\":[0,-0.06,-0.05]},\"emitters\":[{\"name\":\"shot\",\"socket\":\"muzzle\",\"asset\":\"energy_ball\",\"target\":\"forward\",\"speed\":16,\"cooldown\":0.3,\"enabled\":true},{\"name\":\"spare\",\"socket\":\"muzzle\",\"asset\":\"energy_ball\"}]}}"));
+            _world.Apply(Parse("{\"op\":\"spawn\",\"id\":\"gun\",\"asset\":\"ray_gun\",\"at\":[0,1,5]}")); yield return Finished();
+            var gun=_world.Blueprints.Instances.Single(); int before=Object.FindObjectsByType<BlueprintProjectile>(FindObjectsSortMode.None).Length;
+            Assert.AreEqual(1,gun.FireHeld(),"the enabled emitter fires; the one left switched off does not");
+            Assert.AreEqual(before+1,Object.FindObjectsByType<BlueprintProjectile>(FindObjectsSortMode.None).Length);
+            Assert.AreEqual(0,gun.FireHeld(),"a held trigger waits out the cooldown");
+        }
         [Test] public void ResetCancelsConstruction()
         { Build(); Assert.IsTrue(_world.Blueprints.Busy); _world.ResetEverything(0); Assert.IsFalse(_world.Blueprints.Busy); Assert.IsFalse(_world.Blueprints.Has("test_tool")); }
         [UnityTest] public IEnumerator UnrelatedExampleObjectsShareTheSameCapabilities()
