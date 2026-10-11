@@ -87,6 +87,7 @@ namespace ImagineVR
         public bool Winged;                     // walks when it roams free, and flies when the user rides it
         public string Behavior = "";            // see Prop.cs
         public float Pitch = 1f;                // for things that make a sound when hit
+        public float Stretch;                   // how much taller or shorter one copy in a scatter may be than the next (0.3 = 30%)
 
         Mesh _mesh;
         Bounds _bounds;
@@ -211,6 +212,8 @@ namespace ImagineVR
             {
                 Id = id, Category = category, Size = size, Desc = desc,
                 Tags = Split(tags), Aliases = Split(aliases), Recipe = recipe,
+                // a row of towers or a wood of trees is never all one height
+                Stretch = category == "buildings" ? 0.3f : category == "nature" ? 0.12f : 0f,
             };
             if (Assets.ContainsKey(id)) Debug.LogWarning("ImagineVR: duplicate asset id " + id);
             Assets[id] = def;

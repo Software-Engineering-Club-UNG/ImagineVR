@@ -213,7 +213,7 @@ namespace ImagineVR
             _rides++;
             if (_ride != null) _ride.Dismiss();
             string go = flies ? "fly" : "drive";
-            string text = Xr ? "push this <b>thumbstick</b> forward to " + go + "  ·  sideways steers" : "<b>W A S D</b> to " + go;
+            string text = Xr ? "push this <b>thumbstick</b> forward to " + go + "  ·  sideways steers  ·  pull the <b>left stick</b> back to get off" : "<b>W A S D</b> to " + go + "  ·  hold <b>Q</b> to get off";
             _ride = Callout.Show(Rig.RightHand, Vector3.zero, 0.2f, text, HandText, 0f);
             SessionLog.Write("hint", "what", "ride", "asset", World.Vehicle.Asset);
         }
@@ -260,7 +260,7 @@ namespace ImagineVR
             _uses++;
             if (_use != null) _use.Dismiss();
             string text;
-            if (prop.Def.Tool) text = Xr ? "<b>trigger</b> uses it  ·  hold the <b>grip</b> to let go" : "<b>click</b> uses it  ·  hold <b>E</b> to let go";
+            if (prop.Def.Tool) text = Xr ? "<b>trigger</b> uses it  ·  <b>grip</b>: swing and let go to throw, hold still to put down" : "<b>click</b> uses it  ·  hold <b>E</b> to let go";
             else text = Xr ? "squeeze the <b>grip</b>, then let go to throw" : "hold <b>E</b>, then let go to throw";
             _use = Callout.Show(right ? Rig.RightHand : Rig.LeftHand, Vector3.zero, 0.13f, text, HandText, 7f);
             SessionLog.Write("hint", "what", "use", "asset", prop.Def.Id);

@@ -299,7 +299,7 @@ namespace ImagineVR
 
             if (s.Flag("physics") && _world.Props != null && (def.Prop || def.Primitive))
             {
-                _world.Props.SpawnPhysics(s, def, Copies(s, pos, rot), scale);
+                _world.Props.SpawnPhysics(s, def, Copies(s, pos, rot, RowClear(def, scale)), scale);
                 return null;
             }
 
@@ -315,7 +315,7 @@ namespace ImagineVR
             }
             else if (!Enliven(g, def, pos, scale.y, s.Str("behavior")))
             {
-                foreach (Pose copy in Copies(s, pos, rot))
+                foreach (Pose copy in Copies(s, pos, rot, RowClear(def, scale)))
                 {
                     g.Add(new Placement { Mesh = def.Mesh, Position = copy.position, Rotation = copy.rotation, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
                     if (s.Flag("solid")) Solidify(g, def, copy.position, copy.rotation, scale);
@@ -334,7 +334,19 @@ namespace ImagineVR
         /// radius, facing its middle (a stone circle, an arena of seats, a ring of torches).
         /// One statement, one object to the limits, however many copies.
         /// </summary>
-        static List<Pose> Copies(Statement s, Vector3 pos, Quaternion rot)
+        /// <summary>
+        /// The least a row of copies of this may step along the ground without one standing inside
+        /// the next. Nothing for a plain shape: those are stretched and stacked into steps, walls and
+        /// floors on purpose.
+        /// </summary>
+        static float RowClear(AssetDef def, Vector3 scale)
+        {
+            if (def.Primitive) return 0f;
+            Bounds b = def.Bounds;
+            return Mathf.Min(b.size.x * scale.x, b.size.z * scale.z) * 0.95f;
+        }
+
+        static List<Pose> Copies(Statement s, Vector3 pos, Quaternion rot, float clear = 0f)
         {
             var copies = new List<Pose>();
             int n = Mathf.Clamp(s.Int("repeat", 1), 1, MaxRepeat);
@@ -342,6 +354,10 @@ namespace ImagineVR
             if (n < 2 || (ring <= 0f && !s.Has("step"))) { copies.Add(new Pose(pos, rot)); return copies; }
             Quaternion facing = s.Frame().rotation;
             s.TryVec3("step", out Vector3 step);
+            // a row along the ground written tighter than the things are wide is opened out to fit them
+            float run = new Vector2(step.x, step.z).magnitude;
+            if (ring <= 0f && Mathf.Abs(step.y) < 0.01f && run > 0.01f && run < clear) step *= clear / run;
+            if (ring > 0f && clear > 0f) ring = Mathf.Max(ring, clear * n / (2f * Mathf.PI));
             for (int i = 0; i < n; i++)
             {
                 if (ring > 0f)
@@ -355,6 +371,69 @@ namespace ImagineVR
                 else copies.Add(new Pose(pos + facing * (step * i), rot));
             }
             return copies;
+        }
+
+        // ------------------------------------------------------------------ getting in and on things
+
+        /// <summary>Something made to carry someone: a vehicle, an animal, anything that flies when ridden.</summary>
+        public static bool Rideable(AssetDef def)
+        {
+            return def != null && !def.Primitive && (def.Category == "vehicles" || def.Category == "animals" || def.FliesRidden);
+        }
+
+        /// <summary>
+        /// The nearest thing to ride that a hand is pointing at: any parked car, tethered horse or
+        /// landed saucer standing in the world, whichever statement put it there.
+        /// </summary>
+        public bool PointedAt(Vector3 origin, Vector3 direction, float reach, out Group group, out int index)
+        {
+            group = null; index = -1;
+            float best = float.MaxValue;
+            foreach (Group g in _order)
+            {
+                AssetDef def = g.Asset != null ? Library.FindAsset(g.Asset) : null;
+                if (!Rideable(def)) continue;
+                Bounds b = def.Bounds;
+                for (int i = 0; i < g.Items.Count; i++)
+                {
+                    Placement p = g.Items[i];
+                    if (!p.Grounded) continue;
+                    float size = Mathf.Max(p.Scale.x, p.Scale.y, p.Scale.z) * g.Scale;
+                    float radius = Mathf.Max(b.extents.magnitude * size * 0.6f, 0.5f);
+                    Vector3 centre = new Vector3(p.Position.x, _world.SurfaceHeight(p.Position.x, p.Position.z) + p.Position.y + b.center.y * size, p.Position.z);
+                    float along = Vector3.Dot(centre - origin, direction);
+                    if (along < -radius || along > reach + radius) continue;
+                    float off = (origin + direction * Mathf.Max(along, 0f) - centre).magnitude;
+                    if (off < radius && along < best) { best = along; group = g; index = i; }
+                }
+            }
+            return group != null;
+        }
+
+        /// <summary>Takes one standing thing out of the world (it is about to be ridden away), with the body it was given.</summary>
+        public Placement Take(Group g, int index)
+        {
+            Placement p = g.Items[index];
+            g.Items.RemoveAt(index);
+            g.Dirty = true;
+            for (int i = g.Extras.Count - 1; i >= 0; i--)
+            {
+                GameObject extra = g.Extras[i];
+                if (extra == null || extra.name != "Solid" || Flat(extra.transform.position - p.Position).sqrMagnitude > 0.01f) continue;
+                UnityEngine.Object.Destroy(extra);
+                g.Extras.RemoveAt(i);
+            }
+            return p;
+        }
+
+        /// <summary>Leaves a thing standing where its rider got off it, to be got back onto.</summary>
+        public Group Park(AssetDef def, Vector3 position, float yaw, Color tint)
+        {
+            Group g = Begin("parked_" + def.Id, "spawn", Statement.Make("spawn", "id", "parked_" + def.Id, "asset", def.Id), 0.3f);
+            g.Asset = def.Id;
+            g.Tint = tint;
+            g.Add(new Placement { Mesh = def.Mesh, Position = new Vector3(position.x, 0f, position.z), Rotation = Quaternion.Euler(0f, yaw, 0f), Scale = Vector3.one, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
+            return g;
         }
 
         static string RootOf(string id)
@@ -404,6 +483,182 @@ namespace ImagineVR
             return g;
         }
 
+        /// <summary>How much ground one of these takes: the radius of the circle it is kept clear by.</summary>
+        static float Radius(AssetDef def)
+        {
+            Bounds b = def.Bounds;
+            // something long and thin (a bus, a fence) is not given a circle as wide as it is long
+            return Mathf.Lerp(Mathf.Min(b.extents.x, b.extents.z), Mathf.Max(b.extents.x, b.extents.z), 0.75f);
+        }
+
+        /// <summary>
+        /// The circles of ground already taken by what other statements put down: x, z, radius. Only
+        /// things of some size that stand up from the ground count: not grass, not a plain shape laid
+        /// as a floor or a road, not what flies.
+        /// </summary>
+        List<Vector4> Standing(Group self)
+        {
+            var result = new List<Vector4>();
+            foreach (Group g in _order)
+            {
+                if (g == self || g.Id.StartsWith(World.Cover, StringComparison.Ordinal)) continue;
+                AssetDef def = g.Asset != null ? Library.FindAsset(g.Asset) : null;
+                // what lies flat (a road, a rug, a marking) is stood on, not stood clear of
+                if (def == null || def.Primitive || def.Airborne || def.Bounds.size.y < 0.3f) continue;
+                float radius = Radius(def);
+                foreach (Placement p in g.Items)
+                {
+                    float r = radius * Mathf.Max(p.Scale.x, p.Scale.z) * g.Scale;
+                    if (r >= 0.5f && p.Grounded && p.Position.y < 1f) result.Add(new Vector4(p.Position.x, p.Position.z, r, 0f));
+                }
+            }
+            return result;
+        }
+
+        static float Yaw(string side) => side == "east" ? 90f : side == "south" ? 180f : side == "west" ? 270f : 0f;
+
+        /// <summary>
+        /// Where many of one thing stand in a room. `rows`: a tidy grid across the floor, all facing
+        /// one way, with an aisle down the middle when the room is wide enough for one (desks, seats,
+        /// beds, pews). `walls`: lined up against the walls, facing in, clear of the doorways
+        /// (lockers, shelves, machines). Otherwise spread over the floor, clear of each other and of
+        /// the doorways. A grid depends only on the room and the count, so two scatters of the same
+        /// count pair up: chairs shifted a little by `at` sit behind their desks.
+        /// Positions come back in the world, with y as height above the room's floor.
+        /// </summary>
+        public static List<Pose> InRoom(StructureSystem.Room room, Pose pose, Statement s, AssetDef def, int count, string arrange, float gap, float scale, System.Random rng)
+        {
+            var spots = new List<Pose>();
+            Bounds b = def.Bounds;
+            float half = Mathf.Max(b.extents.x, b.extents.z) * scale, wide = b.size.x * scale, deep = b.size.z * scale;
+            s.TryVec3("at", out Vector3 shift);
+            void Put(float x, float z, float yaw)
+            {
+                var local = new Vector3(x + shift.x, 0f, z + shift.z);
+                Vector3 world = pose.position + pose.rotation * local;
+                spots.Add(new Pose(new Vector3(world.x, shift.y, world.z), pose.rotation * Quaternion.Euler(0f, yaw + s.Num("rot_y", 0f), 0f)));
+            }
+
+            if (arrange == "rows")
+            {
+                string face = s.Str("face", "north");
+                bool sideways = face == "east" || face == "west";
+                float across = (sideways ? room.Size.z : room.Size.x) - 1.2f, along = (sideways ? room.Size.x : room.Size.z) - 1.6f;
+                across = Mathf.Max(across, 0.5f); along = Mathf.Max(along, 0.5f);
+                int cols = Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(count * across / along)), 1, count);
+                cols = Mathf.Min(cols, Mathf.Max(1, Mathf.FloorToInt(across / Mathf.Max(wide * 1.05f, 0.1f))));
+                bool aisle = across >= 4f && cols >= 2;
+                if (aisle) { across -= 1.1f; cols = Mathf.Max(2, cols - cols % 2); }
+                int lines = Mathf.Min(Mathf.CeilToInt(count / (float)cols), Mathf.Max(1, Mathf.FloorToInt(along / Mathf.Max(deep * 1.05f, 0.1f))));
+                float pitchX = Mathf.Min(across / cols, gap >= 0f ? wide + gap : 2.2f), pitchZ = Mathf.Min(along / lines, gap >= 0f ? deep + gap : 2.2f);
+                Quaternion turn = Quaternion.Euler(0f, Yaw(face), 0f);
+                for (int i = 0; i < Mathf.Min(count, cols * lines); i++)
+                {
+                    int c = i % cols, line = i / cols;
+                    float x = (c - (cols - 1) * 0.5f) * pitchX;
+                    if (aisle) x += x < 0f ? -0.55f : 0.55f;
+                    // the first line is the one nearest what they all face
+                    Vector3 at = turn * new Vector3(x, 0f, ((lines - 1) * 0.5f - line) * pitchZ);
+                    Put(at.x, at.z, Yaw(face));
+                }
+                return spots;
+            }
+
+            if (arrange == "walls")
+            {
+                // every stretch of wall something can stand against: not the corners, not a doorway
+                var runs = new List<(string side, float lo, float hi)>();
+                float total = 0f;
+                foreach (string side in new[] { "west", "north", "east", "south" })
+                {
+                    float width = (side == "north" || side == "south" ? room.Size.x : room.Size.z) - 0.6f - deep * 2f;
+                    if (width < wide) continue;
+                    if (room.OpenSides.Contains(side))
+                    {
+                        float part = width / 2f - 1f;
+                        if (part >= wide) { runs.Add((side, -width / 2f, -1f)); runs.Add((side, 1f, width / 2f)); total += part * 2f; }
+                    }
+                    else { runs.Add((side, -width / 2f, width / 2f)); total += width; }
+                }
+                if (runs.Count == 0) return spots;
+                float pitch = Mathf.Max(total / count, wide + (gap >= 0f ? gap : 0.06f));
+                foreach (var run in runs)
+                {
+                    int fit = Mathf.FloorToInt((run.hi - run.lo + 0.001f) / pitch);
+                    float spare = (run.hi - run.lo) - fit * pitch;
+                    for (int k = 0; k < fit && spots.Count < count; k++)
+                    {
+                        float along = run.lo + spare / 2f + (k + 0.5f) * pitch;
+                        float off = (run.side == "north" || run.side == "south" ? room.Size.z : room.Size.x) / 2f - deep / 2f - 0.14f;
+                        Vector3 at = Quaternion.Euler(0f, Yaw(run.side), 0f) * new Vector3(along, 0f, off);
+                        Put(at.x, at.z, Yaw(run.side) + 180f);   // its back to the wall
+                    }
+                }
+                return spots;
+            }
+
+            // loose: anywhere on the floor that is clear of the others and of the ways in and out
+            float spanX = Mathf.Max(room.Size.x / 2f - half - 0.3f, 0f), spanZ = Mathf.Max(room.Size.z / 2f - half - 0.3f, 0f);
+            float apart = half * 2f + (gap >= 0f ? gap : Mathf.Min(half * 0.5f, 0.4f));
+            var placed = new List<Vector2>();
+            for (int i = 0; i < count; i++)
+                for (int attempt = 0; attempt < 40; attempt++)
+                {
+                    var at = new Vector2(((float)rng.NextDouble() * 2f - 1f) * spanX, ((float)rng.NextDouble() * 2f - 1f) * spanZ);
+                    bool clear = true;
+                    foreach (Vector2 other in placed) if ((other - at).sqrMagnitude < apart * apart) { clear = false; break; }
+                    foreach (string side in room.OpenSides)
+                    {
+                        Vector3 door = Quaternion.Euler(0f, Yaw(side), 0f) * new Vector3(0f, 0f, (side == "north" || side == "south" ? room.Size.z : room.Size.x) / 2f);
+                        if ((new Vector2(door.x, door.z) - at).magnitude < 1.3f + half) clear = false;
+                    }
+                    if (!clear) continue;
+                    placed.Add(at);
+                    Put(at.x, at.y, (float)rng.NextDouble() * 360f);
+                    break;
+                }
+            return spots;
+        }
+
+        // The pitch the first rows of big things were laid at. Later rows of a like size fall on the
+        // same grid, so the lanes between one statement's blocks line up with the next one's.
+        float _rowPitch;
+
+        /// <summary>
+        /// Rows over open ground: a square grid with lanes between, squared up to the way the user
+        /// faced: city blocks with streets to drive down, an orchard, a car park, graves, tents, an
+        /// army. The user stands where two lanes cross. Nearest places first.
+        /// </summary>
+        List<Pose> InRows(Pose frame, AssetDef def, int count, float gap, float scale, string area, float rMin, float rMax, System.Random rng)
+        {
+            Bounds b = def.Bounds;
+            float span = Mathf.Max(b.size.x, b.size.z) * scale;
+            float pitch = span + (gap >= 0f ? gap : Mathf.Clamp(span * 0.8f, 1f, 14f));
+            if (gap < 0f && span >= 3f)
+            {
+                if (_rowPitch > 0f && span <= _rowPitch - 3f && span >= _rowPitch * 0.3f) pitch = _rowPitch;
+                else _rowPitch = pitch;
+            }
+            int reach = Mathf.Min(Mathf.CeilToInt(108f / pitch), 40);
+            var cells = new List<Vector3>();
+            for (int i = -reach; i < reach; i++)
+                for (int j = -reach; j < reach; j++)
+                {
+                    var cell = new Vector3((i + 0.5f) * pitch, 0f, (j + 0.5f) * pitch);
+                    float d = cell.magnitude;
+                    if (d + span * 0.5f > 108f || d < rMin || d > rMax || d < World.SafeRadius + span * 0.5f) continue;
+                    if ((area == "front" && cell.z < 0f) || (area == "behind" && cell.z > 0f) || (area == "left" && cell.x > 0f) || (area == "right" && cell.x < 0f)) continue;
+                    if (area == "edges" && d < 60f) continue;
+                    cells.Add(cell);
+                }
+            cells.Sort((p, q) => p.sqrMagnitude.CompareTo(q.sqrMagnitude));
+            var spots = new List<Pose>();
+            // more places than asked for are offered: some will turn out to be taken, or under water
+            for (int k = 0; k < cells.Count && spots.Count < count * 2 + 8; k++)
+                spots.Add(new Pose(Statement.InWorld(frame, cells[k]), frame.rotation * Quaternion.Euler(0f, rng.Next(4) * 90f, 0f)));
+            return spots;
+        }
+
         /// <summary>Fills a scatter. The same seed always gives the same first N positions, so raising the count only adds.</summary>
         void Populate(Group g, Statement s, AssetDef def, int count)
         {
@@ -430,6 +685,22 @@ namespace ImagineVR
                 default: rMin = 6f; rMax = 60f; break;
             }
             bool sky = area == "sky" || def.Airborne;
+            bool cover = g.Id.StartsWith(World.Cover, StringComparison.Ordinal);
+            float body = Radius(def);   // how much ground one of them takes, at scale 1
+
+            // Inside an interior a scatter belongs to a room: the one it names, or (said without one
+            // by someone standing indoors, and not flung further than the room is big) the one they are in.
+            StructureSystem.Room room = null;
+            Pose roomPose = Pose.identity;
+            if (s.Has("room")) _world.Structures.TryRoom(s.Str("room"), out room, out roomPose);
+            else if (!sky && area != "edges" && !cover && !s.Has("along"))
+            {
+                // (a scatter with no reach given, or a long one, is the country outside: trees round a house)
+                StructureSystem.Room here = _world.Structures.RoomAt(frame.position);
+                bool close = here != null && s.TryRange("radius", out _, out float furthest) && furthest <= Mathf.Max(here.Size.x, here.Size.z);
+                if (close) _world.Structures.TryRoom(here.Id, out room, out roomPose);
+            }
+            if (room != null) _world.Structures.TrackFurnishing(g.Id);
             float hMin = sky ? 10f : 0f, hMax = sky ? 40f : 0f;
             if (sky && !def.Airborne)
             {
@@ -443,8 +714,35 @@ namespace ImagineVR
             float safe = World.SafeRadius + Mathf.Min(footprint, 6f);
             if (s.TryRange("height", out a, out b)) { hMin = a; hMax = b; }
             if (hMin < 0.5f && hMax < 0.5f) rMin = Mathf.Max(rMin, Mathf.Min(safe, rMax - 0.01f));
-            float sMin = 0.8f, sMax = 1.25f;
+            // what is arranged (furniture in a room, blocks in rows) is all one size unless a range is asked for
+            string arrange = s.Str("arrange", "loose");
+            bool rows = arrange == "rows" && !sky;
+            float sMin = room != null || rows ? 1f : 0.8f, sMax = room != null || rows ? 1f : 1.25f;
             if (s.TryRange("scale", out a, out b)) { sMin = a; sMax = b; }
+            float gap = s.Has("gap") ? Mathf.Clamp(s.Num("gap"), 0f, 40f) : -1f;
+
+            // Nothing is put where something already stands. Each copy claims a circle of ground, and
+            // so do the big things other statements put down (a tower from one scatter, an office
+            // block from the next): asked for a city, the model used to get buildings inside each other.
+            var taken = new List<Vector4>();
+            List<Vector4> standing = cover || sky ? null : Standing(g);
+            float crowd = Mathf.Clamp(s.Int("clusters", 0), 0, 24) > 0 ? 0.7f : body < 0.5f ? 0.95f : 1.05f;
+            bool Free(Vector3 at, float radius, bool amongItsOwn = true)
+            {
+                if (amongItsOwn) foreach (Vector4 t in taken)
+                {
+                    float dx = at.x - t.x, dz = at.z - t.y, need = (radius + t.z) * crowd;
+                    if (dx * dx + dz * dz < need * need) return false;
+                }
+                if (standing != null && radius >= 0.5f)
+                    foreach (Vector4 t in standing)
+                    {
+                        float dx = at.x - t.x, dz = at.z - t.y, need = radius + t.z;
+                        if (dx * dx + dz * dz < need * need) return false;
+                    }
+                // and nothing meant for outdoors is put down inside the walls of an interior
+                return room != null || float.IsNaN(_world.Structures.FloorAt(at));
+            }
 
             float waterY = _world.Terrain.WaterY;
             bool hasWater = !float.IsNaN(waterY);
@@ -457,6 +755,11 @@ namespace ImagineVR
             float length = 0f;
             if (line) for (int k = 1; k < route.Count; k++) length += Flat(route[k] - route[k - 1]).magnitude;
             line &= length > 0.01f;
+            line &= room == null;
+            // a line holds only as many as fit along it side by side
+            // (turned to run with the line, as they are unless told otherwise, it is their length that counts)
+            float alongLine = s.Flag("align", line) ? def.Bounds.size.z : Mathf.Max(def.Bounds.size.x, def.Bounds.size.z);
+            if (line && !cover) count = Mathf.Min(count, Mathf.Max(1, Mathf.FloorToInt(length / Mathf.Max(alongLine * (sMin + sMax) * 0.5f * 1.05f, 0.05f))));
             float spread = s.Has("spread") ? Mathf.Clamp(s.Num("spread"), 0f, 40f) : -1f;
             bool align = s.Flag("align", line);
             string where = sky ? "any" : s.Str("where", "any");
@@ -497,11 +800,30 @@ namespace ImagineVR
                 centres.Add(centre);
             }
 
+            // Arranged: every place is worked out first, in a room or in rows over open ground.
+            List<Pose> spots = null;
+            if (room != null) spots = InRoom(room, roomPose, s, def, count, arrange, gap, (sMin + sMax) * 0.5f, rng);
+            else if (rows) spots = InRows(frame, def, count, gap, (sMin + sMax) * 0.5f, area, s.TryRange("radius", out _, out _) ? rMin : 0f, s.TryRange("radius", out _, out _) ? rMax : 108f, rng);
+            int wanted = count;
+            if (spots != null) count = spots.Count;
+            bool sizeable = body * sMax >= 0.6f && !cover;
+            if (sizeable && !line && clusters == 0) tries = Mathf.Max(tries, 30);
+
             for (int i = 0; i < count; i++)
             {
                 Vector3 pos = Vector3.zero;
                 float yaw = (float)rng.NextDouble() * 360f, lift = 0f;
+                float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
+                float claim = body * scale;
+                Quaternion? turned = null;
                 bool found = false;
+                if (spots != null)
+                {
+                    pos = spots[i].position; lift = pos.y; turned = spots[i].rotation;
+                    // a place in an arrangement is not given up to the copy before it, only to what stood there already
+                    found = room != null || ((standing == null || Free(pos, claim)) && Suits(pos, where, def, hasWater, waterY, lowest, highest, sky));
+                    if (!found) continue;
+                }
                 for (int attempt = 0; attempt < tries && !found; attempt++)
                 {
                     if (line)
@@ -522,13 +844,25 @@ namespace ImagineVR
                         Vector3 fromUser = pos - frame.position;
                         if (hMin < 0.5f && hMax < 0.5f && Flat(fromUser).magnitude < safe) continue;   // never on top of the user
                     }
-                    else pos = Offer(i);
-                    found = Suits(pos, where, def, hasWater, waterY, lowest, highest, sky);
+                    else
+                    {
+                        pos = Offer(i);
+                        // crowded out near the middle, a big thing looks further off before it gives up
+                        if (sizeable && attempt >= tries / 2)
+                        {
+                            Vector3 outward = pos - frame.position;
+                            pos = frame.position + outward * Mathf.Min(1f + 0.06f * (attempt - tries / 2 + 1), 108f / Mathf.Max(outward.magnitude, 1f));
+                        }
+                    }
+                    // down a line they are spaced by the line itself, and only kept off what else stands there
+                    found = Suits(pos, where, def, hasWater, waterY, lowest, highest, sky) && (cover || sky || Free(pos, line ? Mathf.Min(claim, alongLine * scale * 0.5f) : claim, !line));
                 }
-                // with nowhere suitable found, a thing asked to keep to one kind of ground is left out
-                if (!found && where != "any") continue;
-                pos.y = lift + Mathf.Lerp(hMin, hMax, (float)rng.NextDouble());
-                float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
+                // with nowhere suitable found, a thing asked to keep to one kind of ground is left out,
+                // and so is anything of a size to be seen standing inside its neighbour: fewer, never overlapping
+                if (!found && (where != "any" || sizeable)) continue;
+                if (taken.Count >= wanted) break;
+                taken.Add(new Vector4(pos.x, pos.z, claim, 0f));
+                pos.y = lift + (spots != null ? 0f : Mathf.Lerp(hMin, hMax, (float)rng.NextDouble()));
                 if (sky)
                 {
                     // Overhead, something too big for how close it is stops being a shape and becomes
@@ -542,6 +876,9 @@ namespace ImagineVR
                 }
                 if (Enliven(g, def, pos, scale, s.Str("behavior"))) continue;
                 var p = new Placement(def.Mesh, pos, yaw, scale, Color.white) { OnWater = def.OnWater };
+                if (turned.HasValue) p.Rotation = turned.Value;
+                // no two of a kind are quite the same height: a skyline, a wood, a crowd
+                if (def.Stretch > 0f) p.Scale = new Vector3(scale, scale * (1f + def.Stretch * ((float)rng.NextDouble() * 2f - 1f)), scale);
                 if (s.Flag("solid") && !sky) Solidify(g, def, pos, p.Rotation, p.Scale);
                 g.Items.Add(p);
             }
@@ -622,6 +959,7 @@ namespace ImagineVR
 
         public void Clear(float seconds)
         {
+            _rowPitch = 0f;
             foreach (Group g in new List<Group>(_order)) Retire(g, seconds);
         }
 
@@ -728,10 +1066,13 @@ namespace ImagineVR
             _shadowScratch.Clear();
             bool moving = g.Motion.x != 0f;
             float waterY = _world.Terrain.WaterY;
+            bool wild = g.Id.StartsWith(World.Cover, StringComparison.Ordinal);
             foreach (Placement p in g.Items)
             {
                 if (p.Mesh == null) continue;
                 Vector3 pos = p.Position;
+                // what grows on the ground by itself does not grow up through the floor of an interior
+                if (wild && !float.IsNaN(_world.Structures.FloorAt(pos))) continue;
                 if (p.Grounded)
                 {
                     float ground = _world.SurfaceHeight(pos.x, pos.z);
