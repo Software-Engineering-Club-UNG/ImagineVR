@@ -219,7 +219,7 @@ namespace ImagineVR
             Bounds b = def.Bounds;
             var go = new GameObject("Solid");
             go.transform.SetParent(_world.transform, false);
-            go.transform.SetPositionAndRotation(new Vector3(position.x, _world.Terrain.HeightAt(position.x, position.z) + position.y, position.z), rotation);
+            go.transform.SetPositionAndRotation(new Vector3(position.x, _world.SurfaceHeight(position.x, position.z) + position.y, position.z), rotation);
             go.transform.localScale = scale;
             BoxCollider box = go.AddComponent<BoxCollider>();
             box.center = b.center;
@@ -283,6 +283,16 @@ namespace ImagineVR
 
             // all of that was worked out around the user; now put it where they actually are
             Pose frame = s.Frame();
+            // a room that is not there is no reason to place nothing: the thing goes in front of the user as any other would
+            if (s.Has("room") && _world.Structures.TryRoomPose(s.Str("room"), out Pose room))
+            {
+                frame = room;
+                Vector3 roomPosition = Statement.InWorld(frame, pos);
+                roomPosition.y -= _world.SurfaceHeight(roomPosition.x, roomPosition.z);
+                pos = roomPosition;
+                rot = frame.rotation * Quaternion.Euler(0, s.Num("rot_y"), 0);
+                frame = Pose.identity;
+            }
             pos = Statement.InWorld(frame, pos);
             rot = frame.rotation * rot;
             _world.Placed(s, name, def, standIn, pos, null);
@@ -724,7 +734,7 @@ namespace ImagineVR
                 Vector3 pos = p.Position;
                 if (p.Grounded)
                 {
-                    float ground = _world.Terrain.HeightAt(pos.x, pos.z);
+                    float ground = _world.SurfaceHeight(pos.x, pos.z);
                     if (p.OnWater && !float.IsNaN(waterY) && ground < waterY) ground = waterY;
                     pos.y += ground;
                 }

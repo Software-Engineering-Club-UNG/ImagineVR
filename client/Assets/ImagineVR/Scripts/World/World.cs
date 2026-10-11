@@ -13,6 +13,12 @@ namespace ImagineVR
     {
         public const float SafeRadius = 3f;
         public const float Radius = 120f;
+        public StructureSystem Structures { get; private set; }
+        public float SurfaceHeight(float x, float z)
+        {
+            float floor = Structures != null ? Structures.FloorAt(new Vector3(x, 0, z)) : float.NaN;
+            return float.IsNaN(floor) ? Terrain.HeightAt(x, z) : floor;
+        }
 
         public static World Instance { get; private set; }
 
@@ -43,7 +49,7 @@ namespace ImagineVR
         bool _everLit;
 
         /// <summary>True in the dark room before anything has been built: the next place is built around wherever the user is looking.</summary>
-        public bool Unbuilt => Sky.IsDark && Objects.Count == 0 && !Terrain.HasGround && !Terrain.Generating;
+        public bool Unbuilt => Sky.IsDark && !Structures.Active && Objects.Count == 0 && !Terrain.HasGround && !Terrain.Generating;
 
         internal void OnGiven(Prop prop) { Given?.Invoke(prop); }
 
@@ -69,7 +75,7 @@ namespace ImagineVR
         }
 
         /// <summary>True until the first sky statement brings light into the dark room.</summary>
-        public bool IsDark => Sky.IsDark;
+        public bool IsDark => Sky.IsDark && !Structures.Active;
 
         public void Init(Transform head, TMP_FontAsset font)
         {
@@ -81,6 +87,7 @@ namespace ImagineVR
             Sky.SetWorldRadius(Radius);
             Terrain = new TerrainSystem(transform, SafeRadius);
             Objects = new ObjectSystem(this);
+            Structures = new StructureSystem(this);
             Props = new PropSystem(this);
             Weather = new WeatherSystem(this);
             Ambience = new AmbienceSystem(this);
@@ -130,13 +137,15 @@ namespace ImagineVR
                 case "weather": Weather.Apply(s); break;
                 case "physics": Props.SetGravity(s.Num("gravity", 1f)); break;
                 case "make": Maker.Make(s); break;
-                case "spawn": EnsureLight(); Objects.Spawn(s); break;
+                case "structure": if (Structures.Build(s)) { EnsureLight(); _clearSkyAtTurnEnd = false; } break;
+                case "door": Structures.Door(s); break;
+                case "spawn": EnsureLight(); Objects.Spawn(s); Structures.TrackFurnishing(s); break;
                 case "scatter": EnsureLight(); Objects.Scatter(s); break;
                 case "give": EnsureLight(); Props.Give(s); break;
                 case "ride": EnsureLight(); if (Vehicle != null) Vehicle.Apply(s); break;
                 case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
                 case "modify": Objects.Modify(s); Props.Modify(s); break;
-                case "remove": Objects.Remove(s); Props.Remove(s.Str("id")); Rules.Remove(s.Str("id")); break;
+                case "remove": Structures.Remove(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); Rules.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
                 case "clear": Clear(s); break;
                 case "when": Rules.Install(s); break;
@@ -205,7 +214,7 @@ namespace ImagineVR
 
         static bool Builds(string op)
         {
-            return op == "sky" || op == "terrain" || op == "spawn" || op == "scatter" || op == "ride";
+            return op == "sky" || op == "terrain" || op == "spawn" || op == "scatter" || op == "ride" || op == "structure";
         }
 
         /// <summary>Things should never be built in total darkness: give them a default sky to be seen by.</summary>
@@ -218,6 +227,7 @@ namespace ImagineVR
 
         void Clear(Statement s)
         {
+            Structures.Clear();
             float t = s.T(1.2f);
             if (s.Flag("everything"))
             {
@@ -247,7 +257,7 @@ namespace ImagineVR
         /// <summary>Called when a turn's `done` arrives.</summary>
         public void EndTurn()
         {
-            bool empty = Objects.Count == 0 && (_clearGroundAtTurnEnd || (!Terrain.HasGround && !Terrain.Generating));
+            bool empty = !Structures.Active && Objects.Count == 0 && (_clearGroundAtTurnEnd || (!Terrain.HasGround && !Terrain.Generating));
             if (_clearGroundAtTurnEnd)
             {
                 _clearGroundAtTurnEnd = false;
@@ -263,6 +273,7 @@ namespace ImagineVR
         /// <summary>Back to the dark room.</summary>
         public void ResetToDark(float seconds)
         {
+            Structures.Clear();
             Rules.Clear();
             Objects.Clear(seconds);
             Props.ClearLoose();
@@ -309,6 +320,7 @@ namespace ImagineVR
 
         void Update()
         {
+            Structures.Tick();
             float dt = Time.deltaTime;
             Sky.Tick(dt);
             Terrain.Tick(dt);
@@ -334,6 +346,7 @@ namespace ImagineVR
 
         void OnDestroy()
         {
+            Structures?.Dispose();
             if (Instance == this) Instance = null;
         }
     }

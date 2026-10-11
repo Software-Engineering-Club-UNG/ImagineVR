@@ -327,7 +327,9 @@ namespace ImagineVR
                 Live l = _live[i];
                 l.Rate = Mathf.MoveTowards(l.Rate, l.Target, Mathf.Max(l.Def.Rate, 10f) * dt);
                 ParticleSystem.EmissionModule em = l.System.emission;
-                em.rateOverTime = l.Rate;
+                bool sheltered = _world.Head != null && _world.Structures.Active && _world.Structures.Contains(_world.Head.position);
+                em.rateOverTime = sheltered ? 0 : l.Rate;
+                if (sheltered && l.System.particleCount > 0) l.System.Clear();
                 if (l.Target <= 0f && l.Rate <= 0f && l.System.particleCount == 0)
                 {
                     Object.Destroy(l.System.gameObject);

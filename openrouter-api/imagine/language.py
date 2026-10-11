@@ -8,6 +8,7 @@ fault in it, and the user watched the terminal say "rejected" while nothing appe
 
 from __future__ import annotations
 
+import difflib
 import math
 import re
 
@@ -136,6 +137,10 @@ def reframe(stmt: dict, frame: list[float] | None) -> dict:
     if "at" in out:
         out["at"] = move(out["at"])
         out.pop("place", None)
+    if out.get("op") == "structure":
+        out["rot_y"] = round(out.get("rot_y", 0) + (old[2] if old else 0) - (frame[2] if frame else 0), 1)
+    if out.get("room"):
+        return {k: v for k, v in stmt.items() if k != "frame"}  # room-local, not user-relative
     for key in ("along", "path"):
         if key in out:
             out[key] = [move(p) for p in out[key]]
@@ -156,6 +161,7 @@ class WorldState:
         self.things: dict[str, dict] = {}       # id -> spawn | scatter | give
         self.made: dict[str, dict] = {}         # name -> a one-line summary of a `make`
         self.rules: dict[str, dict] = {}        # id -> when
+        self.structure: dict | None = None
         self._auto = 0
 
     def next_id(self, base: str) -> str:
@@ -175,6 +181,7 @@ class WorldState:
             self.globals = {k: v for k, v in self.globals.items() if k in keep or k == "player"}
             self.things = {k: v for k, v in self.things.items() if v["op"] == "give"}
             self.rules = {}
+            self.structure = None
         elif op in ("sky", "terrain"):
             merged = {**self.globals.get(op, {}), **stmt} if not stmt.get("preset" if op == "sky" else "type") else stmt
             self.globals[op] = {k: v for k, v in merged.items() if k != "t"}
@@ -189,6 +196,13 @@ class WorldState:
                 self.globals["ride"] = stmt
         elif op == "make":
             self.made[stmt["name"]] = {"kind": stmt.get("kind", "thing"), "parts": len(stmt["parts"]), "fires": "fires" in stmt}
+        elif op == "structure":
+            self.things = {k: v for k, v in self.things.items() if not v.get("room")}
+            self.structure = stmt
+        elif op == "door" and self.structure:
+            for door in self.structure["doors"]:
+                if door["id"] == stmt["id"]:
+                    door["state"] = ("closed" if door["state"] == "open" else "open") if stmt["state"] == "toggle" else ("closed" if stmt["state"] == "close" else "open")
         elif op in ("spawn", "scatter", "give"):
             self.things[stmt["id"]] = stmt
         elif op == "modify":
@@ -200,6 +214,9 @@ class WorldState:
                 else:
                     self.things[stmt["id"]] = {**target, **changed}
         elif op == "remove":
+            if self.structure and self.structure["id"] == stmt["id"]:
+                self.structure = None
+                self.things = {k: v for k, v in self.things.items() if not v.get("room")}
             self.things.pop(stmt["id"], None)
             self.rules.pop(stmt["id"], None)
         elif op == "when":
@@ -212,6 +229,8 @@ class WorldState:
             return json.dumps(reframe(stmt, frame), separators=(",", ":"))
 
         lines = [line(s) for s in self.globals.values()]
+        if self.structure:
+            lines.append(line(self.structure))
         for name, info in self.made.items():
             lines.append(f'(you made "{name}": {info["kind"]}, {info["parts"]} parts{", fires" if info["fires"] else ""})')
         lines += [line(s) for s in self.things.values()]
@@ -242,10 +261,12 @@ def parse_line(line: str) -> dict | None:
 class Checker:
     """Turns what the model wrote into what the headset plays. One per turn."""
 
-    def __init__(self, catalog: Catalog, world: WorldState, frame: list[float] | None = None):
+    def __init__(self, catalog: Catalog, world: WorldState, frame: list[float] | None = None, structures: bool = False):
         self.catalog = catalog
         self.world = world
         self.frame = frame
+        self.structures = structures
+        self.problem: str | None = None
         self.missing: list[str] = []      # asset names used that neither the catalog nor a `make` provides
         self.made_now: set[str] = set()
 
@@ -286,7 +307,7 @@ class Checker:
         t = num(raw.get("t"), 0.2, 120 if op == "sky" else 6)
         if t is not None and op in ("sky", "terrain", "clear", "spawn", "scatter", "remove", "modify"):
             stmt["t"] = t
-        if self.frame and op in ("spawn", "scatter", "give", "ride"):
+        if self.frame and op in ("spawn", "scatter", "give", "ride", "structure") and not stmt.get("room"):
             stmt["frame"] = self.frame
         self.world.apply(stmt)
         return stmt
@@ -441,6 +462,26 @@ class Checker:
 
     # ---- putting things in the world
 
+    def _structure(self, raw):
+        if not self.structures:
+            self.problem = "This app needs an update before it can build explorable interiors."
+            return None
+        from .structures import normalize
+        return normalize(raw, self.frame)
+
+    def _door(self, raw):
+        # Nothing is refused: a door named a little wrongly is the nearest one there is, and with no
+        # doors at all there is nothing to do and nothing to complain of.
+        if not self.structures or not self.world.structure or not self.world.structure["doors"]:
+            return None
+        ids = [d["id"] for d in self.world.structure["doors"]]
+        identity = name_of(raw.get("id") or raw.get("door"))
+        if identity not in ids:
+            close = difflib.get_close_matches(identity, ids, n=1, cutoff=0.0)
+            wanted = name_of(raw.get("room"))
+            identity = next((d["id"] for d in self.world.structure["doors"] if wanted and d["room"] == wanted), close[0] if close else ids[0])
+        return {"id": identity, "state": pick(raw.get("state"), ("open", "close", "toggle"), "toggle")}
+
     def _common(self, raw, out):
         out["tint"] = color(raw.get("tint", raw.get("color")))
         out["behavior"] = pick(raw.get("behavior"), BEHAVIORS)
@@ -454,6 +495,21 @@ class Checker:
             return None
         out = {"id": name_of(raw.get("id")) or self.world.next_id(asset + "_"), "asset": asset}
         out["at"] = vec(raw.get("at"), 3, -200, 200)
+        if raw.get("room"):
+            room = name_of(raw.get("room"))
+            structure = self.world.structure
+            target = next((r for r in structure["rooms"] if r["id"] == room), None) if structure else None
+            if target is None and self.structures and structure:
+                # a room named a little wrongly is the nearest one there is, or the way in
+                ids = [r["id"] for r in structure["rooms"]]
+                room = (difflib.get_close_matches(room, ids, n=1, cutoff=0.6) or [structure["entry"]])[0]
+                target = next(r for r in structure["rooms"] if r["id"] == room)
+        if raw.get("room") and self.structures and self.world.structure:
+            p = out["at"] or [0, 0, 0]
+            out["room"] = room
+            out["at"] = [num(p[0], -target["size"][0] / 2 + 1, target["size"][0] / 2 - 1),
+                         num(p[1], 0, target["size"][1] - 0.5),
+                         num(p[2], -target["size"][2] / 2 + 1, target["size"][2] / 2 - 1)]
         if out["at"] is None:
             out["place"] = pick(raw.get("place"), PLACES, "front")
             out["distance"] = num(raw.get("distance"), 0, 110)

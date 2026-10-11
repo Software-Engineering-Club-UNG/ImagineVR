@@ -180,6 +180,8 @@ namespace ImagineVR
             if (waiting.Count > 0) parts.Add("within reach, not yet taken: " + string.Join(", ", waiting));
             parts.Add(World.Vehicle != null && World.Vehicle.Riding ? "riding " + World.Vehicle.Asset : "on foot");
             if (World.Rules.Score != 0) parts.Add("score " + World.Rules.Score);
+            string interior = World.Structures.Context(Rig.Head.position);
+            if (interior.Length > 0) parts.Add(interior);
             return string.Join("; ", parts);
         }
 

@@ -141,9 +141,12 @@ namespace ImagineVR
         void Census(ImagineApp app, string name)
         {
             app.World.Objects.Census(out int renderers, out int items, out int triangles);
+            app.World.Structures.Census(out int structureRenderers, out int structureTriangles);
             string line = "{\"scene\":\"" + name + "\",\"groups\":" + app.World.Objects.Count + ",\"renderers\":" + renderers + ",\"items\":" + items +
                 ",\"triangles\":" + triangles + ",\"alive\":" + Creature.All.Count + ",\"props\":" + app.World.Props.All.Count +
-                ",\"rules\":" + app.World.Rules.Count + ",\"riding\":\"" + (app.World.Vehicle != null ? app.World.Vehicle.Asset : null) + "\",\"editor\":" + (Application.isEditor ? "true" : "false") + "}";
+                ",\"rules\":" + app.World.Rules.Count + ",\"riding\":\"" + (app.World.Vehicle != null ? app.World.Vehicle.Asset : null) + "\",\"editor\":" + (Application.isEditor ? "true" : "false") +
+                ",\"structure_zones\":" + app.World.Structures.ZoneCount + ",\"structure_doors\":" + app.World.Structures.DoorCount +
+                ",\"structure_renderers\":" + structureRenderers + ",\"structure_triangles\":" + structureTriangles + "}";
             File.AppendAllText(Path.Combine(OutputDir, "census.ndjson"), line + "\n");
             Debug.Log("Snapshot: " + line);
         }

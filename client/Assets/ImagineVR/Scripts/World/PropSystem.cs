@@ -180,6 +180,8 @@ namespace ImagineVR
                     break;
             }
 
+            if (_world.Vehicle != null) _world.Vehicle.PassThrough(go.GetComponent<Collider>());   // loose things never shove the user about
+
             Rigidbody body = go.AddComponent<Rigidbody>();
             float volumeScale = Mathf.Max(0.05f, scale.x * scale.y * scale.z);
             body.mass = Mathf.Clamp(def.Mass * Mathf.Pow(volumeScale, 0.7f), 0.02f, 400f);
@@ -231,7 +233,7 @@ namespace ImagineVR
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
             foreach (Pose copy in copies)
             {
-                float ground = _world.Terrain.HeightAt(copy.position.x, copy.position.z);
+                float ground = _world.SurfaceHeight(copy.position.x, copy.position.z);
                 Create(def, id, new Vector3(copy.position.x, ground + copy.position.y + 0.05f, copy.position.z), copy.rotation, scale, tint);
             }
         }

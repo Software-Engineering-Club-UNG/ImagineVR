@@ -127,7 +127,7 @@ Shader "ImagineVR/Lit"
                 // which glows warm regardless of the glass colour.
                 half night = saturate(v.uv.y) * _ImNight;
                 half emit = saturate(v.uv.x + night);
-                half3 lit = ImLight(albedo, nws);
+                half3 lit = ImInteriorLight(albedo, nws, ws);
                 // window light is warm; brighter glass makes a brighter window, so rooms differ
                 half3 warm = half3(1.25, 0.95, 0.5) * (0.35 + v.color.g * 1.1);
                 half3 glowCol = lerp(albedo * 1.5, warm, step(1.5, v.uv.y) * night);

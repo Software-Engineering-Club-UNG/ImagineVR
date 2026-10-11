@@ -67,7 +67,7 @@ async def _model_lines(system_prompt: str, content: str) -> AsyncIterator[dict]:
 
 async def _run_turn(session: Session, catalog: Catalog, system_prompt: str, *, text: str | None = None,
                     audio: bytes | None = None, base_url: str = "", frame: list | None = None,
-                    user_state: str = "") -> AsyncIterator[dict]:
+                    user_state: str = "", capabilities: str = "") -> AsyncIterator[dict]:
     started = time.perf_counter()
 
     if audio is not None:
@@ -95,7 +95,10 @@ async def _run_turn(session: Session, catalog: Catalog, system_prompt: str, *, t
         yield {"op": "done", "outcome": "failed"}
         return
 
-    checker = Checker(catalog, session.world, frame)
+    from .structures import CAPABILITY, PROMPT
+    structures = CAPABILITY in capabilities.split(",")
+    system_prompt += PROMPT if structures else "\nThis client cannot build explorable interiors or interactive doors. Do not emit structure/door or room-local placement. Do not claim a decorative building is an explorable interior."
+    checker = Checker(catalog, session.world, frame, structures=structures)
     content = build_user_content(session, text, frame, user_state)
     held: list[dict] = []        # statements waiting on an asset that has to be made first
     said: list[str] = []
@@ -108,6 +111,9 @@ async def _run_turn(session: Session, catalog: Catalog, system_prompt: str, *, t
         before = len(checker.missing)
         stmt = checker.check(raw, strict)
         if stmt is None:
+            if checker.problem:
+                problem, checker.problem = checker.problem, None
+                return [{"op": "note", "text": problem}]
             if len(checker.missing) > before or (strict and str(raw.get("asset", "")) and not checker.knows(str(raw.get("asset")))):
                 held.append(raw)
             else:

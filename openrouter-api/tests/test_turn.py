@@ -13,6 +13,18 @@ from imagine.session import Session
 CATALOG = Catalog.load(Path(__file__).resolve().parents[2] / "shared" / "catalog.json")
 
 
+def test_structures_require_updated_client(monkeypatch):
+    raw = {"op": "structure", "id": "dungeon", "enter": True}
+    statements, _, session = run(monkeypatch, [[raw]])
+    assert not any(s["op"] == "structure" for s in statements)
+    assert any(s["op"] == "note" and "update" in s["text"] for s in statements)
+    assert session.world.structure is None
+    statements, _, session = run(monkeypatch, [[raw, {"op": "spawn", "asset": "chair", "room": "entry", "at": [1, 0, 1]}]], capabilities="structures-v1")
+    assert any(s["op"] == "structure" and "zones" in s for s in statements)
+    assert any(s["op"] == "spawn" and s["room"] == "entry" for s in statements)
+    assert session.world.structure["id"] == "dungeon"
+
+
 def run(monkeypatch, replies, text="build it", session=None, **kwargs):
     """Plays one turn. `replies` is one list of lines (or an exception) per model call."""
     calls = []

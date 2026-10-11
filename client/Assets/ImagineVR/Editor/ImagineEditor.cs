@@ -421,6 +421,23 @@ namespace ImagineVR.EditorTools
 
     public static class Builder
     {
+        /// <summary>A real Windows player for shader/collision snapshot checks without a headset.</summary>
+        public static void BuildWindowsCheck()
+        {
+            string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ImagineVRCheck.exe"));
+            Directory.CreateDirectory(Path.GetDirectoryName(output));
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { "Assets/ImagineVR/Scenes/Main.unity" },
+                locationPathName = output,
+                target = BuildTarget.StandaloneWindows64,
+                targetGroup = BuildTargetGroup.Standalone,
+                options = BuildOptions.None,
+            };
+            var summary = BuildPipeline.BuildPlayer(options).summary;
+            Debug.Log("ImagineVR Windows check: " + summary.result + ", " + summary.totalErrors + " errors -> " + output);
+            if (Application.isBatchMode) EditorApplication.Exit(summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+        }
         [MenuItem("ImagineVR/Build Quest APK", priority = 40)]
         public static void BuildAndroid()
         {
