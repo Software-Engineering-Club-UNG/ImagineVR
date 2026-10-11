@@ -7,7 +7,7 @@ import time
 from collections import deque
 
 from . import config
-from .script import WorldState
+from .language import WorldState
 
 
 class Session:
@@ -17,8 +17,6 @@ class Session:
         self.history: deque[tuple[str, str]] = deque(maxlen=6)  # (user text, assistant reply)
         self.lock = asyncio.Lock()  # one turn at a time
         self.last_active = time.monotonic()
-        self.generation = 0
-        self.runtime_sequence = -1
         self._turn_times: deque[float] = deque(maxlen=config.TURNS_PER_MINUTE)
 
     def touch(self) -> None:
@@ -33,8 +31,6 @@ class Session:
         return True
 
     def reset(self) -> None:
-        self.generation += 1
-        self.runtime_sequence = -1
         self.world = WorldState()
         self.history.clear()
 

@@ -1,8 +1,0 @@
-# A campsite in the woods at night
-{"op":"clear"}
-{"op":"sky","preset":"night_stars","t":4}
-{"op":"terrain","type":"rolling","material":"forest_floor","height":0.2,"t":3}
-{"op":"kit","id":"camp","kit":"campsite","density":0.7,"size":0.6}
-{"op":"weather","type":"fireflies","intensity":0.5}
-{"op":"ambience","loop":"fire_crackle"}
-{"op":"say","text":"Pull up a log. There is a guitar by the fire."}

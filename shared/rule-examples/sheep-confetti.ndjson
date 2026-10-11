@@ -1,4 +1,0 @@
-{"op":"rule","id":"sheep.hit","selector":{"asset":"sheep"},"event":"hit","filters":{"source_kind":"projectile"},"mode":"replace","actions":[{"action":"particles","preset":"confetti","target":"self"},{"action":"remove","target":"self"}]}
-{"op":"sky","preset":"morning"}
-{"op":"scatter","id":"flock","asset":"sheep","count":6,"area":"front","radius":[8,18],"behavior":"wander"}
-{"op":"give","id":"toy","asset":"blaster"}

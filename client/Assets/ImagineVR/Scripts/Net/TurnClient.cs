@@ -48,6 +48,8 @@ namespace ImagineVR
         /// Sent with each turn so the server can have things built around the user.
         /// </summary>
         public Func<string> Pose;
+        /// <summary>What the user holds and rides, as a short sentence for the model. Sent with every turn.</summary>
+        public Func<string> UserState;
 
         readonly List<Turn> _open = new List<Turn>();
         int _count;
@@ -64,7 +66,6 @@ namespace ImagineVR
             foreach (Turn turn in _open) turn.Closed = true;   // their requests stop on the next frame
             _open.Clear();
             SessionId = Guid.NewGuid().ToString("N");
-            World?.Rules.NewSession();
             return old;
         }
 
@@ -74,7 +75,6 @@ namespace ImagineVR
         {
             request.SetRequestHeader("X-App-Token", Settings.AppToken);
             request.SetRequestHeader("X-Session-Id", session ?? SessionId);
-            request.SetRequestHeader("X-Client-Capabilities", RuleEngine.Capability+","+BlueprintContract.Capability+","+BlueprintContract.RichCapability);
             if (!string.IsNullOrEmpty(CatalogVersion)) request.SetRequestHeader("X-Catalog-Version", CatalogVersion);
         }
 
@@ -145,21 +145,6 @@ namespace ImagineVR
             Conductor conductor = GetComponent<Conductor>();
             while (_resettingSession == session || conductor != null && !conductor.IsCurrent(turn)) { if (turn.Closed) yield break; yield return null; }
             if (turn.Closed) yield break;
-            while(World!=null && World.Blueprints.Busy) { if(turn.Closed) yield break; yield return null; }
-            if (World != null)
-            {
-                byte[] snapshot = Encoding.UTF8.GetBytes(MiniJson.Serialize(World.Rules.Snapshot()));
-                using (var sync = new UnityWebRequest(Url("/v1/session/runtime"), UnityWebRequest.kHttpVerbPOST))
-                {
-                    sync.uploadHandler = new UploadHandlerRaw(snapshot) { contentType = "application/json" };
-                    sync.downloadHandler = new DownloadHandlerBuffer(); sync.timeout = 10; Headers(sync, session);
-                    yield return sync.SendWebRequest();
-                    if (turn.Closed || SessionId != session) yield break;
-                    SessionLog.Write("runtime_sync", "status", (int)sync.responseCode, "session", session);
-                    if (sync.result != UnityWebRequest.Result.Success) { turn.Fail("Runtime sync failed (" + sync.responseCode + "). Local rules still run; reset the session and try again."); yield break; }
-                }
-            }
-            if (turn.Closed) yield break;
             using (var request = new UnityWebRequest(Url("/v1/turn"), UnityWebRequest.kHttpVerbPOST))
             {
                 var handler = new LineHandler(turn) { Number = ++_count };
@@ -170,6 +155,9 @@ namespace ImagineVR
                 request.SetRequestHeader("Content-Type", contentType);
                 request.SetRequestHeader("Accept", "application/x-ndjson");
                 if (!string.IsNullOrEmpty(pose)) request.SetRequestHeader("X-User-Pose", pose);
+                // what is in their hands and what they are riding, in a sentence: the headset's own account, for the model
+                string state = UserState != null ? UserState() : null;
+                if (!string.IsNullOrEmpty(state)) request.SetRequestHeader("X-User-State", state);
                 SessionLog.Write("send", "turn", handler.Number, "type", contentType, "bytes", body.Length, "pose", pose,
                     "text", contentType == "application/json" ? Encoding.UTF8.GetString(body) : null, "session", SessionId);
                 float started = Time.realtimeSinceStartup;
@@ -240,7 +228,6 @@ namespace ImagineVR
                 Headers(request, target);
                 request.timeout = 5;
                 yield return request.SendWebRequest();
-                if (target == SessionId && request.result == UnityWebRequest.Result.Success && int.TryParse(request.GetResponseHeader("X-Session-Generation"), out int generation)) World?.Rules.SetGeneration(generation);
             }
             if (_resettingSession == target) _resettingSession = null;
         }

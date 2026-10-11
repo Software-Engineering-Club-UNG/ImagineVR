@@ -60,7 +60,7 @@ STALL_SECONDS = float(_env("IMAGINE_STALL_SECONDS", "15"))
 SESSION_IDLE_SECONDS = 30 * 60
 TURNS_PER_MINUTE = 20
 
-# True when there is no key: the built-in offline director answers every turn.
+# True when there is no key: turns answer that no model is connected. There is no offline director.
 OFFLINE = not OPENROUTER_API_KEY or MODEL.lower() in ("offline", "fallback", "none")
 PRODUCTION = _env("IMAGINE_ENV") == "production"
 STT_CACHE = _env("IMAGINE_STT_CACHE") or None

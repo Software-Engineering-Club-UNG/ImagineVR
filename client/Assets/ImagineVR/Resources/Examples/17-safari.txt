@@ -1,7 +1,0 @@
-# An African safari at sunset
-{"op":"clear"}
-{"op":"sky","preset":"golden_hour","t":4}
-{"op":"terrain","type":"rolling","material":"dry_grass","height":0.15,"t":3}
-{"op":"kit","id":"safari","kit":"safari","density":0.7,"size":0.8}
-{"op":"ambience","loop":"wind","volume":0.4}
-{"op":"say","text":"Golden hour on the savanna. The lions are closer than they look."}

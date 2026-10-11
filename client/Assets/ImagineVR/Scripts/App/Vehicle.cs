@@ -122,7 +122,6 @@ namespace ImagineVR
             _legs = legged ? top * (_fourLegs > 0f ? 0.42f : 0.47f) : 0f;
             Shadows.Cast(_visual.transform, b);
             Sfx.Play("whoosh", _rig.transform.position, 0.6f);
-            _world.Rules.Broadcast("mount", def.Id);
             Mounted?.Invoke(def.FliesRidden);
             if (_terminal != null) _terminal.Recenter(false);
         }
@@ -130,7 +129,6 @@ namespace ImagineVR
         /// <summary>Back on foot, standing wherever the ride stopped.</summary>
         public void Dismount()
         {
-            if (_visual != null) _world.Rules.Broadcast("dismount", _def != null ? _def.Id : "ride");
             if (_visual != null) Destroy(_visual);
             _visual = null;
             _body = null;

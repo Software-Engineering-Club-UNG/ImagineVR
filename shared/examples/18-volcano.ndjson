@@ -1,8 +1,0 @@
-# Put me next to an erupting volcano
-{"op":"clear"}
-{"op":"sky","preset":"volcanic","t":4}
-{"op":"terrain","type":"hills","material":"lava_rock","height":0.3,"t":3}
-{"op":"kit","id":"lava","kit":"volcano_land","density":0.7,"size":0.8}
-{"op":"weather","type":"embers","intensity":0.6}
-{"op":"ambience","loop":"fire_crackle"}
-{"op":"say","text":"Mind the lava. And the dragon."}

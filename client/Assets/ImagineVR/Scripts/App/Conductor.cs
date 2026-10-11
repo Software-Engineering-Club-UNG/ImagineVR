@@ -194,7 +194,8 @@ namespace ImagineVR
             {
                 case "sky": return 0.75f;
                 case "terrain": return 0.67f;
-                case "kit": return 0.84f;
+                case "make": return 0.84f;
+                case "when": return 1.5f;
                 case "spawn": return 1.0f;
                 case "scatter": return 1.12f;
                 case "give": return 1.33f;

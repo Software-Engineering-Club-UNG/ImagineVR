@@ -71,6 +71,7 @@ namespace ImagineVR
     public sealed class AssetDef : Entry
     {
         public string Category;
+        public bool Made;                       // built at runtime by a `make` statement, not part of the library
         public float Size = 1f;                 // nominal height in metres, for the catalog
         public Action<MeshBuilder> Recipe;
         public bool Holdable;                   // offered as something to hold
@@ -106,6 +107,8 @@ namespace ImagineVR
 
         /// <summary>Size of the solid part of the model (halos excluded). Use this, not Mesh.bounds, for physics and fitting.</summary>
         public Bounds Bounds { get { Mesh m = Mesh; return m != null ? _bounds : default; } }
+        /// <summary>Throw the built mesh away, after changing the recipe.</summary>
+        public void Rebuild() { _mesh = null; }
 
         public AssetDef Hold() { Holdable = true; Prop = true; return this; }
         public AssetDef AsTool() { Holdable = true; Prop = true; Tool = true; return this; }
@@ -170,7 +173,6 @@ namespace ImagineVR
         static partial void RegisterThemes();
         static partial void RegisterWeather();
         static partial void RegisterAmbience();
-        static partial void RegisterKits();
         static partial void RegisterAnimals();
         static partial void RegisterMoreHoldables();
 
@@ -191,7 +193,6 @@ namespace ImagineVR
             RegisterGround();
             RegisterWeather();
             RegisterAmbience();
-            RegisterKits();
         }
 
         static string[] Split(string list)
@@ -213,6 +214,28 @@ namespace ImagineVR
             Assets[id] = def;
             AssetList.Add(def);
             return def;
+        }
+
+        // ------------------------------------------------------------------ made at runtime
+
+        /// <summary>Adds an asset made at runtime, in place of any earlier one of the same name. It is then found like any other.</summary>
+        public static void Register(AssetDef def)
+        {
+            EnsureLoaded();
+            if (Assets.TryGetValue(def.Id, out AssetDef old))
+            {
+                if (!old.Made) { Debug.LogWarning("ImagineVR: a made thing may not replace the library's " + def.Id); return; }
+                AssetList.Remove(old);
+            }
+            Assets[def.Id] = def;
+            AssetList.Add(def);
+        }
+
+        /// <summary>Forgets everything made at runtime: the full reset.</summary>
+        public static void ForgetMade()
+        {
+            for (int i = AssetList.Count - 1; i >= 0; i--)
+                if (AssetList[i].Made) { Assets.Remove(AssetList[i].Id); AssetList.RemoveAt(i); }
         }
 
         // ------------------------------------------------------------------ lookup

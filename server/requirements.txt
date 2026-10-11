@@ -1,7 +1,0 @@
-# What the deployed server needs. `uv` users: ignore this file, pyproject.toml is the source of truth.
-# faster-whisper and numpy are left out on purpose: they are only imported when IMAGINE_STT=local,
-# and a small VM should set IMAGINE_STT=elevenlabs instead (see server/DEPLOY.md).
-fastapi>=0.115
-uvicorn[standard]>=0.30
-httpx>=0.27
-python-dotenv>=1.0

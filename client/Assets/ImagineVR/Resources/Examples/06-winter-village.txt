@@ -1,8 +1,0 @@
-# A snowy village on Christmas eve
-{"op":"clear"}
-{"op":"sky","preset":"aurora_night","t":4}
-{"op":"terrain","type":"rolling","material":"snow","height":0.3,"t":3}
-{"op":"kit","id":"village","kit":"winter_village","density":0.7,"size":0.7}
-{"op":"weather","type":"snow","intensity":0.5}
-{"op":"ambience","loop":"wind","volume":0.4}
-{"op":"say","text":"Snow on the roofs and lights in every window."}

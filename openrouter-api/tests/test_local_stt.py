@@ -73,15 +73,15 @@ def test_decoder_is_primed_with_what_is_in_the_world(monkeypatch):
 
     from imagine import turn
     from imagine.catalog import Catalog
-    from imagine.script import Validator
+    from imagine.language import Checker
     from imagine.session import Session
     session = Session('hint')
     assert turn.heard_here(session) == ''
-    validator = Validator(Catalog.load(config.CATALOG_PATH))
+    checker = Checker(Catalog.load(config.CATALOG_PATH), session.world)
     for raw in ({'op': 'scatter', 'id': 'flock', 'asset': 'sheep', 'count': 8}, {'op': 'give', 'id': 'blaster', 'asset': 'blaster'},
-                {'op': 'kit', 'id': 'course', 'kit': 'golf_course'}, {'op': 'ride', 'asset': 'dragon'}):
-        validator.check(raw, session.world)
-    assert turn.heard_here(session) == 'Here now: sheep, blaster, golf course, dragon.'
+                {'op': 'ride', 'asset': 'dragon'}):
+        checker.check(raw)
+    assert turn.heard_here(session) == 'Here now: sheep, blaster, dragon.'
 
 
 def test_prepared_weights_are_found_by_model_name(tmp_path, monkeypatch):

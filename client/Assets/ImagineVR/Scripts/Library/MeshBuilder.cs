@@ -76,6 +76,9 @@ namespace ImagineVR
         public MeshBuilder Push(Vector3 position) { return Push(position, Vector3.zero, Vector3.one); }
         public MeshBuilder Push(Vector3 position, Vector3 eulerDegrees) { return Push(position, eulerDegrees, Vector3.one); }
         public MeshBuilder Pop() { _xf = _stack.Pop(); return this; }
+        public int Depth => _stack.Count;
+        /// <summary>Back out to an earlier depth, after something failed part-way through a nest of pushes.</summary>
+        public void PopTo(int depth) { while (_stack.Count > depth) Pop(); }
 
         // ------------------------------------------------------------------ core
 

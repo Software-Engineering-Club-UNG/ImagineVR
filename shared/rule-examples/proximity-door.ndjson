@@ -1,3 +1,0 @@
-{"op":"rule","id":"door.open","selector":{"group":"door"},"event":"proximity_enter","filters":{"radius":4},"actions":[{"action":"move_to","position":[0,4,8],"duration":1}]}
-{"op":"rule","id":"door.close","selector":{"group":"door"},"event":"proximity_exit","filters":{"radius":5},"actions":[{"action":"move_to","position":[0,0,8],"duration":1}]}
-{"op":"spawn","id":"door","asset":"cube","at":[0,0,8],"scale":[3,3,0.3],"solid":true}

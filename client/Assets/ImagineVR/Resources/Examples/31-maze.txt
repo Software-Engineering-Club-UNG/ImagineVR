@@ -1,7 +1,0 @@
-# Give me a maze to walk through
-{"op":"clear"}
-{"op":"sky","preset":"golden_hour","t":4}
-{"op":"terrain","type":"flat","material":"grass","t":3}
-{"op":"kit","id":"maze","kit":"maze","size":0.4}
-{"op":"ambience","loop":"birds_breeze"}
-{"op":"say","text":"You're in the middle. Find the flag. Push the stick to walk."}

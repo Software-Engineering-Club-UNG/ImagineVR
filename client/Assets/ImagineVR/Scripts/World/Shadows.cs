@@ -21,40 +21,60 @@ namespace ImagineVR
     public static class Shadows
     {
         const float Lift = 0.035f;
-        static readonly int StrengthId = Shader.PropertyToID("_Strength"), GlobalId = Shader.PropertyToID("_ImShadow");
+        static readonly int GlobalId = Shader.PropertyToID("_ImShadow");
         static readonly List<ShadowCaster> Casters = new List<ShadowCaster>();
-        static readonly Matrix4x4[] Scratch = new Matrix4x4[256];
+        static readonly List<Matrix4x4> Scratch = new List<Matrix4x4>();
         static readonly Bounds Everywhere = new Bounds(Vector3.zero, Vector3.one * 2000f);
-        static Mesh _quad;
         static Material _material;
-        static MaterialPropertyBlock _props;
         static float _strength;
+        static Mesh _moving;            // the shadows of everything that moves, rebuilt each frame
+        static MeshRenderer _renderer;
+        static readonly List<Vector3> Verts = new List<Vector3>();
+        static readonly List<Vector2> Corners = new List<Vector2>(), Extra = new List<Vector2>();
+        static readonly List<int> Tris = new List<int>();
 
         public static Material Material
         {
             get
             {
-                if (_material == null) _material = new Material(Shader.Find("ImagineVR/Shadow")) { name = "ImagineShadow", enableInstancing = true };
+                if (_material == null) _material = new Material(Shader.Find("ImagineVR/Shadow")) { name = "ImagineShadow" };
                 return _material;
             }
         }
 
-        public static Mesh Quad
+        static readonly Vector3[] Corner = { new Vector3(-1f, 0f, -1f), new Vector3(-1f, 0f, 1f), new Vector3(1f, 0f, 1f), new Vector3(1f, 0f, -1f) };
+
+        /// <summary>
+        /// Shadow quads, already placed, as one mesh in world space (see Shadow.shader). Each matrix is
+        /// one from Matrix(): its Y scale is how strong that shadow is. Pass a mesh to refill it.
+        /// </summary>
+        public static Mesh Bake(List<Matrix4x4> quads, Mesh into)
         {
-            get
+            Mesh mesh = into != null ? into : new Mesh { name = "Shadows" };
+            Verts.Clear(); Corners.Clear(); Extra.Clear(); Tris.Clear();
+            foreach (Matrix4x4 m in quads)
             {
-                if (_quad == null)
+                float own = ((Vector3)m.GetColumn(1)).magnitude;
+                float reach = Mathf.Min(((Vector3)m.GetColumn(0)).magnitude, ((Vector3)m.GetColumn(2)).magnitude);
+                int first = Verts.Count;
+                foreach (Vector3 c in Corner)
                 {
-                    _quad = new Mesh { name = "Shadow" };
-                    _quad.vertices = new[] { new Vector3(-1f, 0f, -1f), new Vector3(-1f, 0f, 1f), new Vector3(1f, 0f, 1f), new Vector3(1f, 0f, -1f) };
-                    _quad.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-                    _quad.bounds = new Bounds(Vector3.zero, new Vector3(2f, 0.2f, 2f));
+                    Verts.Add(m.MultiplyPoint3x4(c));
+                    Corners.Add(new Vector2(c.x, c.z));
+                    Extra.Add(new Vector2(own, reach));
                 }
-                return _quad;
+                Tris.Add(first); Tris.Add(first + 1); Tris.Add(first + 2); Tris.Add(first); Tris.Add(first + 2); Tris.Add(first + 3);
             }
+            mesh.Clear();
+            if (Verts.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.SetVertices(Verts);
+            mesh.SetUVs(0, Corners);
+            mesh.SetUVs(1, Extra);
+            mesh.SetTriangles(Tris, 0, false);
+            if (into == null) mesh.RecalculateBounds();
+            return mesh;
         }
 
-        /// <summary>Follows a moving thing with a shadow until it is destroyed.</summary>
         public static ShadowCaster Cast(Transform target, Bounds local, Renderer body = null)
         {
             var caster = new ShadowCaster { Target = target, Body = body, Half = new Vector2(local.extents.x, local.extents.z) };
@@ -88,22 +108,6 @@ namespace ImagineVR
             return Matrix4x4.TRS(position, Quaternion.FromToRotation(Vector3.up, normal) * yaw, new Vector3(half.x * 1.2f, Mathf.Clamp01(fade), half.y * 1.2f));
         }
 
-        public static void Draw(Matrix4x4[] matrices, int count, Bounds bounds, float strength)
-        {
-            if (count <= 0 || strength <= 0.001f || _strength <= 0.001f) return;
-            if (_props == null) _props = new MaterialPropertyBlock();
-            _props.SetFloat(StrengthId, strength);
-            var rp = new RenderParams(Material)
-            {
-                matProps = _props,
-                worldBounds = bounds,
-                shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off,
-                receiveShadows = false,
-            };
-            Graphics.RenderMeshInstanced(rp, Quad, 0, matrices, count);
-        }
-
-        /// <summary>Once a frame: sets how dark shadows are, and draws the ones under moving things.</summary>
         public static void Render(World world, float dt)
         {
             // Shadows need ground to lie on and light to be cast by. Night keeps a faint one: it is
@@ -116,11 +120,23 @@ namespace ImagineVR
             }
             _strength = Mathf.MoveTowards(_strength, wanted, dt * 0.4f);
             Shader.SetGlobalFloat(GlobalId, _strength);
-            if (_strength <= 0.001f) { Casters.RemoveAll(c => c.Target == null); return; }
+            if (_renderer == null)
+            {
+                var go = new GameObject("MovingShadows");
+                go.transform.SetParent(world.transform, false);
+                _moving = new Mesh { name = "MovingShadows" };
+                _moving.MarkDynamic();
+                go.AddComponent<MeshFilter>().sharedMesh = _moving;
+                _renderer = go.AddComponent<MeshRenderer>();
+                _renderer.sharedMaterial = Material;
+                _renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _renderer.receiveShadows = false;
+            }
+            if (_strength <= 0.001f) { Casters.RemoveAll(c => c.Target == null); _renderer.enabled = false; return; }
 
             TerrainSystem terrain = world.Terrain;
             float water = terrain.WaterY;
-            int n = 0;
+            Scratch.Clear();
             for (int i = Casters.Count - 1; i >= 0; i--)
             {
                 ShadowCaster c = Casters[i];
@@ -156,10 +172,14 @@ namespace ImagineVR
                 float height = Mathf.Max(0f, bottom - ground);
                 float fade = c.Fade * (1f - Mathf.Clamp01(height / (4f + wide * 6f)));
                 if (fade <= 0.01f) continue;
-                Scratch[n++] = Matrix(terrain, at.x, at.z, floor, yaw, half * (1f + height * 0.12f), fade);
-                if (n == Scratch.Length) { Draw(Scratch, n, Everywhere, 1f); n = 0; }
+                if (Scratch.Count < 400) Scratch.Add(Matrix(terrain, at.x, at.z, floor, yaw, half * (1f + height * 0.12f), fade));
             }
-            Draw(Scratch, n, Everywhere, 1f);
+            _renderer.enabled = Scratch.Count > 0;
+            if (Scratch.Count > 0)
+            {
+                Bake(Scratch, _moving);
+                _moving.bounds = Everywhere;
+            }
         }
     }
 }

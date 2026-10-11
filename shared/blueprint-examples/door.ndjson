@@ -1,3 +1,0 @@
-{"op":"blueprint","id":"custom_door","parts":[{"id":"frame","shape":"cube","position":[0,1,0],"scale":[0.12,2,0.12],"color":"#777777","collider":"box"},{"id":"hinge","shape":"cube","position":[0.1,0,0],"scale":[1,1,1],"color":"#888888"},{"id":"panel","shape":"cube","position":[0.5,1,0],"scale":[1,2,0.1],"color":"#996633","parent":"hinge","collider":"box"}],"animations":[{"name":"open","part":"hinge","mode":"keyframes","property":"rotation","enabled":false,"loop":false,"frames":[{"time":0,"value":[0,0,0]},{"time":1,"value":[0,90,0]}]}]}
-{"op":"rule","id":"door.open","selector":{"asset":"custom_door"},"event":"proximity_enter","filters":{"radius":3},"actions":[{"action":"animation_play","name":"open"}]}
-{"op":"spawn","asset":"custom_door","id":"door","at":[0,0,6]}

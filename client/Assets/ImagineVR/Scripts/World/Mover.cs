@@ -48,9 +48,8 @@ namespace ImagineVR
         World _world;
         Route _route;
         float _speed, _distance;
-        bool _complete;
 
-        public static GameObject Create(World world, AssetDef def, Route route, float speed, float start, Vector3 scale, Color tint)
+        public static GameObject Create(World world, AssetDef def, Route route, float speed, float start, Vector3 scale, Color tint, string groupId = null)
         {
             var go = new GameObject("Mover_" + def.Id);
             go.transform.SetParent(world.transform, false);
@@ -82,12 +81,6 @@ namespace ImagineVR
         {
             _distance += _speed * Time.deltaTime;
             Place(1f - Mathf.Exp(-Time.deltaTime * 6f));
-            if (!_complete && !_route.Loop && _distance >= _route.Length)
-            {
-                _complete = true;
-                RuleBody rule = GetComponent<RuleBody>();
-                if (rule != null) rule.Engine.Emit("path_complete", rule.Entity);
-            }
         }
 
         void Place(float turn)
