@@ -23,7 +23,8 @@ namespace ImagineVR
     ///   walk / strafe      left thumbstick             W A S D
     ///   turn 45 degrees    right thumbstick
     ///   open nearby door   point + free-hand trigger   F (look at door)
-    ///   steer when riding  right thumbstick            W A S D
+    ///   move when riding   left thumbstick             W A S D
+    ///   turn when riding   right thumbstick (45°)
     ///   look                                           hold right mouse button
     /// </summary>
     public sealed class Rig : MonoBehaviour

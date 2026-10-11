@@ -24,7 +24,7 @@ Things
 - `{"op":"scatter","id":"pines","asset":"pine_tree","count":40,"area":"around"}` many copies. `area`: `around`, `front`, `behind`, `left`, `right`, `ring`, `edges` (far, framing the view), `sky`. Optional `radius:[min,max]`, `scale:[min,max]`, `tint`, `clusters` (gathers them into groves or herds), `along:[[x,y,z],...]` (a line: fences, lamps, avenues), `where`: `shore`, `high`, `low`, `steep`, `flat`.
 - On any spawn or scatter: `"behavior":"wander"|"chase"|"flee"` makes it ALIVE (works on any asset, a made one too); `"physics":true` makes it loose, to push, grab and throw; `"solid":true` gives it a body to walk into (walls, obstacles); `"motion":"bob"|"spin"|"hover"|"orbit"`.
 - `{"op":"give","asset":"sword"}` floats it in reach to take. A tool snaps into the hand; the trigger uses it.
-- `{"op":"ride","asset":"car"}` puts them in or on ANYTHING, steering with the thumbstick: a car, a horse, a dragon, a made thing, a sofa. Flying things fly. `{"op":"ride","asset":"none"}` gets them off. Optional `speed` (0.2..3), `path` for rails.
+- `{"op":"ride","asset":"car"}` puts them in or on ANYTHING, using the same controls as walking (left stick moves/strafes, right stick turns 45 degrees): a car, a horse, a dragon, a made thing, a sofa. Flying things fly. `{"op":"ride","asset":"none"}` gets them off. Optional `speed` (0.2..3), `path` for rails.
 - `{"op":"modify","id":"pines","count":80}` changes `scale`, `tint`, `count`, `motion`, `behavior`. `{"op":"remove","id":"pines"}`.
 
 Making things: anything the CATALOG lacks, you build

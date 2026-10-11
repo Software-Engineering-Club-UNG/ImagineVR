@@ -5,11 +5,9 @@ namespace ImagineVR
 {
     /// <summary>
     /// Moves the user through the world they built: on foot, or in or on a car, a horse, a dragon.
-    /// The whole rig moves, with any vehicle drawn around it. The right thumbstick (or W A S D on the
-    /// desktop) is forward, back and turning. Things that fly cruise above the ground.
-    ///
-    /// On foot the left stick walks/strafes relative to the head and the right stick snaps 45 degrees.
-    /// Riding keeps its existing right-stick steering. Whenever the
+    /// Walking and manual riding share head-relative left-stick movement and right-stick
+    /// 45-degree snap turns (desktop: WASD and mouse look). Flying rides cruise above ground.
+    /// Whenever the
     /// user is being moved the edge of their view darkens a little (see <see cref="Comfort"/>).
     /// </summary>
     public sealed class Vehicle : MonoBehaviour
@@ -39,11 +37,9 @@ namespace ImagineVR
         bool _snapArmed = true;
         CharacterController walker;
         float falling;
+        Vector3 rideVelocity;
 
-        /// <summary>Legacy riding setting; walking always uses 45-degree snap turning.</summary>
-        public bool SnapTurn = true;
-
-        /// <summary>Stick input from code rather than a hand: x steers, y is throttle. For demos and checks.</summary>
+        /// <summary>Movement input from code: x strafes, y moves forward/back. For demos and checks.</summary>
         public Vector2 Autopilot;
 
         public bool Riding => _visual != null;
@@ -146,6 +142,7 @@ namespace ImagineVR
             _def = null;
             _route = null;
             _speed = 0f;
+            rideVelocity = Vector3.zero;
             _altitude = _railHeight = 0;
         }
 
@@ -177,6 +174,7 @@ namespace ImagineVR
             _world.Props.Carry(was, rig.position, Quaternion.Euler(0f, turn, 0f));
             _lastYaw = rig.eulerAngles.y;
             _speed = 0f;
+            rideVelocity = Vector3.zero;
             SessionLog.Write("home", "moved", (rig.position - was).magnitude, "turned", turn);
         }
 
@@ -233,14 +231,10 @@ namespace ImagineVR
             float turn = 0f, dt = Time.deltaTime;
             bool xr = _rig.XrActive, snapped = false;
 
-            if (_rig.StickClicked)
+            if (_route != null)
             {
-                SnapTurn = !SnapTurn;
-                _world.Note(SnapTurn ? "turning in steps" : "turning smoothly");
-            }
-
-            if (Riding && _route != null)
-            {
+                _snapArmed = Mathf.Abs(_rig.TurnStick.x) < 0.35f;
+                rideVelocity = Vector3.zero;
                 _speed = Mathf.MoveTowards(_speed, _top * 0.7f, 5f * dt);
                 _travelled += _speed * dt;
                 Vector3 at = _route.At(_travelled, out Vector3 heading);
@@ -251,74 +245,28 @@ namespace ImagineVR
                 _railHeight = at.y;
                 if (!_route.Loop && _travelled >= _route.Length) _route = null;   // end of the line: the controls come back
             }
-            // on foot the same controls walk, so the world can be explored without asking for a ride
-            else if (Riding || !_world.IsDark)
+            else
             {
-                Vector2 stick = _rig.Stick + Autopilot;
-                Keyboard kb = Keyboard.current;
-                if (kb != null && !xr && !ImagineApp.Typing)
+                centre = new Vector3(_rig.Head.position.x, p.y, _rig.Head.position.z);
+                turn = TurnInput();
+                snapped = turn != 0;
+                if (snapped)
                 {
-                    if (kb.wKey.isPressed || kb.upArrowKey.isPressed) stick.y += 1f;
-                    if (kb.sKey.isPressed || kb.downArrowKey.isPressed) stick.y -= 1f;
-                    if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) stick.x += 1f;
-                    if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) stick.x -= 1f;
+                    rig.RotateAround(centre, Vector3.up, turn);
+                    p = rig.position;
+                    rideVelocity = Quaternion.Euler(0, turn, 0) * rideVelocity;
                 }
-                stick = Vector2.ClampMagnitude(stick, 1f);
-                if (stick.magnitude < 0.15f) stick = Vector2.zero;
-
-                float top = Riding ? _top : WalkSpeed * Mathf.Clamp(_size, 0.25f, 6f);
-                float wanted = stick.y >= 0f ? stick.y * top : stick.y * top * (Riding ? 0.4f : 1f);
-                _speed = Mathf.MoveTowards(_speed, wanted, (Mathf.Abs(wanted) > Mathf.Abs(_speed) ? 6f : 10f) * dt);
-
-                Vector3 forward = rig.forward;
-                if (Riding)
-                {
-                    // steers like a car once it is rolling, and can still be turned on the spot
-                    turn = stick.x * 70f * Mathf.Clamp(Mathf.Abs(_speed) / 3f, 0.4f, 1f) * (_speed < -0.1f ? -1f : 1f) * dt;
-                    rig.Rotate(0f, turn, 0f, Space.World);
-                    forward = rig.forward;
-                }
-                else
-                {
-                    // On foot the turn pivots on the user, wherever in their room they are standing.
-                    Vector3 head = _rig.Head.position;
-                    centre = new Vector3(head.x, p.y, head.z);
-                    if (xr && SnapTurn)
-                    {
-                        if (_snapArmed && Mathf.Abs(stick.x) > 0.7f && Mathf.Abs(stick.x) > Mathf.Abs(stick.y))
-                        {
-                            turn = Mathf.Sign(stick.x) * 30f;
-                            _snapArmed = false;
-                            snapped = true;
-                        }
-                        else if (Mathf.Abs(stick.x) < 0.35f) _snapArmed = true;
-                    }
-                    else
-                    {
-                        turn = stick.x * 70f * Mathf.Clamp(Mathf.Abs(_speed) / 3f, 0.4f, 1f) * (_speed < -0.1f ? -1f : 1f) * dt;
-                    }
-                    if (turn != 0f)
-                    {
-                        rig.RotateAround(centre, Vector3.up, turn);
-                        p = rig.position;
-                    }
-                    turned = p;
-                    // in the headset, forward is where the user is looking
-                    if (xr)
-                    {
-                        Vector3 look = _rig.Head.forward;
-                        look.y = 0f;
-                        if (look.sqrMagnitude > 0.01f) forward = look.normalized;
-                    }
-                    else forward = rig.forward;
-                }
-
-                Vector3 step = Blocked(p, forward * (_speed * dt));
-                if (step == Vector3.zero && Riding) _speed *= 0.5f;
+                turned = p;
+                Vector3 wanted = WalkDirection(MovementForward(), MovementInput()) * _top;
+                float acceleration = wanted.magnitude > rideVelocity.magnitude ? 6f : 10f;
+                rideVelocity = Vector3.MoveTowards(rideVelocity, wanted, acceleration * dt);
+                Vector3 step = Blocked(p, rideVelocity * dt);
+                if (dt > 0) rideVelocity = step / dt;
                 p += step;
                 float edge = World.Radius - 8f;
                 Vector2 flat = new Vector2(p.x, p.z);
                 if (flat.magnitude > edge) { flat = flat.normalized * edge; p.x = flat.x; p.z = flat.y; }
+                _speed = dt > 0 ? new Vector2(p.x - turned.x, p.z - turned.z).magnitude / dt : 0;
             }
 
             // stand (or sit) on whatever ground is here; away from the middle that is not y = 0
@@ -390,16 +338,8 @@ namespace ImagineVR
             Physics.SyncTransforms();
         }
 
-        void Walk()
+        Vector2 MovementInput()
         {
-            Transform rig = _rig.transform;
-            float dt = Time.deltaTime;
-            Vector3 before = rig.position;
-            Vector3 pivot = new Vector3(_rig.Head.position.x, rig.position.y, _rig.Head.position.z);
-            float turn = _rig.XrActive ? Snap(_rig.TurnStick.x, ref _snapArmed) : 0;
-            walker.enabled = false;
-            if (turn != 0) rig.RotateAround(pivot, Vector3.up, turn);
-            Vector3 turned = rig.position;
             Vector2 input = _rig.XrActive ? _rig.MoveStick : Vector2.zero;
             if (!_rig.XrActive && Keyboard.current != null && !ImagineApp.Typing)
             {
@@ -408,10 +348,29 @@ namespace ImagineVR
                 input.y = (kb.wKey.isPressed || kb.upArrowKey.isPressed ? 1 : 0) - (kb.sKey.isPressed || kb.downArrowKey.isPressed ? 1 : 0);
             }
             input = Vector2.ClampMagnitude(input + Autopilot, 1);
-            if (input.magnitude < 0.15f || _world.IsDark) input = Vector2.zero;
+            return input.magnitude < 0.15f ? Vector2.zero : input;
+        }
+
+        Vector3 MovementForward()
+        {
             Vector3 forward = _rig.Head.forward; forward.y = 0;
-            if (forward.sqrMagnitude < 0.01f) forward = rig.forward;
-            forward.Normalize();
+            return forward.sqrMagnitude < 0.01f ? _rig.transform.forward : forward.normalized;
+        }
+
+        float TurnInput() => _rig.XrActive ? Snap(_rig.TurnStick.x, ref _snapArmed) : 0;
+
+        void Walk()
+        {
+            Transform rig = _rig.transform;
+            float dt = Time.deltaTime;
+            Vector3 before = rig.position;
+            Vector3 pivot = new Vector3(_rig.Head.position.x, rig.position.y, _rig.Head.position.z);
+            float turn = TurnInput();
+            walker.enabled = false;
+            if (turn != 0) rig.RotateAround(pivot, Vector3.up, turn);
+            Vector3 turned = rig.position;
+            Vector2 input = _world.IsDark ? Vector2.zero : MovementInput();
+            Vector3 forward = MovementForward();
             Vector3 movement = WalkDirection(forward, input) * WalkSpeed * Mathf.Clamp(_size, 0.25f, 6) * dt;
             Vector3 localHead = rig.InverseTransformPoint(_rig.Head.position);
             walker.height = Mathf.Clamp(localHead.y, 0.6f, 3f * Mathf.Max(1, _size));

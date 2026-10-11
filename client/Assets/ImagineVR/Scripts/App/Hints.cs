@@ -213,8 +213,8 @@ namespace ImagineVR
             _rides++;
             if (_ride != null) _ride.Dismiss();
             string go = flies ? "fly" : "drive";
-            string text = Xr ? "push this <b>thumbstick</b> forward to " + go + "  ·  sideways steers" : "<b>W A S D</b> to " + go;
-            _ride = Callout.Show(Rig.RightHand, Vector3.zero, 0.2f, text, HandText, 0f);
+            string text = Xr ? "<b>Left stick</b> to " + go + " and strafe · <b>right stick</b> turns 45°" : "<b>W A S D</b> to " + go + " and strafe · mouse to look";
+            _ride = Callout.Show(Rig.LeftHand, Vector3.zero, 0.2f, text, HandText, 0f);
             SessionLog.Write("hint", "what", "ride", "asset", World.Vehicle.Asset);
         }
 

@@ -94,7 +94,7 @@ Open `client/` in Unity 6000.3.26f1, open `Assets/ImagineVR/Scenes/Main`, press 
 Desktop: **Enter** types, **Space** speaks, right mouse looks, **WASD** moves, **E** grabs,
 click uses, **C** folds the terminal, **F12** starts over. Headset: hold **A** to speak,
 **Y** folds the terminal, **X** recentres it, hold **X** two seconds to start over, grip
-grabs, trigger uses, left stick walks/strafes, and right stick turns 45 degrees on foot or drives while riding. Point an empty hand at a nearby door and press trigger to open it (desktop: look and press F). See [explorable interiors](INTERIORS.md).
+grabs, trigger uses, left stick moves/strafes, and right stick turns 45 degrees both on foot and while riding. Point an empty hand at a nearby door and press trigger to open it (desktop: look and press F). See [explorable interiors](INTERIORS.md).
 
 The headset reads its server URL and token from `imagine.json` in the app's files folder
 (falling back to `Resources/ImagineSettings.asset`).
