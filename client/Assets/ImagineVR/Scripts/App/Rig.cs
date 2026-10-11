@@ -532,6 +532,7 @@ namespace ImagineVR
             if (World.Instance != null) World.Instance.Rules.Fire("grab", Rules.Of(prop));
             _held = prop;
             prop.Holder = this;
+            prop.GetComponent<HeldItemRuntime>()?.Grabbed();
             prop.Floating = false;
             prop.Body.isKinematic = true;
             if (prop.Def.Tool)
@@ -587,6 +588,7 @@ namespace ImagineVR
                 prop.Body.linearVelocity = _velocity * 1.25f;
                 prop.Body.angularVelocity = _angular;
             }
+            prop.GetComponent<HeldItemRuntime>()?.Released(thrown, prop.Body.linearVelocity, transform);
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }
@@ -631,6 +633,7 @@ namespace ImagineVR
             if (_replaceUse) return;
             Vector3 tipPosition = TargetPosition + (TargetRotation * Vector3.up) * prop.Length;
             Vector3 aim = TargetRotation * Vector3.up;
+            prop.GetComponent<HeldItemRuntime>()?.Use(pressed, pressed && !_triggerDown, tipPosition, aim);
             switch (prop.Def.Behavior)
             {
                 case "paint":
@@ -691,6 +694,7 @@ namespace ImagineVR
 
         void EndUse(Prop prop)
         {
+            if (prop != null) prop.GetComponent<HeldItemRuntime>()?.EndUse();
             _using = _replaceUse = false;
             if (_stroke != null && prop != null) prop.System.EndStroke(_stroke);
             _stroke = null;

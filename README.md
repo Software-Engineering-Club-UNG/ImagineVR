@@ -96,6 +96,8 @@ click uses, **C** folds the terminal, **F12** starts over. Headset: hold **A** t
 **Y** folds the terminal, **X** recentres it, hold **X** two seconds to start over, grip
 grabs, trigger uses, left stick moves/strafes, and right stick turns 45 degrees both on foot and while riding. Point an empty hand at a nearby door and press trigger to open it (desktop: look and press F). See [explorable interiors](INTERIORS.md).
 
+The [held-item expansion](HELD_ITEMS.md) adds 100 built-in item recipes with native trigger/throw behaviors, plus upgrades to existing fishing rods, boomerangs, discs and portable lights.
+
 The headset reads its server URL and token from `imagine.json` in the app's files folder
 (falling back to `Resources/ImagineSettings.asset`).
 

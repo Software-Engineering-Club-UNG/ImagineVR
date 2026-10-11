@@ -1,0 +1,10 @@
+{"op":"clear"}
+{"op":"sky","preset":"clear_noon","fog":0.01}
+{"op":"terrain","type":"flat","material":"rock"}
+{"op":"spawn","asset":"cube","id":"display_table","at":[0,0,4],"scale":[8,1,3],"tint":"#505866","solid":true}
+{"op":"spawn","asset":"plasma_rifle","id":"sample_0","at":[-2.5,1.05,4]}
+{"op":"spawn","asset":"hand_axe","id":"sample_1","at":[-1.5,1.05,4]}
+{"op":"spawn","asset":"frag_grenade","id":"sample_2","at":[-0.5,1.05,4]}
+{"op":"spawn","asset":"sport_fishing_rod","id":"sample_3","at":[0.5,1.05,4]}
+{"op":"spawn","asset":"wooden_boomerang","id":"sample_4","at":[1.5,1.05,4]}
+{"op":"spawn","asset":"soda_can","id":"sample_5","at":[2.5,1.05,4]}

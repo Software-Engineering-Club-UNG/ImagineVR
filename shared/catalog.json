@@ -1,11 +1,10 @@
 {
-  "language_version": 1,
-  "catalog_version": "1.245.2007a222",
+  "language_version": 2,
+  "catalog_version": "1.345.76bb0f8f",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
     "max_scatter_total": 1500,
-    "max_kits": 3,
     "max_physics": 40,
     "safe_radius_m": 3,
     "world_radius_m": 120
@@ -411,521 +410,6 @@
       "desc": "Pale sea floor sand and silt",
       "tags": ["ocean floor", "underwater", "reef"],
       "aliases": ["sea floor", "ocean floor"]
-    }
-  ],
-  "kits": [
-    {
-      "id": "golf_course",
-      "desc": "A golf hole: tee at your feet, mown fairway, green with a flag and a real hole, bunkers, trees",
-      "tags": ["golf", "sport", "course", "fairway", "green", "links"],
-      "aliases": ["golf", "golf hole", "links", "country club", "driving range"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.25
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Welcome to the first tee. The green is straight ahead."
-    },
-    {
-      "id": "city",
-      "desc": "A downtown street grid: you stand at a crossroads between blocks of towers, with lamps, cars and lit windows at night",
-      "tags": ["urban", "downtown", "street", "buildings", "skyscrapers", "metropolis"],
-      "aliases": ["city", "town", "downtown", "metropolis", "new york", "tokyo", "urban", "streets"],
-      "defaults": {
-        "sky": "night_city",
-        "terrain": {
-          "type": "flat",
-          "material": "asphalt"
-        },
-        "ambience": "city_night"
-      },
-      "greeting": "The city never sleeps. Look up."
-    },
-    {
-      "id": "forest",
-      "desc": "A deep woodland: mixed trees all around, a clearing where you stand, ferns, mushrooms, logs, deer",
-      "tags": ["woods", "trees", "nature", "woodland", "wild"],
-      "aliases": ["woods", "woodland", "jungle", "the woods", "grove"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "rolling",
-          "material": "forest_floor",
-          "height": 0.3
-        },
-        "ambience": "forest"
-      },
-      "params": {
-        "season": "summer, autumn, winter or spring"
-      },
-      "greeting": "Deep in the woods. Listen."
-    },
-    {
-      "id": "beach",
-      "desc": "A sandy shore: sea ahead, palms behind, parasols, deck chairs, a sandcastle, boats on the water",
-      "tags": ["sea", "coast", "shore", "summer", "holiday", "ocean", "tropical"],
-      "aliases": ["seaside", "shore", "coast", "tropical beach", "the beach"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "beach",
-          "material": "sand"
-        },
-        "ambience": "ocean_waves"
-      },
-      "greeting": "Sand under your feet, sea ahead."
-    },
-    {
-      "id": "tropical_island",
-      "desc": "A small desert island ringed by sea: palms, a treasure chest, a rowing boat, crabs",
-      "tags": ["island", "sea", "castaway", "pirate", "tropical"],
-      "aliases": ["desert island", "island", "castaway island", "atoll"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "island",
-          "material": "sand"
-        },
-        "ambience": "ocean_waves"
-      },
-      "greeting": "Your own island. Nobody for miles."
-    },
-    {
-      "id": "desert",
-      "desc": "A wide desert: cacti, wind-carved rock spires, bleached bones, a great pyramid on the horizon",
-      "tags": ["sand", "dunes", "dry", "hot", "sahara", "egypt"],
-      "aliases": ["sahara", "dunes", "wasteland", "egypt"],
-      "defaults": {
-        "sky": "desert_noon",
-        "terrain": {
-          "type": "dunes",
-          "material": "sand"
-        },
-        "ambience": "desert_wind"
-      },
-      "params": {
-        "oasis": "true adds a palm-ringed pool"
-      },
-      "greeting": "Nothing but sand and sky."
-    },
-    {
-      "id": "moon_base",
-      "desc": "The surface of the Moon: craters, a lander, a rocket, astronauts, the Earth hanging in a black sky, low gravity",
-      "tags": ["space", "moon", "lunar", "nasa", "astronaut", "low gravity"],
-      "aliases": ["moon", "the moon", "lunar surface", "lunar base", "space"],
-      "defaults": {
-        "sky": "deep_space",
-        "terrain": {
-          "type": "craters",
-          "material": "moon"
-        },
-        "ambience": "space_hum",
-        "gravity": 0.16
-      },
-      "greeting": "One small step. Things fall slowly here."
-    },
-    {
-      "id": "deep_space",
-      "desc": "Floating in open space on a small platform: asteroids drifting past, planets, a satellite, no gravity",
-      "tags": ["space", "stars", "zero gravity", "floating", "cosmos", "galaxy"],
-      "aliases": ["outer space", "space", "galaxy", "orbit", "zero gravity"],
-      "defaults": {
-        "sky": "deep_space",
-        "terrain": {
-          "type": "none"
-        },
-        "ambience": "space_hum",
-        "gravity": 0
-      },
-      "greeting": "Nothing holds you down out here."
-    },
-    {
-      "id": "winter_village",
-      "desc": "A snowy village: log cabins with lit windows, snow-laden pines, snowmen, a decorated tree",
-      "tags": ["snow", "christmas", "winter", "cold", "holiday", "cabin"],
-      "aliases": ["snowy village", "christmas village", "winter wonderland", "north pole", "snow"],
-      "defaults": {
-        "sky": "winter_day",
-        "terrain": {
-          "type": "rolling",
-          "material": "snow",
-          "height": 0.3
-        },
-        "ambience": "wind",
-        "weather": "snow"
-      },
-      "greeting": "Snow is falling. The cabins are warm."
-    },
-    {
-      "id": "coral_reef",
-      "desc": "Under the sea: coral, swaying kelp, schools of fish, jellyfish, a turtle, a sunken chest",
-      "tags": ["underwater", "ocean", "sea", "reef", "fish", "diving"],
-      "aliases": ["underwater", "under the sea", "ocean floor", "sea bed", "aquarium"],
-      "defaults": {
-        "sky": "underwater",
-        "terrain": {
-          "type": "rolling",
-          "material": "seabed",
-          "height": 0.35
-        },
-        "ambience": "underwater",
-        "weather": "bubbles",
-        "gravity": 0.25
-      },
-      "greeting": "Deep breath. You're under the sea."
-    },
-    {
-      "id": "farm",
-      "desc": "A working farm: red barn, windmill, fenced field of animals, hay bales, a scarecrow",
-      "tags": ["countryside", "barn", "animals", "rural", "ranch"],
-      "aliases": ["ranch", "countryside", "farmyard", "the farm"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.2
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Morning on the farm."
-    },
-    {
-      "id": "castle",
-      "desc": "A stone castle: walls and corner towers around a courtyard, a gatehouse facing you, knights, torches",
-      "tags": ["medieval", "fortress", "knight", "kingdom", "fantasy"],
-      "aliases": ["fortress", "citadel", "kingdom", "medieval castle", "stronghold"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.15
-        },
-        "ambience": "wind"
-      },
-      "greeting": "The gates are open. Welcome to the castle."
-    },
-    {
-      "id": "medieval_village",
-      "desc": "A timber-framed village around a square: houses, a well, market torches, villagers",
-      "tags": ["medieval", "town", "fantasy", "tavern", "market"],
-      "aliases": ["village", "medieval town", "fantasy village", "hamlet", "town square"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "flat",
-          "material": "dirt"
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "The village square, just before dusk."
-    },
-    {
-      "id": "japanese_garden",
-      "desc": "A serene garden: red torii gate, pagoda, cherry trees in blossom, stone lanterns, a bridge over a pond",
-      "tags": ["japan", "zen", "temple", "sakura", "asia", "peaceful"],
-      "aliases": ["zen garden", "japan", "japanese temple", "kyoto", "sakura garden"],
-      "defaults": {
-        "sky": "sunset_pink",
-        "terrain": {
-          "type": "rolling",
-          "material": "grass",
-          "height": 0.12
-        },
-        "ambience": "zen_chimes",
-        "weather": "petals"
-      },
-      "greeting": "Petals on the wind. Take your time."
-    },
-    {
-      "id": "synthwave",
-      "desc": "A retro-future highway: glowing grid to the horizon, a huge low sun, neon palms, purple mountains",
-      "tags": ["retro", "neon", "80s", "vaporwave", "outrun", "grid", "cyber"],
-      "aliases": ["retro", "retro world", "vaporwave", "outrun", "retrowave", "80s", "eighties", "neon grid", "neon world", "tron", "arcade"],
-      "defaults": {
-        "sky": "synthwave",
-        "terrain": {
-          "type": "flat",
-          "material": "neon",
-          "grid": 0.9,
-          "grid_color": "#FF4FD8"
-        },
-        "ambience": "synth_pad"
-      },
-      "greeting": "Welcome to 1986. Sort of."
-    },
-    {
-      "id": "campsite",
-      "desc": "A campsite at night: tent, crackling fire ringed with logs, lantern, pines, fireflies",
-      "tags": ["camping", "fire", "night", "outdoors", "woods", "cozy"],
-      "aliases": ["camp", "camping", "campfire", "camping trip"],
-      "defaults": {
-        "sky": "night_stars",
-        "terrain": {
-          "type": "rolling",
-          "material": "forest_floor",
-          "height": 0.2
-        },
-        "ambience": "fire_crackle",
-        "weather": "fireflies"
-      },
-      "greeting": "Pull up a log. The fire's going."
-    },
-    {
-      "id": "graveyard",
-      "desc": "A haunted graveyard: crooked headstones, bare trees, a mansion on the hill, drifting ghosts, bats",
-      "tags": ["halloween", "haunted", "spooky", "ghost", "cemetery", "horror"],
-      "aliases": ["cemetery", "haunted graveyard", "halloween", "spooky", "haunted"],
-      "defaults": {
-        "sky": "spooky",
-        "terrain": {
-          "type": "rolling",
-          "material": "swamp",
-          "height": 0.25
-        },
-        "ambience": "spooky"
-      },
-      "greeting": "Something moved. Probably the wind."
-    },
-    {
-      "id": "last_stand",
-      "desc": "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a rifle or a blaster to go with it",
-      "tags": ["zombie", "undead", "horror", "apocalypse", "survival", "shoot", "fight", "battle", "enemies", "monsters", "defend"],
-      "aliases": ["zombies", "zombie apocalypse", "zombie outbreak", "zombie horde", "zombie shooter", "shoot zombies", "walking dead", "undead", "apocalypse", "last stand", "shooting gallery", "invasion", "uprising", "monster attack"],
-      "defaults": {
-        "sky": "spooky",
-        "terrain": {
-          "type": "flat",
-          "material": "dirt"
-        },
-        "ambience": "spooky"
-      },
-      "params": {
-        "enemy": "any character or animal asset id: zombie (default), robot, alien, skeleton, knight, t_rex ..."
-      },
-      "greeting": "They're coming. Grab the blaster and pull the trigger."
-    },
-    {
-      "id": "maze",
-      "desc": "A maze to find your way out of: solid walls you cannot walk through, you start in the middle, and a flag marks the way out. Size sets how big (7 to 15 cells across)",
-      "tags": ["maze", "labyrinth", "puzzle", "walls", "lost", "explore", "game"],
-      "aliases": ["labyrinth", "hedge maze", "corn maze", "maze runner", "puzzle"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "flat",
-          "material": "grass"
-        },
-        "ambience": "birds_breeze"
-      },
-      "params": {
-        "walls": "hedge (default), stone, neon or ice"
-      },
-      "greeting": "You're in the middle. The flag is the way out."
-    },
-    {
-      "id": "candyland",
-      "desc": "A land made of sweets: giant lollipops, candy canes, cupcakes, doughnuts and a towering cake",
-      "tags": ["sweet", "candy", "dessert", "pastel", "kids", "cute"],
-      "aliases": ["candy land", "candy world", "sweet land", "sugar land", "dessert world"],
-      "defaults": {
-        "sky": "candy",
-        "terrain": {
-          "type": "rolling",
-          "material": "candy",
-          "height": 0.25
-        }
-      },
-      "greeting": "Everything here is edible. Probably."
-    },
-    {
-      "id": "ancient_ruins",
-      "desc": "Ruins of a forgotten temple: rows of marble columns, broken arches, statues, an obelisk",
-      "tags": ["greek", "roman", "temple", "ancient", "archaeology"],
-      "aliases": ["ruins", "temple ruins", "greek temple", "roman ruins", "acropolis", "stonehenge"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "rolling",
-          "material": "dry_grass",
-          "height": 0.2
-        },
-        "ambience": "wind"
-      },
-      "greeting": "Somebody built this three thousand years ago."
-    },
-    {
-      "id": "playground",
-      "desc": "A park playground: swings, a slide, a seesaw, a trampoline, benches, trees, balls to kick about",
-      "tags": ["park", "kids", "play", "swings", "fun", "garden"],
-      "aliases": ["park", "play park", "the park", "kids park"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "flat",
-          "material": "grass"
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Go on. Nobody's watching."
-    },
-    {
-      "id": "art_gallery",
-      "desc": "A bright white gallery: framed paintings all around, sculptures on plinths, an easel and paints beside you",
-      "tags": ["art", "museum", "studio", "gallery", "creative", "painting", "white"],
-      "aliases": ["gallery", "museum", "art studio", "studio", "exhibition", "art museum"],
-      "defaults": {
-        "sky": "white_room",
-        "terrain": {
-          "type": "flat",
-          "material": "marble"
-        }
-      },
-      "greeting": "The gallery is yours. Pick up a brush."
-    },
-    {
-      "id": "sports_court",
-      "desc": "An outdoor court: basketball hoop ahead with balls at your feet, a football goal behind, court lines",
-      "tags": ["basketball", "sport", "game", "football", "soccer", "court"],
-      "aliases": ["basketball", "basketball court", "court", "pitch", "sports field", "stadium", "gym"],
-      "defaults": {
-        "sky": "clear_noon",
-        "terrain": {
-          "type": "flat",
-          "material": "concrete"
-        },
-        "ambience": "birds_breeze"
-      },
-      "greeting": "Ball's at your feet. Take the shot."
-    },
-    {
-      "id": "bowling_alley",
-      "desc": "A bowling lane: polished wood running ahead to ten pins, bowling balls beside you",
-      "tags": ["bowling", "sport", "game", "pins", "strike"],
-      "aliases": ["bowling", "bowling lane", "ten pin"],
-      "defaults": {
-        "sky": "night_city",
-        "terrain": {
-          "type": "flat",
-          "material": "concrete"
-        }
-      },
-      "greeting": "Ten pins, twelve metres. Grab a ball."
-    },
-    {
-      "id": "dinosaur_valley",
-      "desc": "A prehistoric valley: giant ferns and palms, a towering long-neck, a T. rex, a smoking volcano",
-      "tags": ["dinosaur", "jurassic", "prehistoric", "jungle", "volcano"],
-      "aliases": ["jurassic park", "dinosaurs", "prehistoric", "dino land", "lost world"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "valley",
-          "material": "forest_floor",
-          "height": 0.4
-        },
-        "ambience": "forest"
-      },
-      "greeting": "Sixty-five million years ago. Stay still."
-    },
-    {
-      "id": "safari",
-      "desc": "African savanna: golden grass, flat-topped trees, elephants, giraffes and lions in the distance",
-      "tags": ["africa", "savanna", "wildlife", "animals", "grassland"],
-      "aliases": ["savanna", "savannah", "africa", "serengeti", "wildlife park"],
-      "defaults": {
-        "sky": "golden_hour",
-        "terrain": {
-          "type": "rolling",
-          "material": "dry_grass",
-          "height": 0.15
-        },
-        "ambience": "wind"
-      },
-      "greeting": "Golden hour on the savanna."
-    },
-    {
-      "id": "fairground",
-      "desc": "A funfair at dusk: a giant Ferris wheel, striped tents, balloons, lights, a crowd",
-      "tags": ["carnival", "fair", "amusement park", "rides", "circus", "festival"],
-      "aliases": ["carnival", "funfair", "amusement park", "theme park", "circus", "fair"],
-      "defaults": {
-        "sky": "dusk",
-        "terrain": {
-          "type": "flat",
-          "material": "grass"
-        },
-        "ambience": "city_night"
-      },
-      "greeting": "Roll up. The wheel's turning."
-    },
-    {
-      "id": "harbor",
-      "desc": "A quiet harbour: a wooden pier, boats at anchor, a lighthouse, crates and barrels on the quay",
-      "tags": ["port", "dock", "sea", "boats", "fishing", "coast"],
-      "aliases": ["harbour", "port", "docks", "marina", "fishing village", "quay"],
-      "defaults": {
-        "sky": "morning",
-        "terrain": {
-          "type": "beach",
-          "material": "rock"
-        },
-        "ambience": "ocean_waves"
-      },
-      "greeting": "Tide's in. Boats are ready."
-    },
-    {
-      "id": "western_town",
-      "desc": "A Wild West main street: saloons on both sides, cacti, barrels, horses, tumbleweed blowing through",
-      "tags": ["cowboy", "wild west", "frontier", "saloon", "desert"],
-      "aliases": ["wild west", "old west", "cowboy town", "frontier town", "ghost town"],
-      "defaults": {
-        "sky": "desert_noon",
-        "terrain": {
-          "type": "flat",
-          "material": "dirt"
-        },
-        "ambience": "desert_wind",
-        "weather": "dust"
-      },
-      "greeting": "This town ain't big enough."
-    },
-    {
-      "id": "volcano_land",
-      "desc": "A volcanic wasteland: black rock, rivers of glowing lava, burnt trees, an erupting cone, falling embers",
-      "tags": ["lava", "fire", "hell", "volcanic", "eruption", "danger"],
-      "aliases": ["volcano", "lava land", "hell", "inferno", "mordor"],
-      "defaults": {
-        "sky": "volcanic",
-        "terrain": {
-          "type": "hills",
-          "material": "lava_rock",
-          "height": 0.3
-        },
-        "ambience": "fire_crackle",
-        "weather": "embers"
-      },
-      "greeting": "Mind the lava."
-    },
-    {
-      "id": "cloud_kingdom",
-      "desc": "Above the clouds: a floating platform in a sea of cloud, a rainbow, balloons and lanterns drifting by",
-      "tags": ["sky", "heaven", "clouds", "dream", "floating", "flying"],
-      "aliases": ["heaven", "sky kingdom", "above the clouds", "dream world", "the sky"],
-      "defaults": {
-        "sky": "dreamy",
-        "terrain": {
-          "type": "none"
-        },
-        "ambience": "zen_chimes",
-        "gravity": 0.4
-      },
-      "greeting": "Nothing below but cloud."
     }
   ],
   "assets": [
@@ -1864,13 +1348,15 @@
     },
     {
       "id": "frisbee",
-      "desc": "Flying disc",
+      "desc": "Flying disc Throw flat to spin and glide with lift and drag.",
       "tags": ["throw", "catch", "park", "beach", "toy"],
       "aliases": ["flying disc", "disc"],
       "category": "sports",
       "size_m": 0.03,
       "holdable": true,
-      "prop": true
+      "prop": true,
+      "held_action": "disc",
+      "use": "Flying disc Throw flat to spin and glide with lift and drag."
     },
     {
       "id": "rubber_duck",
@@ -1964,13 +1450,15 @@
     },
     {
       "id": "fishing_rod",
-      "desc": "Fishing rod with a float",
+      "desc": "Fishing rod with a float Trigger casts a visible line and bobber; trigger again reels it in.",
       "tags": ["fish", "lake", "sea", "relax", "catch"],
       "aliases": ["rod", "fishing pole"],
       "category": "tools",
       "size_m": 1.8,
       "holdable": true,
-      "prop": true
+      "prop": true,
+      "held_action": "fishing",
+      "use": "Fishing rod with a float Trigger casts a visible line and bobber; trigger again reels it in."
     },
     {
       "id": "umbrella",
@@ -1984,23 +1472,27 @@
     },
     {
       "id": "flashlight",
-      "desc": "Hand torch with a bright lens",
+      "desc": "Hand torch with a bright lens Trigger toggles a portable light.",
       "tags": ["light", "torch", "night", "explore", "cave"],
       "aliases": ["torch", "hand torch"],
       "category": "tools",
       "size_m": 0.2,
       "holdable": true,
-      "prop": true
+      "prop": true,
+      "held_action": "light",
+      "use": "Hand torch with a bright lens Trigger toggles a portable light."
     },
     {
       "id": "lantern",
-      "desc": "Glowing camping lantern",
+      "desc": "Glowing camping lantern Trigger toggles a portable light.",
       "tags": ["light", "camp", "night", "cozy", "explore"],
       "aliases": ["oil lamp", "hurricane lamp", "lamp"],
       "category": "camp",
       "size_m": 0.3,
       "holdable": true,
-      "prop": true
+      "prop": true,
+      "held_action": "light",
+      "use": "Glowing camping lantern Trigger toggles a portable light."
     },
     {
       "id": "shield",
@@ -2182,12 +1674,14 @@
     },
     {
       "id": "boomerang",
-      "desc": "Wooden boomerang",
+      "desc": "Wooden boomerang Throw to arc outward and fly back toward the throwing hand.",
       "tags": ["throw", "australia", "toy", "catch"],
       "category": "toys",
       "size_m": 0.03,
       "holdable": true,
-      "prop": true
+      "prop": true,
+      "held_action": "returning",
+      "use": "Wooden boomerang Throw to arc outward and fly back toward the throwing hand."
     },
     {
       "id": "horse",
@@ -2451,6 +1945,1227 @@
       "aliases": ["strawman"],
       "category": "people",
       "size_m": 2.1
+    },
+    {
+      "id": "compact_pistol",
+      "desc": "compact pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["compact pistol"],
+      "category": "firearms",
+      "size_m": 0.18,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "compact pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "heavy_pistol",
+      "desc": "heavy pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["heavy pistol"],
+      "category": "firearms",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "heavy pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "service_pistol",
+      "desc": "service pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["service pistol"],
+      "category": "firearms",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "service pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "machine_pistol",
+      "desc": "machine pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["machine pistol"],
+      "category": "firearms",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "machine pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "target_pistol",
+      "desc": "target pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["target pistol"],
+      "category": "firearms",
+      "size_m": 0.35,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "target pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "snub_revolver",
+      "desc": "snub revolver. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["snub revolver"],
+      "category": "firearms",
+      "size_m": 0.18,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "snub revolver. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "long_revolver",
+      "desc": "long revolver. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["long revolver"],
+      "category": "firearms",
+      "size_m": 0.35,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "long revolver. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "lever_rifle",
+      "desc": "lever rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["lever rifle"],
+      "category": "firearms",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "lever rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "bolt_rifle",
+      "desc": "bolt rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["bolt rifle"],
+      "category": "firearms",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "bolt rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "hunting_rifle",
+      "desc": "hunting rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["hunting rifle"],
+      "category": "firearms",
+      "size_m": 0.9,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "hunting rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "carbine",
+      "desc": "carbine. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["carbine"],
+      "category": "firearms",
+      "size_m": 0.55,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "carbine. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "assault_carbine",
+      "desc": "assault carbine. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["assault carbine"],
+      "category": "firearms",
+      "size_m": 0.55,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "assault carbine. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "battle_rifle",
+      "desc": "battle rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["battle rifle"],
+      "category": "firearms",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "battle rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "marksman_rifle",
+      "desc": "marksman rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["marksman rifle"],
+      "category": "firearms",
+      "size_m": 0.9,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "marksman rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "pump_shotgun",
+      "desc": "pump shotgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["pump shotgun"],
+      "category": "firearms",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "pump shotgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "double_shotgun",
+      "desc": "double shotgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["double shotgun"],
+      "category": "firearms",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "double shotgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "tactical_shotgun",
+      "desc": "tactical shotgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["tactical shotgun"],
+      "category": "firearms",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "tactical shotgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "compact_smg",
+      "desc": "compact smg. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["compact smg"],
+      "category": "firearms",
+      "size_m": 0.18,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "compact smg. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "heavy_smg",
+      "desc": "heavy smg. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["heavy smg"],
+      "category": "firearms",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "heavy smg. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "rotary_gun",
+      "desc": "rotary gun. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "firearms", "firearm"],
+      "aliases": ["rotary gun"],
+      "category": "firearms",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "rotary gun. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "plasma_pistol",
+      "desc": "plasma pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["plasma pistol"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "explosion",
+      "use": "plasma pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "plasma_rifle",
+      "desc": "plasma rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["plasma rifle"],
+      "category": "science_fiction",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "explosion",
+      "use": "plasma rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "pulse_carbine",
+      "desc": "pulse carbine. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["pulse carbine"],
+      "category": "science_fiction",
+      "size_m": 0.55,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "pulse carbine. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "ion_blaster",
+      "desc": "ion blaster. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["ion blaster"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "ion blaster. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "railgun",
+      "desc": "railgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["railgun"],
+      "category": "science_fiction",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "railgun. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "gauss_rifle",
+      "desc": "gauss rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["gauss rifle"],
+      "category": "science_fiction",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "gauss rifle. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "tesla_gun",
+      "desc": "tesla gun. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["tesla gun"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "stun",
+      "use": "tesla gun. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "stun_pistol",
+      "desc": "stun pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["stun pistol"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "stun",
+      "use": "stun pistol. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "freeze_ray",
+      "desc": "freeze ray. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["freeze ray"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "freeze",
+      "use": "freeze ray. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "flame_projector",
+      "desc": "flame projector. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["flame projector"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "fire",
+      "use": "flame projector. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "rocket_launcher",
+      "desc": "rocket launcher. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["rocket launcher"],
+      "category": "science_fiction",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "explosion",
+      "use": "rocket launcher. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "grenade_launcher",
+      "desc": "grenade launcher. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["grenade launcher"],
+      "category": "science_fiction",
+      "size_m": 0.72,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "explosion",
+      "use": "grenade launcher. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "sonic_blaster",
+      "desc": "sonic blaster. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "science_fiction", "firearm"],
+      "aliases": ["sonic blaster"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "use": "sonic blaster. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "gravity_gauntlet",
+      "desc": "gravity gauntlet. Hold trigger to levitate a loose object you point at.",
+      "tags": ["held", "science_fiction", "wand"],
+      "aliases": ["gravity gauntlet"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "wand",
+      "use": "gravity gauntlet. Hold trigger to levitate a loose object you point at."
+    },
+    {
+      "id": "tractor_wand",
+      "desc": "tractor wand. Hold trigger to levitate a loose object you point at.",
+      "tags": ["held", "science_fiction", "wand"],
+      "aliases": ["tractor wand"],
+      "category": "science_fiction",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "wand",
+      "use": "tractor wand. Hold trigger to levitate a loose object you point at."
+    },
+    {
+      "id": "hand_axe",
+      "desc": "hand axe. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["hand axe"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "hand axe. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "battle_axe",
+      "desc": "battle axe. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["battle axe"],
+      "category": "tools",
+      "size_m": 1.08,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "battle axe. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "fire_axe",
+      "desc": "fire axe. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["fire axe"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "fire axe. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "prospector_pick",
+      "desc": "prospector pick. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["prospector pick"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "prospector pick. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "hatchet",
+      "desc": "hatchet. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["hatchet"],
+      "category": "tools",
+      "size_m": 0.48,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "hatchet. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "machete",
+      "desc": "machete. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["machete"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "machete. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "katana",
+      "desc": "katana. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["katana"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "katana. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "rapier",
+      "desc": "rapier. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["rapier"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "rapier. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "broadsword",
+      "desc": "broadsword. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["broadsword"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "broadsword. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "dagger",
+      "desc": "dagger. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["dagger"],
+      "category": "tools",
+      "size_m": 0.3,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "dagger. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "spear",
+      "desc": "spear. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["spear"],
+      "category": "tools",
+      "size_m": 1.08,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "spear. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "trident",
+      "desc": "trident. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["trident"],
+      "category": "tools",
+      "size_m": 1.08,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "trident. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "war_hammer",
+      "desc": "war hammer. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["war hammer"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "war hammer. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "crowbar",
+      "desc": "crowbar. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["crowbar"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "crowbar. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "wrench",
+      "desc": "wrench. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["wrench"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "wrench. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "screwdriver",
+      "desc": "screwdriver. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["screwdriver"],
+      "category": "tools",
+      "size_m": 0.3,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "screwdriver. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "folding_shovel",
+      "desc": "folding shovel. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["folding shovel"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "folding shovel. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "chainsaw",
+      "desc": "chainsaw. Hold trigger for motor sparks and repeated short-range strikes.",
+      "tags": ["held", "tools", "powered_tool"],
+      "aliases": ["chainsaw"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "powered_tool",
+      "use": "chainsaw. Hold trigger for motor sparks and repeated short-range strikes."
+    },
+    {
+      "id": "mining_drill",
+      "desc": "mining drill. Hold trigger for motor sparks and repeated short-range strikes.",
+      "tags": ["held", "tools", "powered_tool"],
+      "aliases": ["mining drill"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "powered_tool",
+      "use": "mining drill. Hold trigger for motor sparks and repeated short-range strikes."
+    },
+    {
+      "id": "energy_saber",
+      "desc": "energy saber. Swing to knock creatures down and strike loose physics objects.",
+      "tags": ["held", "tools", "melee"],
+      "aliases": ["energy saber"],
+      "category": "tools",
+      "size_m": 0.8,
+      "holdable": true,
+      "prop": true,
+      "held_action": "melee",
+      "use": "energy saber. Swing to knock creatures down and strike loose physics objects."
+    },
+    {
+      "id": "frag_grenade",
+      "desc": "frag grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["frag grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "explosion",
+      "use": "frag grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "sticky_grenade",
+      "desc": "sticky grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["sticky grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "explosion",
+      "use": "sticky grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "smoke_grenade",
+      "desc": "smoke grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["smoke grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "smoke",
+      "use": "smoke grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "flash_grenade",
+      "desc": "flash grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["flash grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "stun",
+      "use": "flash grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "confetti_grenade",
+      "desc": "confetti grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["confetti grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "confetti",
+      "use": "confetti grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "plasma_grenade",
+      "desc": "plasma grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["plasma grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "explosion",
+      "use": "plasma grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "paint_grenade",
+      "desc": "paint grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["paint grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "paint",
+      "use": "paint grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "water_grenade",
+      "desc": "water grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["water grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "splash",
+      "use": "water grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "snow_grenade",
+      "desc": "snow grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["snow grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "freeze",
+      "use": "snow grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "spark_grenade",
+      "desc": "spark grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation.",
+      "tags": ["held", "throwables", "explosive"],
+      "aliases": ["spark grenade"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "explosive",
+      "held_effect": "sparks",
+      "use": "spark grenade. Trigger primes; deliberate release starts a 2.5-second fuse. Consumed on detonation."
+    },
+    {
+      "id": "wooden_boomerang",
+      "desc": "wooden boomerang. Throw to arc outward and fly back toward the throwing hand.",
+      "tags": ["held", "throwables", "returning"],
+      "aliases": ["wooden boomerang"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "returning",
+      "use": "wooden boomerang. Throw to arc outward and fly back toward the throwing hand."
+    },
+    {
+      "id": "hunting_boomerang",
+      "desc": "hunting boomerang. Throw to arc outward and fly back toward the throwing hand.",
+      "tags": ["held", "throwables", "returning"],
+      "aliases": ["hunting boomerang"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "returning",
+      "use": "hunting boomerang. Throw to arc outward and fly back toward the throwing hand."
+    },
+    {
+      "id": "energy_boomerang",
+      "desc": "energy boomerang. Throw to arc outward and fly back toward the throwing hand.",
+      "tags": ["held", "throwables", "returning"],
+      "aliases": ["energy boomerang"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "returning",
+      "use": "energy boomerang. Throw to arc outward and fly back toward the throwing hand."
+    },
+    {
+      "id": "sport_frisbee",
+      "desc": "sport frisbee. Throw flat to spin and glide with lift and drag.",
+      "tags": ["held", "throwables", "disc"],
+      "aliases": ["sport frisbee"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "disc",
+      "use": "sport frisbee. Throw flat to spin and glide with lift and drag."
+    },
+    {
+      "id": "flying_disc",
+      "desc": "flying disc. Throw flat to spin and glide with lift and drag.",
+      "tags": ["held", "throwables", "disc"],
+      "aliases": ["flying disc"],
+      "category": "throwables",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "disc",
+      "use": "flying disc. Throw flat to spin and glide with lift and drag."
+    },
+    {
+      "id": "sport_fishing_rod",
+      "desc": "sport fishing rod. Trigger casts a visible line and bobber; trigger again reels it in.",
+      "tags": ["held", "fishing", "fishing"],
+      "aliases": ["sport fishing rod"],
+      "category": "fishing",
+      "size_m": 1.3,
+      "holdable": true,
+      "prop": true,
+      "held_action": "fishing",
+      "use": "sport fishing rod. Trigger casts a visible line and bobber; trigger again reels it in."
+    },
+    {
+      "id": "fly_rod",
+      "desc": "fly rod. Trigger casts a visible line and bobber; trigger again reels it in.",
+      "tags": ["held", "fishing", "fishing"],
+      "aliases": ["fly rod"],
+      "category": "fishing",
+      "size_m": 1.45,
+      "holdable": true,
+      "prop": true,
+      "held_action": "fishing",
+      "use": "fly rod. Trigger casts a visible line and bobber; trigger again reels it in."
+    },
+    {
+      "id": "sea_fishing_rod",
+      "desc": "sea fishing rod. Trigger casts a visible line and bobber; trigger again reels it in.",
+      "tags": ["held", "fishing", "fishing"],
+      "aliases": ["sea fishing rod"],
+      "category": "fishing",
+      "size_m": 1.6,
+      "holdable": true,
+      "prop": true,
+      "held_action": "fishing",
+      "use": "sea fishing rod. Trigger casts a visible line and bobber; trigger again reels it in."
+    },
+    {
+      "id": "ice_fishing_rod",
+      "desc": "ice fishing rod. Trigger casts a visible line and bobber; trigger again reels it in.",
+      "tags": ["held", "fishing", "fishing"],
+      "aliases": ["ice fishing rod"],
+      "category": "fishing",
+      "size_m": 1.75,
+      "holdable": true,
+      "prop": true,
+      "held_action": "fishing",
+      "use": "ice fishing rod. Trigger casts a visible line and bobber; trigger again reels it in."
+    },
+    {
+      "id": "telescopic_rod",
+      "desc": "telescopic rod. Trigger casts a visible line and bobber; trigger again reels it in.",
+      "tags": ["held", "fishing", "fishing"],
+      "aliases": ["telescopic rod"],
+      "category": "fishing",
+      "size_m": 1.9,
+      "holdable": true,
+      "prop": true,
+      "held_action": "fishing",
+      "use": "telescopic rod. Trigger casts a visible line and bobber; trigger again reels it in."
+    },
+    {
+      "id": "tactical_flashlight",
+      "desc": "tactical flashlight. Trigger toggles a portable light.",
+      "tags": ["held", "gadgets", "light"],
+      "aliases": ["tactical flashlight"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "light",
+      "use": "tactical flashlight. Trigger toggles a portable light."
+    },
+    {
+      "id": "camp_lantern",
+      "desc": "camp lantern. Trigger toggles a portable light.",
+      "tags": ["held", "gadgets", "light"],
+      "aliases": ["camp lantern"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "light",
+      "use": "camp lantern. Trigger toggles a portable light."
+    },
+    {
+      "id": "laser_pointer",
+      "desc": "laser pointer. Hold trigger for a visible aiming beam and hit marker.",
+      "tags": ["held", "gadgets", "beam"],
+      "aliases": ["laser pointer"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "beam",
+      "use": "laser pointer. Hold trigger for a visible aiming beam and hit marker."
+    },
+    {
+      "id": "scanner",
+      "desc": "scanner. Trigger identifies the object you point at.",
+      "tags": ["held", "gadgets", "scan"],
+      "aliases": ["scanner"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "scan",
+      "use": "scanner. Trigger identifies the object you point at."
+    },
+    {
+      "id": "communicator",
+      "desc": "communicator. Trigger sends a local radio chirp and acknowledgement.",
+      "tags": ["held", "gadgets", "signal"],
+      "aliases": ["communicator"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "signal",
+      "use": "communicator. Trigger sends a local radio chirp and acknowledgement."
+    },
+    {
+      "id": "repair_tool",
+      "desc": "repair tool. Trigger stabilizes and restores the colour of a loose object.",
+      "tags": ["held", "gadgets", "repair"],
+      "aliases": ["repair tool"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "repair",
+      "use": "repair tool. Trigger stabilizes and restores the colour of a loose object."
+    },
+    {
+      "id": "welding_torch",
+      "desc": "welding torch. Hold trigger for welding sparks and short-range strikes.",
+      "tags": ["held", "gadgets", "weld"],
+      "aliases": ["welding torch"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "weld",
+      "use": "welding torch. Hold trigger for welding sparks and short-range strikes."
+    },
+    {
+      "id": "fire_extinguisher",
+      "desc": "fire extinguisher. Hold trigger for a cooling spray; nearby loose props stop moving.",
+      "tags": ["held", "gadgets", "extinguish"],
+      "aliases": ["fire extinguisher"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "extinguish",
+      "use": "fire extinguisher. Hold trigger for a cooling spray; nearby loose props stop moving."
+    },
+    {
+      "id": "bubble_generator",
+      "desc": "bubble generator. Hold trigger to blow bubbles.",
+      "tags": ["held", "gadgets", "bubbles"],
+      "aliases": ["bubble generator"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "bubbles",
+      "use": "bubble generator. Hold trigger to blow bubbles."
+    },
+    {
+      "id": "confetti_launcher",
+      "desc": "confetti launcher. Trigger launches a confetti burst.",
+      "tags": ["held", "gadgets", "confetti"],
+      "aliases": ["confetti launcher"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "confetti",
+      "held_effect": "confetti",
+      "use": "confetti launcher. Trigger launches a confetti burst."
+    },
+    {
+      "id": "camera",
+      "desc": "camera. Trigger saves a game screenshot, rotating through five local slots.",
+      "tags": ["held", "gadgets", "camera"],
+      "aliases": ["camera"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "camera",
+      "use": "camera. Trigger saves a game screenshot, rotating through five local slots."
+    },
+    {
+      "id": "grappling_launcher",
+      "desc": "grappling launcher. Trigger pulls the player to a nearby safe ground landing.",
+      "tags": ["held", "gadgets", "grapple"],
+      "aliases": ["grappling launcher"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "grapple",
+      "use": "grappling launcher. Trigger pulls the player to a nearby safe ground landing."
+    },
+    {
+      "id": "teleport_wand",
+      "desc": "teleport wand. Trigger relocates the player to a nearby safe ground landing.",
+      "tags": ["held", "gadgets", "teleport"],
+      "aliases": ["teleport wand"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "teleport",
+      "use": "teleport wand. Trigger relocates the player to a nearby safe ground landing."
+    },
+    {
+      "id": "musical_wand",
+      "desc": "musical wand. Trigger plays a chime and sparkles.",
+      "tags": ["held", "gadgets", "music"],
+      "aliases": ["musical wand"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "music",
+      "use": "musical wand. Trigger plays a chime and sparkles."
+    },
+    {
+      "id": "flare_gun",
+      "desc": "flare gun. Trigger fires projectiles; cadence, spread and effects depend on this weapon.",
+      "tags": ["held", "gadgets", "firearm"],
+      "aliases": ["flare gun"],
+      "category": "gadgets",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "firearm",
+      "held_effect": "fire",
+      "use": "flare gun. Trigger fires projectiles; cadence, spread and effects depend on this weapon."
+    },
+    {
+      "id": "soda_can",
+      "desc": "soda can. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["soda can"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "soda can. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "cola_can",
+      "desc": "cola can. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["cola can"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "cola can. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "orange_soda_can",
+      "desc": "orange soda can. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["orange soda can"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "orange soda can. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "energy_drink",
+      "desc": "energy drink. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["energy drink"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "energy drink. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "water_bottle",
+      "desc": "water bottle. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["water bottle"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "held_effect": "splash",
+      "use": "water bottle. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "juice_carton",
+      "desc": "juice carton. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["juice carton"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "juice carton. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "coffee_cup",
+      "desc": "coffee cup. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["coffee cup"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "coffee cup. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "tea_cup",
+      "desc": "tea cup. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["tea cup"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "tea cup. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "potion_bottle",
+      "desc": "potion bottle. Trigger opens and takes a sip; three servings, then empty.",
+      "tags": ["held", "drinks", "drink"],
+      "aliases": ["potion bottle"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "drink",
+      "use": "potion bottle. Trigger opens and takes a sip; three servings, then empty."
+    },
+    {
+      "id": "spray_can",
+      "desc": "spray can. Hold trigger to spray colour onto nearby loose props.",
+      "tags": ["held", "drinks", "spray"],
+      "aliases": ["spray can"],
+      "category": "drinks",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "held_action": "spray",
+      "use": "spray can. Hold trigger to spray colour onto nearby loose props."
     },
     {
       "id": "fish",

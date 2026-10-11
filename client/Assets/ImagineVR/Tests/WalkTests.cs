@@ -64,6 +64,20 @@ namespace ImagineVR.Tests
         }
         Vector3 _walked;
 
+        [UnityTest]
+        public IEnumerator GrapplingPullUsesWalkingCollisionAndCanBeCancelled()
+        {
+            for (int i = 0; i < 30; i++) yield return null;
+            Vector3 from = _rigObject.transform.position;
+            _vehicle.PullTo(from + Vector3.right * 4);
+            for (int i = 0; i < 80; i++) yield return null;
+            Assert.Greater(_rigObject.transform.position.x - from.x, 3.7f);
+            _vehicle.PullTo(_rigObject.transform.position + Vector3.forward * 8);
+            yield return Travel(Vector2.left, 30);
+            Assert.Less(_walked.x, -0.5f);
+            Assert.Less(Mathf.Abs(_walked.z), 0.2f);
+        }
+
         void Ride(string asset, string extra = "")
         {
             Assert.IsTrue(Statement.TryParse("{\"op\":\"ride\",\"asset\":\"" + asset + "\"" + extra + "}", out Statement ride));

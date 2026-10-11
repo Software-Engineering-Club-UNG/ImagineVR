@@ -168,18 +168,21 @@ class Catalog:
         out: list[str] = []
         for title, kind in (("Sky presets", "sky"), ("Terrain types", "terrain"), ("Ground materials", "material"),
                             ("Weather", "weather"), ("Ambience loops", "ambience")):
-            out.append(f"{title}: " + ", ".join(self._entries[kind]))
+            out.append(f"{title}: " + ",".join(self._entries[kind]))
         categories: dict[str, list[str]] = {}
         for e in self._entries["asset"].values():
             if e.get("primitive") or e.get("category") == "shapes":
                 continue
             size = e.get("size_m")
             mark = "*" if e.get("holdable") else ""
-            label = f"{e['id']}{mark}" + (f" {size:g}m" if isinstance(size, (int, float)) else "")
-            categories.setdefault(e.get("category", "other"), []).append(label)
-        out.append("Assets (height at scale 1; * is made to be held):")
+            label = f"{e['id']}{mark}" + (f":{size:g}" if isinstance(size, (int, float)) and not e.get("holdable") else "")
+            category = e.get("category", "other")
+            if e.get("held_action"):
+                category = "Held [" + e["held_action"] + "]"
+            categories.setdefault(category, []).append(label)
+        out.append("Assets (:height in m at scale 1; * held/life-size; [action] is native):")
         for cat, labels in categories.items():
-            out.append(f"- {cat}: " + ", ".join(labels))
+            out.append(f"- {cat}: " + ",".join(labels))
         if self.primitives:
             out.append("- plain shapes (1 m, white, take a tint): " + ", ".join(self.primitives))
         return "\n".join(out)

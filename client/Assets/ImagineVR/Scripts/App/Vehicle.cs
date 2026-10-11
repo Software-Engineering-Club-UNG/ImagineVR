@@ -38,6 +38,14 @@ namespace ImagineVR
         CharacterController walker;
         float falling;
         Vector3 rideVelocity;
+        Vector3 grappleTarget;
+        float grappleUntil;
+
+        /// <summary>Pull across the ground through the walking capsule, never through solid walls.</summary>
+        public void PullTo(Vector3 feet)
+        {
+            Dismount(); grappleTarget = feet; grappleUntil = Time.time + 3;
+        }
 
         /// <summary>Movement input from code: x strafes, y moves forward/back. For demos and checks.</summary>
         public Vector2 Autopilot;
@@ -144,6 +152,7 @@ namespace ImagineVR
             _speed = 0f;
             rideVelocity = Vector3.zero;
             _altitude = _railHeight = 0;
+            grappleUntil = 0;
         }
 
         /// <summary>
@@ -176,6 +185,7 @@ namespace ImagineVR
             _speed = 0f;
             rideVelocity = Vector3.zero;
             SessionLog.Write("home", "moved", (rig.position - was).magnitude, "turned", turn);
+            grappleUntil = 0;
         }
 
         static readonly Collider[] Touching = new Collider[24];
@@ -323,6 +333,7 @@ namespace ImagineVR
 
         public void PlaceAt(Vector3 feet, float yaw)
         {
+            grappleUntil = 0;
             if (walker != null) walker.enabled = false;
             Dismount();
             _comfort.Flash();
@@ -372,6 +383,13 @@ namespace ImagineVR
             Vector2 input = _world.IsDark ? Vector2.zero : MovementInput();
             Vector3 forward = MovementForward();
             Vector3 movement = WalkDirection(forward, input) * WalkSpeed * Mathf.Clamp(_size, 0.25f, 6) * dt;
+            if (Time.time < grappleUntil)
+            {
+                Vector3 delta = grappleTarget - new Vector3(_rig.Head.position.x, rig.position.y, _rig.Head.position.z);
+                delta.y = 0;
+                if (delta.magnitude < 0.15f || input.sqrMagnitude > 0) grappleUntil = 0;
+                else movement = Vector3.ClampMagnitude(delta, 8 * dt);
+            }
             Vector3 localHead = rig.InverseTransformPoint(_rig.Head.position);
             walker.height = Mathf.Clamp(localHead.y, 0.6f, 3f * Mathf.Max(1, _size));
             walker.radius = Mathf.Min(0.3f * Mathf.Clamp(_size, 0.25f, 6), walker.height / 2 - 0.02f);

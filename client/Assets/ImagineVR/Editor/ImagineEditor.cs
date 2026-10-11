@@ -322,6 +322,12 @@ namespace ImagineVR.EditorTools
                 d["size_m"] = a.Size;
                 if (a.Holdable) d["holdable"] = true;
                 if (a.Prop) d["prop"] = true;
+                if (a.Held != null)
+                {
+                    d["held_action"] = a.Held.Action;
+                    if (a.Held.Effect.Length > 0) d["held_effect"] = a.Held.Effect;
+                    d["use"] = a.Desc;
+                }
                 assets.Add(d);
             }
             root["assets"] = assets;
