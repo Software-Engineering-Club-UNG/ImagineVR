@@ -12,10 +12,10 @@ namespace ImagineVR
         public string ServerUrl = "http://127.0.0.1:8080";
         [Tooltip("Must match IMAGINE_APP_TOKEN on the server.")]
         public string AppToken = "dev-token";
-        [Tooltip("Give up on a turn if no new line arrives for this long.")]
-        public float LineTimeout = 8f;
+        [Tooltip("Give up on a turn if no data (including server heartbeats) arrives for this long.")]
+        public float LineTimeout = 15f;
         [Tooltip("Give up on a turn after this long in total.")]
-        public float TotalTimeout = 45f;
+        public float TotalTimeout = 90f;
 
         /// <summary>
         /// A file on the device that overrides the built-in address and token, so the real token never

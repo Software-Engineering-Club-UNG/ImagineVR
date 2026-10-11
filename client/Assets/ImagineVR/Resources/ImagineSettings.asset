@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: ImagineVR.Runtime::ImagineVR.ImagineSettings
   ServerUrl: http://127.0.0.1:8080
   AppToken: dev-token
-  LineTimeout: 8
-  TotalTimeout: 45
+  LineTimeout: 15
+  TotalTimeout: 90
