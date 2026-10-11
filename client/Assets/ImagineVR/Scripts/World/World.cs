@@ -107,6 +107,14 @@ namespace ImagineVR
                 case "sky":
                     if (Sky.IsDark && !s.Has("t")) s.Fields["t"] = 4.0;   // the first light takes its time
                     Sky.ApplySky(s);
+                    if (s.Has("fog") || s.Has("fog_color"))
+                    {
+                        // `fog` on a sky is the same thing as a `fog` statement after it
+                        Statement fog = Statement.Make("fog", "t", (double)s.T(1.5f));
+                        if (s.Has("fog")) fog.Fields["density"] = (double)s.Num("fog");
+                        if (s.Has("fog_color")) fog.Fields["color"] = s.Str("fog_color");
+                        Sky.ApplyFog(fog);
+                    }
                     _everLit = true;
                     _clearSkyAtTurnEnd = false;
                     break;

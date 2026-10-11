@@ -236,6 +236,7 @@ namespace ImagineVR
                     break;
                 case "score":
                     Score += Mathf.RoundToInt(a.Num("add", 1f));
+                    Sfx.Play("score", at, 0.8f, Mathf.Clamp(1f + Score * 0.01f, 1f, 1.6f));
                     _world.Emit("score " + Score);
                     break;
                 case "say":

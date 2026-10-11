@@ -275,6 +275,41 @@ namespace ImagineVR
                         }
                     }
                     return b;
+                case "boot":      // the terminal waking in the dark: a deep swell, a rising figure, and a shimmer that hangs
+                    b = Buffer(4.2f);
+                    Tone(b, 0, 3.6f, 55f, 55f, 0.26f, 1.1f, 0.5f);
+                    Tone(b, 0, 3.6f, 82.4f, 82.5f, 0.14f, 1.2f, 0.7f);
+                    Noise(b, 0, 1.2f, 0.05f, 2.5f, 0.08f, 41);
+                    {
+                        // a pentatonic climb, each note left ringing under the next
+                        float[] notes = { 220f, 277.18f, 329.63f, 440f, 554.37f, 659.25f, 880f };
+                        for (int i = 0; i < notes.Length; i++)
+                        {
+                            float at = 0.55f + i * 0.17f;
+                            Tone(b, at, 2.2f, notes[i], notes[i], 0.085f, 2.2f, 0.01f);
+                            Tone(b, at, 1.2f, notes[i] * 2f, notes[i] * 2.004f, 0.03f, 3.5f, 0.006f);
+                        }
+                        for (int i = 0; i < 9; i++) Tone(b, 1.9f + i * 0.085f, 0.9f, 1760f + i * 247f, 1760f + i * 247f, 0.022f, 5f, 0.003f);
+                        Tone(b, 1.75f, 2.4f, 110f, 110f, 0.12f, 1.6f, 0.25f);
+                    }
+                    return b;
+                case "assemble":  // something being put together from parts: quick ratchet clicks climbing to a snap
+                    b = Buffer(0.75f);
+                    for (int i = 0; i < 9; i++)
+                    {
+                        float at = i * 0.055f, f = 420f * Mathf.Pow(1.09f, i);
+                        Tone(b, at, 0.06f, f, f * 0.9f, 0.13f, 14f, 0.001f);
+                        Noise(b, at, 0.025f, 0.09f, 9f, 0.5f, 60 + i);
+                    }
+                    Tone(b, 0.52f, 0.22f, 1318.5f, 1318.5f, 0.12f, 7f, 0.002f);
+                    Tone(b, 0.52f, 0.22f, 1975.5f, 1975.5f, 0.06f, 8f, 0.002f);
+                    return b;
+                case "score":     // a point scored: two bright notes, the second a fifth up
+                    b = Buffer(0.5f);
+                    Tone(b, 0, 0.2f, 987.77f, 987.77f, 0.14f, 6f, 0.002f);
+                    Tone(b, 0.09f, 0.4f, 1479.98f, 1479.98f, 0.14f, 5f, 0.002f);
+                    Tone(b, 0.09f, 0.4f, 2959.96f, 2959.96f, 0.035f, 7f, 0.002f);
+                    return b;
                 case "reveal":    // light entering the dark room
                     b = Buffer(3.2f);
                     Tone(b, 0, 3.2f, 65.4f, 65.4f, 0.22f, 1.2f, 0.9f);

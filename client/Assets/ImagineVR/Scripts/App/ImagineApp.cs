@@ -105,6 +105,7 @@ namespace ImagineVR
             World.Noted += Terminal.Note;
             World.Happened += OnWorldEvent;
             World.Emptied += Conductor.ResetFirstLight;
+            Conductor.TurnEnded += _ => NextIdea();
         }
 
         /// <summary>
@@ -136,6 +137,66 @@ namespace ImagineVR
             return string.Join("; ", parts);
         }
 
+        // ------------------------------------------------------------------ what to try next
+        //
+        // An empty prompt is the hardest part of a sandbox: the user has to think of something.
+        // So there is always one idea beside the talk hint, chosen from what the world is missing
+        // right now, and never the same one twice running. None of them is a feature: each is just
+        // a sentence the general machinery can already do.
+
+        static readonly string[] Places =
+        {
+            "a pirate island at sunset", "a neon city in the rain", "a snowy village at night", "the moon, with a golf club",
+            "a canyon to fly a dragon through", "a jungle temple", "a haunted graveyard", "an alien planet with two suns",
+            "a medieval castle on a cliff", "the bottom of the ocean",
+        };
+        static readonly string[] ToHold = { "give me a flamethrower", "give me a lightsaber", "give me a bow", "give me a rocket launcher", "give me a giant hammer", "give me a paintbrush" };
+        static readonly string[] ToRide = { "let me ride a dragon", "put me in a monster truck", "let me fly a jet", "let me ride a giant snail", "put me on a hoverboard", "let me drive a tank" };
+        static readonly string[] Alive = { "fill it with dinosaurs", "send robots after me", "add a herd of deer", "make it rain frogs", "put whales in the sky" };
+        static readonly string[] React = { "make them explode when hit", "make them turn gold when hit", "when I hit one, spawn two more", "make them burst into confetti" };
+        static readonly string[] Twist = { "turn off gravity", "shrink me to mouse size", "make me a giant", "make it night", "make everything huge", "set up bowling", "add a storm", "build me a racetrack" };
+        string _lastIdea;
+
+        void NextIdea()
+        {
+            var pool = new List<string>();
+            if (World.Unbuilt) pool.AddRange(Places);
+            else
+            {
+                bool holding = Rig.LeftGrabber.Held != null || Rig.RightGrabber.Held != null;
+                if (!holding) pool.AddRange(ToHold);
+                if (World.Vehicle != null && !World.Vehicle.Riding) pool.AddRange(ToRide);
+                if (Creature.All.Count == 0) pool.AddRange(Alive);
+                else if (World.Rules.Count == 0) { pool.AddRange(React); pool.AddRange(React); }   // the most fun, so the likeliest
+                pool.AddRange(Twist);
+            }
+            pool.Remove(_lastIdea);
+            _lastIdea = pool[Random.Range(0, pool.Count)];
+            Voice.Idea = _lastIdea;
+            Terminal.SetHint(Voice.HintText());
+        }
+
+        /// <summary>
+        /// The dark room is not silent: a low pad hangs in it until the first place is built, and
+        /// comes back when everything is cleared away. A place that names no sound of its own goes quiet.
+        /// </summary>
+        void DarkRoomSound()
+        {
+            if (Quiet) return;
+            bool dark = World.IsDark && World.Objects.Count == 0;
+            if (dark && !_darkHum && !World.Ambience.IsPlaying)
+            {
+                World.Ambience.Apply(Statement.Make("ambience", "loop", "synth_pad", "volume", 0.3));
+                _darkHum = true;
+            }
+            else if (!dark && _darkHum)
+            {
+                if (World.Ambience.Current == "synth_pad") World.Ambience.Stop(4f);
+                _darkHum = false;
+            }
+        }
+        bool _darkHum;
+
         void OnWorldEvent(string text)
         {
             SessionLog.Write("event", "text", text);
@@ -149,7 +210,11 @@ namespace ImagineVR
             yield return null;
             Terminal.Recenter(true);
             if (Quiet) yield break;
+            Sfx.Play("boot", Terminal.transform.position, 0.9f);
+            Rig.Haptic(true, 0.3f, 0.5f);
+            Rig.Haptic(false, 0.3f, 0.5f);
             Welcome();
+            NextIdea();
             Hints.Arm();
             yield return new WaitForSeconds(0.6f);
             yield return CheckServer();
@@ -241,6 +306,7 @@ namespace ImagineVR
             if (Rig.XrActive && !_foveationSet) _foveationSet = TryFoveation();
             Terminal.SetFoldKey(Rig.XrActive ? "Y" : "C");
             Sample();
+            DarkRoomSound();
 
             if (Rig.FoldPressed && !Typing) Terminal.Toggle();
 
@@ -323,6 +389,7 @@ namespace ImagineVR
             Terminal.Blank();
             Terminal.Note("started over: the world, what you were holding and the conversation are all cleared");
             Hints.Arm();
+            NextIdea();
 
             Sfx.Play("whoosh", Terminal.transform.position, 0.7f, 0.8f);
             Rig.Haptic(true, 0.8f, 0.2f);

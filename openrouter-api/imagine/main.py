@@ -190,6 +190,18 @@ async def reset(x_app_token: str | None = Header(default=None), x_session_id: st
     return Response(status_code=204)
 
 
+@app.post("/v1/session/runtime")
+async def runtime_from_an_old_app(x_app_token: str | None = Header(default=None)):
+    """
+    The first version of the app posts its rule state here before every turn and refuses to send
+    the turn if this fails. Nothing is done with it now; answering keeps a headset that has not
+    been updated yet talking, though it will not understand `make` or `when`. Delete this once
+    no old build is in use.
+    """
+    check_token(x_app_token)
+    return {"ok": True}
+
+
 @app.get("/v1/audio/{clip_id}")
 async def audio(clip_id: str):
     data = await tts.fetch(clip_id)

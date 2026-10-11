@@ -183,7 +183,8 @@ namespace ImagineVR
             }
             else
             {
-                Sfx.Play("blip", Terminal.transform.position, 0.35f, PitchFor(s.Op));
+                if (s.Op == "make") Sfx.Play("assemble", Terminal.transform.position, 0.5f);
+                else Sfx.Play("blip", Terminal.transform.position, 0.35f, PitchFor(s.Op));
                 if (Rig != null) Rig.Haptic(true, 0.15f, 0.03f);
             }
         }

@@ -112,9 +112,14 @@ namespace ImagineVR
             SessionLog.Write("voice", "what", "cancelled");
         }
 
+        /// <summary>Something to say next, shown beside the hint. The app keeps it fresh (see ImagineApp.NextIdea).</summary>
+        public string Idea;
+
         public string HintText()
         {
-            return Rig != null && Rig.XrActive ? "hold A to speak" : "hold Space to speak, or type";
+            string how = Rig != null && Rig.XrActive ? "hold A to speak" : "hold Space to speak, or type";
+            // the hint row is narrow, and the bubble by the hand already says how to talk
+            return string.IsNullOrEmpty(Idea) ? how : "try \"" + Idea + "\"";
         }
 
         /// <summary>Loudness of the last few milliseconds, 0..1, for the terminal's meter.</summary>
