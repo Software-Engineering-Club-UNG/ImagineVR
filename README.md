@@ -37,9 +37,37 @@ comes back.
 client/           Unity 6000.3.26f1 project (Quest 3S, plus a desktop mode for working without one)
 openrouter-api/   FastAPI server: speech to text, the model call, the language, streaming
 shared/           catalog.json: exported from Unity, read by the server. Do not edit by hand.
-infra/, .github/  The VM and the workflow that deploys the server on every merge to main
+infra/, .github/  The Vultr VM (Terraform) and the workflow that deploys the server on every merge to main
 scripts/          headset_log.py (pull and read session logs), unity.ps1 (Windows wrapper)
 ```
+
+## Running on Vultr
+
+Everything behind the headset runs on one Vultr cloud compute instance in Atlanta, the same
+city as the hackathon: 4 vCPUs, 8 GB of RAM, Ubuntu 26.04, about $40 a month. There is no GPU
+and no second service.
+
+- **Speech never leaves the VM.** faster-whisper (`base.en`, int8, four threads) runs on the
+  Vultr CPU, loaded at startup and primed with the names of what is in the speaker's world.
+  There is no speech provider, no key for one and no charge per transcription. Only the
+  resulting text goes on to OpenRouter.
+- **One hop from the headset.** The same box transcribes, calls the model, repairs the reply
+  and streams it back, so a spoken sentence makes a single round trip to Atlanta and the world
+  starts building as the first line arrives.
+- **The infrastructure is code.** `infra/vultr` is Terraform on the Vultr provider: the
+  instance, its SSH key, and a firewall group that opens only 22, 80 and 443. `imports.tf`
+  adopts the live resources, so a fresh checkout plans no new VM, and `prevent_destroy` guards
+  the one we have. It was resized in place and kept its ID and address.
+- **Merge to deploy.** A backend merge to `main` runs the tests, then ships that exact commit
+  to the VM over a restricted deploy key with a pinned host key. `deploy.sh` builds a fresh
+  venv per release, switches a symlink, restarts the service and checks that `/health` reports
+  the new revision; if it does not, the previous release is put back. The workflow then checks
+  the public URL the same way.
+- **HTTPS without buying a domain.** nginx serves `https://64.177.52.162.sslip.io` with a
+  renewing certificate in front of Uvicorn, and systemd keeps the service up.
+
+Details: [`infra/vultr/README.md`](infra/vultr/README.md) for the VM,
+[`openrouter-api/README.md`](openrouter-api/README.md) for deployment and operations.
 
 ## The language
 
