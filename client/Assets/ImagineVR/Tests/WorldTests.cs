@@ -150,6 +150,26 @@ namespace ImagineVR.Tests
             Assert.IsTrue(lost == null, "(if this one lives, the gun was never in its way and the test above proves nothing)");
         }
 
+        /// <summary>"Make it shoot fish", "make it shoot confetti": what leaves the barrel is whatever was asked for, and it still counts as a shot.</summary>
+        [UnityTest]
+        public IEnumerator AGunMayShootAnything()
+        {
+            Play("{\"op\":\"make\",\"name\":\"fish_gun\",\"fires\":{\"shoots\":\"apple\",\"every\":0.2},\"parts\":[{\"shape\":\"cylinder\",\"position\":[0,0,0.2],\"rotation\":[90,0,0],\"scale\":[0.04,0.4,0.04]}]}");
+            AssetDef gun = Library.FindAsset("fish_gun");
+            Assert.AreEqual("apple", gun.ShotAsset);
+            _world.Props.Fire(new Vector3(0f, 1.5f, 1f), Vector3.forward, Color.white, gun);
+            Prop shot = _world.Props.All.Single(p => p.GroupId == "shot");
+            Assert.AreSame(Library.Asset("apple"), shot.Def);
+            for (int i = 0; i < 5; i++) yield return new WaitForFixedUpdate();
+            Assert.Greater(shot.transform.position.z, 1.5f);
+
+            Play("{\"op\":\"make\",\"name\":\"party_gun\",\"fires\":{\"shoots\":\"confetti\"},\"parts\":[{\"shape\":\"cube\"}]}");
+            AssetDef party = Library.FindAsset("party_gun");
+            Assert.AreEqual("confetti", party.ShotBurst);
+            Assert.AreEqual("", party.ShotAsset);
+            Assert.DoesNotThrow(() => _world.Props.Fire(new Vector3(0f, 1.5f, 1f), Vector3.forward, Color.white, party));
+        }
+
         /// <summary>A row of loose things is a row: `repeat` used to be dropped for anything with physics, so four pins came out as one.</summary>
         [Test]
         public void ARowOfLooseThingsIsAllThere()

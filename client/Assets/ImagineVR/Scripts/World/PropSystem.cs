@@ -99,7 +99,7 @@ namespace ImagineVR
         readonly List<GameObject> _strokes = new List<GameObject>();
         static readonly Dictionary<int, PhysicsMaterial> Materials = new Dictionary<int, PhysicsMaterial>();
         Material _stroke;
-        float _gravity = 1f;
+        float _gravity = 1f, _lastShotBurst = -1f;
         int _auto;
 
         public IReadOnlyList<Prop> All => _props;
@@ -595,7 +595,9 @@ namespace ImagineVR
         /// </summary>
         public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null, Prop from = null)
         {
-            AssetDef def = Library.Asset("energy_ball") ?? Library.Asset("sphere");
+            // a gun may throw anything: fish, arrows, a cow. Whatever it is, it is still a shot, and what it strikes is hit.
+            AssetDef thrown = gun != null && gun.ShotAsset.Length > 0 ? Library.FindAsset(gun.ShotAsset) : null;
+            AssetDef def = thrown ?? Library.Asset("energy_ball") ?? Library.Asset("sphere");
             int pellets = gun != null ? Mathf.Max(1, gun.Pellets) : 1;
             float speed = gun != null ? gun.ShotSpeed : 20f, size = gun != null ? gun.ShotSize : 1f, life = gun != null ? gun.ShotLife : 6f;
             direction = direction.normalized;
@@ -603,7 +605,9 @@ namespace ImagineVR
             {
                 Vector3 aim = direction;
                 if (gun != null && gun.Spread > 0f) aim = Quaternion.Euler(Random.Range(-gun.Spread, gun.Spread), Random.Range(-gun.Spread, gun.Spread), 0f) * aim;
-                Prop shot = Create(def, "shot", position + aim * (0.02f * i) - def.Bounds.center * size, Quaternion.identity, Vector3.one * size, color);
+                Quaternion facing = thrown != null ? Quaternion.LookRotation(aim) : Quaternion.identity;
+                Color tint = thrown != null && (gun == null || !gun.ShotColored) ? Color.white : color;
+                Prop shot = Create(def, "shot", position + aim * (0.02f * i) - facing * def.Bounds.center * size, facing, Vector3.one * size, tint);
                 if (from != null)
                 {
                     Collider own = shot.GetComponent<Collider>();
@@ -615,7 +619,14 @@ namespace ImagineVR
             }
             Sfx.Play(gun != null ? gun.ShotSound : "zap", position, 0.75f, 0.92f + Random.value * 0.2f);
             Color flash = color; flash.a = 1f;
-            Fx.Burst(position, flash, Color.white, pellets > 1 ? 14 : 6, pellets > 1 ? 3.5f : 2.2f, 0.035f, 0.09f, 0f, true);
+            if (gun != null && gun.ShotBurst.Length > 0)
+            {
+                // not with every round of a fast gun: a burst is dozens of particles
+                if (Time.time - _lastShotBurst < 0.12f) return;
+                _lastShotBurst = Time.time;
+                Rules.Burst(gun.ShotBurst, position + direction * 0.15f, gun.ShotColored ? flash : (Color?)null);
+            }
+            else Fx.Burst(position, flash, Color.white, pellets > 1 ? 14 : 6, pellets > 1 ? 3.5f : 2.2f, 0.035f, 0.09f, 0f, true);
         }
     }
 }

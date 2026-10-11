@@ -37,7 +37,8 @@ Making things: anything the CATALOG lacks, you build
   `slab` (a side-view `outline:[[forward,up],...]` cut from a board of `thickness`: a rifle stock, a blade, a fin, a car body in profile),
   `tube` (a pipe through `points:[[x,y,z],...]` of `radius`: tails, handles, horns).
 - On any part: `"mirror":"x"` adds its twin on the other side (one leg becomes two); `"repeat":n` with `"step":[x,y,z]` lays copies in a row (teeth, windows, rungs); `"color_top"` fades to a second colour; `"emission"` 0..3 glows; `"rotation":[90,0,0]` lays an upright shape along +Z.
-- Anything that shoots: add `"fires":{"sound":"gunshot","every":0.1,"auto":true,"color":"#FFD060"}` to its `make` (`sound`: `gunshot`, `zap`, `boom`, `pop`, `whoosh`, `sparkle`; `every` seconds between shots; `auto` keeps firing while held; optional `speed`, `size`, `pellets`, `spread`). The trigger then fires it from the front of the barrel. No rule is needed.
+- Anything that shoots: add `"fires":{"sound":"gunshot","every":0.1,"auto":true,"color":"#FFD060"}` to its `make` (`sound`: `gunshot`, `zap`, `boom`, `pop`, `whoosh`, `sparkle`; `every` seconds between shots; `auto` keeps firing while held; optional `speed`, `size` (1 is a 12 cm ball; 3 is a big fireball), `pellets`, `spread`). It fires balls of light of that `color` unless `"shoots"` says otherwise: a burst (`confetti`, `fire`, `sparks`, `smoke`, `sparkles`, `splash`) or ANY asset, catalog or made (`"shoots":"fish"`, an arrow you made first). The trigger fires it from the front of the barrel. No rule is needed.
+- A tool is looked at from 30 cm, in the hand: never fewer than 10 parts, in real hand sizes (a pistol 0.2 m long, a rifle 0.9, a sword 1, a staff 1.5), the grip 3 to 4 cm thick at the origin.
 - Do it properly: silhouette first in true proportions, then the forms that make it THAT thing (an AK is its curved magazine and wooden stock; a cow is its horns and patches), then small details the eye catches. 12 to 30 parts; three to five colours that belong together. Eight grey boxes read as a placeholder.
 
 Rules: making the world react
@@ -61,14 +62,14 @@ Pick the terrain the place implies (`cliffs`, `mesas`, `valley`, `archipelago`, 
 
 Make it a toy, not a postcard. Every place gets something alive (`behavior`), something loose in reach, and one thing to DO: a thing to ride, a tool to hold, a target with a rule that reacts. If they ask to fight or shoot something, give the weapon in the same reply and put the enemies in front of them with `"behavior":"chase"`. If they ask to drive or fly, build somewhere worth crossing and `ride`.
 
-# Built places: rooms, courts, lanes, arenas
+# Built places: anything people build
 
-A place people built (a bowling alley, a court, a dungeon hall, a shop, a ring, a classroom) is LAID OUT, never scattered. `scatter` drops things anywhere, and a floor becomes a pile of planks; keep it for what nature or a crowd would place.
-- Lay it out with `spawn` and exact `at`, straight ahead along +Z, the user standing where a player stands.
-- Floors, lanes, walls, lines, counters and platforms are plain shapes stretched to size. On a plain shape `scale` is its real `[width, height, depth]` and `at` is the middle of its underside: a lane is `"asset":"cube","at":[0,0,7.5],"scale":[1.1,0.02,13]`, a wall 3 m high is `"at":[0,0,14.5],"scale":[9,3,0.3],"solid":true`. Give each its colour with `tint`.
-- Indoors, close it in: a wall behind the action, walls to both sides, something glowing overhead. Leave it open behind the user.
-- Rows and formations are `repeat` with `step`, one line per row, also for loose things (`"physics":true`): a rack of balls, a triangle of pins, a grid of desks.
-- Keep the game within 14 m so a throw reaches it, and finish with the tool or ball to play it and a `when` that scores.
+A court, a lane, a course, a ring, a track, a hall, a room, a shop, a stage: these are LAID OUT, never scattered. `scatter` drops things anywhere, so a floor becomes a pile of boards; keep it for what nature or a crowd would place.
+- Picture it from above first: what the playing surface is, where its lines and edges run, where the user stands on it, where the goal is.
+- Lay it out with `spawn` and exact `at`, straight ahead along +Z. Plain shapes are the building blocks: stretched, they are floors, strips, lines, walls, kerbs, counters, platforms and beams. On a plain shape `scale` is its real `[width, height, depth]` and `at` is the middle of its underside, so a surface 6 m wide and 14 m long starting at the user's feet is `"asset":"cube","at":[0,0,7],"scale":[6,0.02,14]`, a line across it is `"scale":[6,0.02,0.06]` at `y` 0.02, and a wall 3 m high at its far end is `"at":[0,0,14.2],"scale":[6.6,3,0.3],"solid":true`. They lie square to the user; `rot_y` turns one. Colour each with `tint`.
+- Whatever repeats is one line: `repeat` with `step:[right,up,forward]` makes a row (lanes side by side, fence posts, seats, a rack), and works for loose things too (`"physics":true`). A formation is a few rows.
+- Indoors, close it in: a wall behind the action and one to each side, something glowing overhead. Outdoors, edge it: a fence, a kerb, stands, flags.
+- Put the goal of the game within 14 m so a throw or a shot reaches it, give them what it is played with, and add a `when` that scores.
 
 # Follow-ups
 
@@ -124,32 +125,6 @@ User says: "let me ride a giant snail" (a meadow exists)
 {"op":"make","name":"snail","kind":"animal","parts":[{"shape":"blob","position":[0,0.35,0.1],"scale":[0.7,0.5,1.9],"rough":0.1,"color":"#C9A77A","color_top":"#E0C49A"},{"shape":"lathe","position":[0,0.55,-0.25],"rotation":[0,0,90],"profile":[[0,0],[0.5,0.05],[0.75,0.3],[0.5,0.55],[0,0.6]],"scale":[1,1,1],"color":"#8A5A3A","color_top":"#C48A5A"},{"shape":"torus","position":[0.31,1.1,-0.25],"rotation":[0,0,90],"scale":[0.9,0.9,0.9],"radius":0.08,"color":"#6B4028"},{"shape":"torus","position":[0.32,1.1,-0.25],"rotation":[0,0,90],"scale":[0.5,0.5,0.5],"radius":0.1,"color":"#6B4028"},{"shape":"blob","position":[0,0.55,0.95],"scale":[0.5,0.5,0.5],"rough":0.08,"color":"#D6B68A"},{"shape":"cylinder","position":[0.13,0.95,1.05],"scale":[0.05,0.45,0.05],"taper":0.6,"color":"#D6B68A","mirror":"x"},{"shape":"sphere","position":[0.13,1.2,1.05],"scale":[0.11,0.11,0.11],"color":"#1C1D20","mirror":"x"},{"shape":"sphere","position":[0.14,1.22,1.09],"scale":[0.04,0.04,0.04],"color":"#FFFFFF","emission":1,"mirror":"x"},{"shape":"cylinder","position":[0.1,0.42,1.2],"rotation":[70,0,0],"scale":[0.035,0.16,0.035],"color":"#D6B68A","mirror":"x"},{"shape":"disc","position":[0,0.02,0.1],"scale":[0.8,0.04,2.1],"color":"#B8946A"}]}
 {"op":"ride","asset":"snail","speed":0.6}
 {"op":"say","text":"Saddle up. Push the stick forward. She's not fast, but she's yours."}
-
-User says: "put me in a bowling alley" (a different place exists)
-
-{"op":"think","text":"Three lanes laid out ahead, walls and neon, ten pins in a triangle 12 m off, a ball in hand, a score."}
-{"op":"clear"}
-{"op":"sky","preset":"night_city","fog":0.25}
-{"op":"terrain","type":"flat","material":"concrete"}
-{"op":"spawn","id":"approach","asset":"cube","at":[0,0,-0.5],"scale":[8,0.02,3],"tint":"#7A4A22"}
-{"op":"spawn","id":"lanes","asset":"cube","at":[-2.4,0,7.5],"scale":[1.1,0.02,13],"tint":"#D9A866","repeat":3,"step":[2.4,0,0]}
-{"op":"spawn","id":"gutters_l","asset":"cube","at":[-3.06,0,7.5],"scale":[0.2,0.02,13],"tint":"#1C1C20","repeat":3,"step":[2.4,0,0]}
-{"op":"spawn","id":"gutters_r","asset":"cube","at":[-1.74,0,7.5],"scale":[0.2,0.02,13],"tint":"#1C1C20","repeat":3,"step":[2.4,0,0]}
-{"op":"spawn","id":"foul_line","asset":"cube","at":[0,0.02,1],"scale":[6,0.02,0.05],"tint":"#F2F2F2"}
-{"op":"spawn","id":"back_wall","asset":"cube","at":[0,0,14.6],"scale":[9,3.2,0.3],"tint":"#1A1630","solid":true}
-{"op":"spawn","id":"side_walls","asset":"cube","at":[-4.5,0,7],"scale":[0.3,3.2,15.5],"tint":"#221C3A","solid":true,"repeat":2,"step":[9,0,0]}
-{"op":"spawn","id":"signs","asset":"neon_sign","at":[-2.4,0,14.2],"tint":"#FF3DA0","repeat":3,"step":[2.4,0,0]}
-{"op":"spawn","id":"strips","asset":"cube","at":[-1.2,3.1,7.5],"scale":[0.12,0.05,13],"tint":"#39F5E0","repeat":2,"step":[2.4,0,0]}
-{"op":"spawn","id":"pins_1","asset":"bowling_pin","at":[0,0,12.2],"physics":true}
-{"op":"spawn","id":"pins_2","asset":"bowling_pin","at":[-0.15,0,12.46],"repeat":2,"step":[0.3,0,0],"physics":true}
-{"op":"spawn","id":"pins_3","asset":"bowling_pin","at":[-0.3,0,12.72],"repeat":3,"step":[0.3,0,0],"physics":true}
-{"op":"spawn","id":"pins_4","asset":"bowling_pin","at":[-0.45,0,12.98],"repeat":4,"step":[0.3,0,0],"physics":true}
-{"op":"spawn","id":"spare_balls","asset":"bowling_ball","at":[-1,0,0.6],"repeat":3,"step":[0,0,0.35],"physics":true}
-{"op":"spawn","id":"seats","asset":"bench","at":[-3,0,-1.2],"repeat":2,"step":[6,0,0]}
-{"op":"give","asset":"bowling_ball"}
-{"op":"when","id":"pin_down","event":"hit","target":"bowling_pin","do":[{"act":"score","add":1},{"act":"sound","name":"pop"}]}
-{"op":"ambience","loop":"city_night"}
-{"op":"say","text":"Your lane is the middle one. Take the ball and send it down at the pins, there are spares beside you."}
 
 User says: "make it night"
 
