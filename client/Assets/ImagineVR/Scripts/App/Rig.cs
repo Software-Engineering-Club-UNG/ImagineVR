@@ -443,7 +443,14 @@ namespace ImagineVR
             prop.Holder = this;
             prop.Floating = false;
             prop.Body.isKinematic = true;
-            if (prop.Def.Tool)
+            var blueprint=prop.GetComponent<BlueprintActor>();
+            var grip=blueprint!=null?BlueprintData.Wrap(blueprint.Recipe).Obj("capabilities")?.TryGetValue("grip",out object gripData)==true?gripData as Dictionary<string,object>:null:null;
+            if(grip!=null)
+            {
+                _gripRotation=Quaternion.Euler(BlueprintData.Vec(grip,"rotation",Vector3.zero));
+                _gripOffset=-(_gripRotation*Vector3.Scale(BlueprintData.Vec(grip,"position",Vector3.zero),prop.transform.localScale));
+            }
+            else if (prop.Def.Tool)
             {
                 // a tool's handle sits in the fist and its length runs along the controller's forward axis
                 _gripOffset = Vector3.zero;

@@ -62,7 +62,7 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
         "messages": build_messages(system_prompt, user_content, model),
         "stream": True,
         "temperature": 0.8,
-        "max_tokens": 2500,
+        "max_tokens": 6500 if 'runtime-blueprints-v1' in system_prompt else 2500,
     }
     if config.REASONING in ("low", "medium", "high"):
         body["reasoning"] = {"effort": config.REASONING, "exclude": True}

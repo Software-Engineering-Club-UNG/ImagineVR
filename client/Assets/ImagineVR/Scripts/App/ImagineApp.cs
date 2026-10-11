@@ -230,7 +230,15 @@ namespace ImagineVR
             Terminal.SetFoldKey(Rig.XrActive ? "Y" : "C");
             Sample();
 
-            if (Rig.FoldPressed && !Typing) Terminal.Toggle();
+            if (Rig.FoldPressed && !Typing)
+            {
+                if(Rig.Grip(true)>.9f && Rig.Grip(false)>.9f)
+                {
+                    if(World.Blueprints.PlayerHealth<=0) { World.Blueprints.ResetHealth(); Terminal.Note("Session health restored"); }
+                    else { World.Blueprints.PlayerDamageEnabled=!World.Blueprints.PlayerDamageEnabled; Terminal.Note("Player damage "+(World.Blueprints.PlayerDamageEnabled?"enabled":"disabled")+" for this session"); }
+                }
+                else Terminal.Toggle();
+            }
 
             // X (or R): a tap recentres the terminal, and holding it down resets everything
             if (Rig.MenuPressed && !Typing)
@@ -383,6 +391,8 @@ namespace ImagineVR
         {
             if (Rig == null || Rig.XrActive || Quiet) return;
             World.Rules.PlayerEffectsEnabled = GUI.Toggle(new Rect(12, 12, 280, 25), World.Rules.PlayerEffectsEnabled, "Allow rule-driven player effects (this session)");
+            World.Blueprints.PlayerDamageEnabled=GUI.Toggle(new Rect(12,40,280,25),World.Blueprints.PlayerDamageEnabled,"Allow player damage (this session)");
+            if(GUI.Button(new Rect(12,68,200,25),"Reset health ("+Mathf.CeilToInt(World.Blueprints.PlayerHealth)+")")) World.Blueprints.ResetHealth();
             const string fieldName = "ImaginePrompt";
             float w = Mathf.Min(Screen.width - 40f, 720f), h = 30f;
             var rect = new Rect((Screen.width - w) * 0.5f, Screen.height - h - 16f, w, h);

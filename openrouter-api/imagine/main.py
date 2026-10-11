@@ -19,6 +19,7 @@ from .script import to_frame
 from .session import SessionStore
 from .turn import run_turn, reset_stt_slots
 from .rules import CAPABILITY, CAPABILITIES, RuleError, validate_snapshot
+from .blueprints import CAPABILITY as BLUEPRINT_CAPABILITY, CONTRACT as BLUEPRINT_CONTRACT
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("imagine")
@@ -100,7 +101,7 @@ async def health():
         "model": "offline" if config.OFFLINE else config.MODEL,
         "stt": f"local:{config.STT_MODEL}" if config.STT == "local" else config.STT,
         "tts": tts.enabled(),
-        "capabilities": [CAPABILITY],
+        "capabilities": [CAPABILITY, BLUEPRINT_CAPABILITY],
     }
 
 
@@ -155,13 +156,17 @@ async def turn(
 
     async def stream():
         allow_rules = CAPABILITY in (x_client_capabilities or '').split(',')
+        allow_blueprints = allow_rules and BLUEPRINT_CAPABILITY in (x_client_capabilities or '').split(',')
         prompt = state.system_prompt
         if allow_rules:
             prompt += '\n\n' + (config.PROMPT_PATH.parent / 'rules-prompt.md').read_text(encoding='utf-8')
             prompt += '\nRULE CAPABILITIES:\n' + json.dumps(CAPABILITIES, separators=(',', ':'))
+        if allow_blueprints:
+            prompt += '\n\n' + (config.PROMPT_PATH.parent / 'blueprints-prompt.md').read_text(encoding='utf-8')
+            prompt += '\nBLUEPRINT CAPABILITIES:\n' + json.dumps(BLUEPRINT_CONTRACT,separators=(',',':'))
         statements = run_turn(
             session, state.catalog, prompt, text=text, audio=audio, base_url=base_url,
-            frame=to_frame(x_user_pose), allow_rules=allow_rules,
+            frame=to_frame(x_user_pose), allow_rules=allow_rules, allow_blueprints=allow_blueprints,
         )
         pending = None
         try:
@@ -206,7 +211,7 @@ async def runtime(request: Request, x_app_token: str | None = Header(default=Non
     body = bytearray()
     async for chunk in request.stream():
         body.extend(chunk)
-        if len(body) > 512_000: raise HTTPException(413, 'runtime snapshot too large')
+        if len(body) > 1_000_000: raise HTTPException(413, 'runtime snapshot too large')
     try:
         snapshot = validate_snapshot(json.loads(body))
     except (ValueError, UnicodeDecodeError) as exc:
@@ -217,6 +222,8 @@ async def runtime(request: Request, x_app_token: str | None = Header(default=Non
             raise HTTPException(409, 'stale runtime snapshot; reset session')
         session.world.runtime = snapshot
         session.world.rules = {rule['id']: rule for rule in snapshot['rules']}
+        if 'blueprints' in snapshot:
+            session.world.blueprints = {b['id']: b for b in snapshot['blueprints']}
         session.runtime_sequence = snapshot['sequence']
     return {'ok': True, 'generation': session.generation, 'sequence': snapshot['sequence']}
 

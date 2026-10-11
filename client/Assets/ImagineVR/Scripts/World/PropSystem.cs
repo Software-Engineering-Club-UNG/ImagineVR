@@ -32,6 +32,10 @@ namespace ImagineVR
 
         public void SetTint(Color c)
         {
+            if(GetComponent<BlueprintActor>()!=null)
+            {
+                Tint=c; foreach(var renderer in Visual.GetComponentsInChildren<Renderer>()) { var block=new MaterialPropertyBlock(); renderer.GetPropertyBlock(block); block.SetColor("_Tint",c); block.SetFloat("_Appear",1); renderer.SetPropertyBlock(block); } return;
+            }
             Tint = c;
             if (_renderer == null) _renderer = Visual.GetComponent<Renderer>();
             if (_props == null) _props = new MaterialPropertyBlock();
@@ -172,6 +176,11 @@ namespace ImagineVR
         int _auto;
 
         public IReadOnlyList<Prop> All => _props;
+        public Prop AttachGenerated(GameObject root,AssetDef def,string id,Transform visual)
+        {
+            var p=root.GetComponent<Prop>(); if(p==null) p=root.AddComponent<Prop>(); p.Def=def; p.GroupId=id; p.Visual=visual; p.Body=root.GetComponent<Rigidbody>(); p.System=this; p.Born=Time.time; p.Length=Mathf.Max(.1f,def.Bounds.max.y);
+            if(!_props.Contains(p)) _props.Add(p); return p;
+        }
         public float Gravity => _gravity;
 
         public PropSystem(World world)

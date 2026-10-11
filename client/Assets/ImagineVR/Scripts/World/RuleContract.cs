@@ -22,7 +22,7 @@ namespace ImagineVR
             Fields(data, new[] { "instance", "group", "asset", "tag" });
             Require(data.Count == 1 && Id(data.Values.First()), "Invalid selector");
         }
-        public static void Validate(Statement rule, Dictionary<string, object> contract)
+        public static void Validate(Statement rule, Dictionary<string, object> contract, Dictionary<string,object> blueprintContract=null)
         {
             if (rule.Op == "rule_remove") { Fields(rule.Fields, new[] { "op", "id" }, "op", "id"); Require(Id(rule.Fields["id"]), "Invalid rule id"); return; }
             Fields(rule.Fields, new[] { "op", "id", "selector", "event", "filters", "conditions", "actions", "mode", "enabled", "cooldown", "once" }, "op", "id", "selector", "event", "actions");
@@ -34,16 +34,18 @@ namespace ImagineVR
             if (rule.Has("cooldown")) Require(Num(rule.Fields["cooldown"], 0, 60), "Invalid cooldown");
             if (rule.Has("filters"))
             {
-                var filters = rule.Obj("filters"); Fields(filters, new[] { "source_kind", "source_asset", "source_tag", "min_speed", "radius", "threshold", "name", "duration" });
+                var filters = rule.Obj("filters"); Fields(filters, new[] { "source_kind", "source_asset", "source_tag", "min_speed", "radius", "threshold", "name", "duration", "part", "line_of_sight" });
                 foreach (var field in filters)
                 {
                     if (field.Key == "source_kind") Require(new[] { "projectile", "thrown", "melee", "collision" }.Contains(field.Value as string), "Invalid source kind");
                     else if (new[] { "radius", "min_speed", "threshold", "duration" }.Contains(field.Key)) Require(Num(field.Value, field.Key == "duration" ? .25 : 0, field.Key == "duration" ? 60 : 120), "Invalid event parameter");
+                    else if(field.Key=="line_of_sight") Require(field.Value is bool,"Invalid line_of_sight");
                     else Require(Id(field.Value), "Invalid filter identifier");
                 }
             }
             if (new[] { "timer", "interval" }.Contains(rule.Str("event"))) Require(rule.Obj("filters")?.ContainsKey("duration") == true, "Timer duration required");
             if (rule.Str("event").StartsWith("zone_") || rule.Str("event").StartsWith("proximity_")) Require(rule.Obj("filters")?.ContainsKey("radius") == true, "Spatial radius required");
+            if(rule.Str("event")=="part_contact") Require(rule.Obj("filters")?.ContainsKey("part")==true,"Part filter required");
             if (rule.Has("conditions"))
             {
                 var conditions = rule.Fields["conditions"] as List<object>; Require(conditions != null && conditions.Count <= 8, "Condition limit");
@@ -51,11 +53,11 @@ namespace ImagineVR
                 {
                     var condition = item as Dictionary<string, object>; Fields(condition, new[] { "field", "operator", "value", "name" }, "field", "operator", "value");
                     string field = condition["field"] as string;
-                    Require(new[] { "health", "durability", "speed", "source_kind", "source_asset", "source_tag", "counter", "state", "chance" }.Contains(field), "Unknown condition");
+                    Require(new[] { "health", "durability", "speed", "source_kind", "source_asset", "source_tag", "counter", "state", "actor_state", "chance" }.Contains(field), "Unknown condition");
                     Require(new[] { "eq", "ne", "lt", "le", "gt", "ge" }.Contains(condition["operator"] as string), "Unknown comparison");
                     if (field == "counter" || field == "state") Require(condition.TryGetValue("name", out object name) && Id(name), "Condition name required");
                     object value = condition["value"];
-                    if (new[] { "source_kind", "source_asset", "source_tag", "state" }.Contains(field)) Require(value is bool || value is string s && s.Length <= 80, "Invalid condition value");
+                    if (new[] { "source_kind", "source_asset", "source_tag", "state", "actor_state" }.Contains(field)) Require(value is bool || value is string s && s.Length <= 80, "Invalid condition value");
                     else Require(Num(value, field == "chance" ? 0 : -100000, field == "chance" ? 1 : 100000), "Invalid condition number");
                 }
             }
@@ -66,6 +68,8 @@ namespace ImagineVR
                 var action = item as Dictionary<string, object>;
                 Require(action != null && action.TryGetValue("action", out object kindObject) && kindObject is string, "Invalid action");
                 string kind = (string)action["action"];
+                if(blueprintContract!=null && ((Dictionary<string,object>)blueprintContract["actions"]).ContainsKey(kind))
+                { BlueprintContract.ExtensionAction(action,blueprintContract); if(action.TryGetValue("delay",out object wait)) delay+=(double)wait; continue; }
                 var schemas = (Dictionary<string, object>)contract["actions"];
                 Require(schemas.ContainsKey(kind), "Unknown action");
                 var schema = (Dictionary<string, object>)schemas[kind];
