@@ -45,6 +45,51 @@ namespace ImagineVR.Tests
             Assert.AreEqual(before+1,Object.FindObjectsByType<BlueprintProjectile>(FindObjectsSortMode.None).Length);
             Assert.AreEqual(0,gun.FireHeld(),"a held trigger waits out the cooldown");
         }
+        [UnityTest] public IEnumerator RicherPartsBuildAndAMirroredPartBringsItsChildrenAcross()
+        {
+            _world.Apply(Parse("{\"op\":\"blueprint\",\"id\":\"vase_bird\",\"parts\":[{\"id\":\"vase\",\"shape\":\"lathe\",\"profile\":[[0.1,0],[0.2,0.2],[0.05,0.5],[0,0.5]],\"color\":\"#336699\",\"color_top\":\"#88BBEE\",\"collider\":\"box\"},{\"id\":\"leg\",\"shape\":\"cylinder\",\"anchor\":\"top\",\"position\":[0.1,0.5,0],\"scale\":[0.05,0.5,0.05],\"taper\":1.5,\"mirror\":\"x\"},{\"id\":\"toe\",\"shape\":\"dome\",\"parent\":\"leg\",\"position\":[0.02,-0.5,0.03],\"scale\":[0.08,0.03,0.1]},{\"id\":\"fleece\",\"shape\":\"blob\",\"rough\":0.3,\"seed\":4,\"scale\":[0.3,0.3,0.3]},{\"id\":\"stock\",\"shape\":\"slab\",\"outline\":[[-0.1,0.05],[-0.1,0],[-0.2,0.02],[-0.38,-0.03],[-0.38,0.05]],\"thickness\":0.04},{\"id\":\"rivets\",\"shape\":\"sphere\",\"scale\":[0.02,0.02,0.02],\"repeat\":6,\"step\":[0,0.05,0]},{\"id\":\"box\",\"shape\":\"cube\",\"scale\":[0.2,0.1,0.3],\"bevel\":0.5,\"taper\":[0.5,1]}],\"animations\":[{\"name\":\"walk\",\"part\":\"leg\",\"mode\":\"oscillate\",\"property\":\"rotation\",\"amplitude\":[20,0,0],\"alternate\":true}]}"));
+            _world.Apply(Parse("{\"op\":\"spawn\",\"id\":\"bird\",\"asset\":\"vase_bird\",\"at\":[0,0,5]}")); yield return Finished();
+            var a=_world.Blueprints.Instances.Single();
+            Assert.AreEqual(9,a.Parts.Count,"seven parts, and a twin for the leg and for the toe that hangs from it");
+            Assert.Less(a.Parts["leg_m"].localPosition.x,0); Assert.AreEqual(a.Parts["leg_m"],a.Parts["toe_m"].parent); Assert.Less(a.Parts["toe_m"].localPosition.x,0);
+            Assert.AreEqual(Vector3.one,a.Parts["box"].localScale,"a part's size is in its mesh, so it never stretches what hangs from it");
+            Assert.AreEqual(0.3f,a.Parts["box"].GetComponent<MeshFilter>().sharedMesh.bounds.size.z,0.001f);
+            Assert.AreEqual(6*80,a.Parts["rivets"].GetComponent<MeshFilter>().sharedMesh.triangles.Length/3);
+            Assert.AreEqual(-0.5f,a.Parts["leg"].GetComponent<MeshFilter>().sharedMesh.bounds.min.y,0.001f,"anchored at the top, it hangs below its position");
+            yield return null; yield return null;
+            float left=Mathf.DeltaAngle(0,a.Parts["leg"].localEulerAngles.x), right=Mathf.DeltaAngle(0,a.Parts["leg_m"].localEulerAngles.x);
+            Assert.AreEqual(left,-right,0.01f,"legs walk: one forward while the other is back");
+        }
+        [UnityTest] public IEnumerator AnEditFindsAThingByTheIdItWasGivenWith()
+        {
+            // the 20:45 headset session: {"instance":"ak47"} was the id the rifle was given under, and the edit found nothing
+            Build(); yield return Finished();
+            _world.Apply(Statement.Make("blueprint_edit","selector",new Dictionary<string,object>{{"instance","tool"}},"blueprint",Parse(Tool).Fields));
+            Assert.IsTrue(_world.Blueprints.Busy); yield return Finished();
+        }
+        [UnityTest] public IEnumerator TheBlueprintsThePromptTeachesWithAllBuild()
+        {
+            string path=System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath,"../../openrouter-api/imagine/blueprints-prompt.md")); int built=0;
+            foreach(string line in System.IO.File.ReadAllLines(path)) if(line.StartsWith("{\"op\":")) { _world.Apply(Parse(line)); if(line.StartsWith("{\"op\":\"blueprint\"")) built++; }
+            yield return Finished();
+            Assert.GreaterOrEqual(built,2); Assert.AreEqual(built,_world.Blueprints.Instances.Count());
+            var gun=_world.Blueprints.Instances.First(a=>a.Entity.Asset=="flare_pistol"); Assert.AreEqual(1,gun.FireHeld());
+        }
+        [UnityTest] public IEnumerator AShotFromAHeldThingKnocksDownWhatIsAlive()
+        {
+            // the 20:45 headset session: "it also doesn't damage anyone". Shots only ever touched things a rule had been written for.
+            _world.Apply(Parse("{\"op\":\"terrain\",\"type\":\"flat\"}"));
+            _world.Apply(Parse("{\"op\":\"blueprint\",\"id\":\"ray_gun\",\"parts\":[{\"id\":\"body\",\"shape\":\"cube\",\"scale\":[0.05,0.06,0.22],\"collider\":\"box\"}],\"sockets\":[{\"name\":\"muzzle\",\"part\":\"body\",\"position\":[0,0,0.14]}],\"capabilities\":{\"grabbable\":true,\"emitters\":[{\"name\":\"shot\",\"socket\":\"muzzle\",\"asset\":\"energy_ball\",\"target\":\"forward\",\"speed\":30,\"cooldown\":0.1,\"enabled\":true}]}}"));
+            _world.Apply(Parse("{\"op\":\"give\",\"id\":\"gun\",\"asset\":\"ray_gun\"}")); yield return Finished();
+            var gun=_world.Blueprints.Instances.Single();
+            _world.Apply(Parse("{\"op\":\"spawn\",\"id\":\"z\",\"asset\":\"zombie\",\"behavior\":\"wander\",\"at\":[0,0,4]}"));
+            var creature=Object.FindObjectsByType<Creature>(FindObjectsSortMode.None).Single();
+            gun.transform.position=creature.transform.position+new Vector3(0,1f,-2f); gun.transform.rotation=Quaternion.identity; Physics.SyncTransforms();
+            string heard=null; _world.Happened+=text=>heard=text;
+            Assert.AreEqual(1,gun.FireHeld());
+            for(int i=0;i<40 && heard==null;i++) yield return new WaitForFixedUpdate();
+            Assert.AreEqual("zombie down",heard);
+        }
         [Test] public void ResetCancelsConstruction()
         { Build(); Assert.IsTrue(_world.Blueprints.Busy); _world.ResetEverything(0); Assert.IsFalse(_world.Blueprints.Busy); Assert.IsFalse(_world.Blueprints.Has("test_tool")); }
         [UnityTest] public IEnumerator UnrelatedExampleObjectsShareTheSameCapabilities()

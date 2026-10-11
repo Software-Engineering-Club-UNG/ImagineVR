@@ -543,6 +543,7 @@ namespace ImagineVR
         static readonly int TintId = Shader.PropertyToID("_Tint"), EdgeId = Shader.PropertyToID("_EdgeColor");
         static readonly int GridColorId = Shader.PropertyToID("_GridColor"), GridAmountId = Shader.PropertyToID("_GridAmount");
         static readonly int ColorId = Shader.PropertyToID("_Color");
+        static readonly int DetailId = Shader.PropertyToID("_Detail");
         const float Far = 100000f, RingMax = 190f;
 
         sealed class Layer
@@ -589,6 +590,9 @@ namespace ImagineVR
         public bool Busy => _job != null || _ring >= 0f;
         public bool Generating => _job != null;
         public string TypeId => _type != null ? _type.Id : null;
+        /// <summary>What the ground is made of, and what kind of ground it is, for dressing it.</summary>
+        public string MaterialId => _material;
+        public TerrainShape Shape => _type != null ? _type.Shape : TerrainShape.None;
 
         public TerrainSystem(Transform parent, float safeRadius)
         {
@@ -754,6 +758,9 @@ namespace ImagineVR
             layer.Mat.SetFloat(RevealId, 0f);
             layer.Mat.SetFloat(ModeId, 0f);
             layer.Mat.SetColor(EdgeId, EdgeColor);
+            // how broken up the surface looks from close by: a meadow a lot, a marble floor hardly, a glowing grid not at all
+            GroundMaterial ground = Library.Resolve(Library.GroundMaterials, _material);
+            layer.Mat.SetFloat(DetailId, ground != null ? Mathf.Clamp01(ground.Patch * 1.5f) : 0.2f);
             if (data.Shape != TerrainShape.None)
             {
                 var mesh = new Mesh { name = "TerrainMesh" };

@@ -107,12 +107,23 @@ Write their replacements now, and nothing else:
 Output only `spawn` and `scatter` statements. No `think`, no `say`."""
 
 
-async def _sculpt(session: Session, system_prompt: str, text: str, frame: list | None, missing: list[dict], allow_blueprints: bool=False) -> AsyncIterator[dict]:
+MAKE = """You wrote the statements below, but the assets they name are NOT in the CATALOG and no blueprint of yours defines them, so nothing appeared.
+{missing}
+{refused}
+Write now, and nothing else: one complete `blueprint` for each missing thing, then the same `spawn` or `give` again with the same id and placement, naming your blueprint.
+- Hold it to "What a good blueprint has": 16 to 32 parts, real proportions, the silhouette first, then the details that make it that thing and no other.
+- A thing held and fired has a muzzle socket and an enabled emitter.
+- A `scatter` cannot take a blueprint: use the closest catalog asset.
+Output only `blueprint`, `spawn`, `give`, `scatter` and supporting `rule` statements. No `think`, no `say`."""
+
+
+async def _sculpt(session: Session, system_prompt: str, text: str, frame: list | None, missing: list[dict], allow_blueprints: bool=False, refused: list[str] | None = None) -> AsyncIterator[dict]:
     """A second, short request: the model builds from shapes what it asked the library for and the library lacks."""
     listed = "\n".join(json.dumps(m, separators=(",", ":")) for m in missing)
     instruction=SCULPT.format(missing=listed)
     if allow_blueprints:
-        instruction='These requested assets are missing:\n'+listed+'\nBuild complete low-poly blueprint definitions, then the requested spawn/give operations referencing them. Preserve original instance IDs and placement. Output only blueprint, spawn, give, or supporting rule operations. Do not make disconnected sculptures. For scatter use a baked approximation.'
+        why = ("A blueprint you wrote this turn was refused, which may be why:\n" + "\n".join("- " + r for r in refused[:4]) + "\nWrite it again without that fault.\n") if refused else ""
+        instruction=MAKE.format(missing=listed, refused=why)
     content = build_user_content(session, text, frame) + "\n\n" + instruction
     async for line in llm.stream_lines(system_prompt, content):
         stmt = parse_line(line)
@@ -132,6 +143,7 @@ async def _run_turn(
     frame: list | None = None,
     allow_rules: bool = False,
     allow_blueprints: bool = False,
+    rich_blueprints: bool = True,
 ) -> AsyncIterator[dict]:
     started = time.perf_counter()
 
@@ -157,7 +169,7 @@ async def _run_turn(
     yield {"op": "status", "state": "thinking"}
 
     # Only the model can sculpt, so only then is an unknown asset worth holding back for it.
-    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE, allow_rules=allow_rules, allow_blueprints=allow_blueprints)
+    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE, allow_rules=allow_rules, allow_blueprints=allow_blueprints, rich_blueprints=rich_blueprints)
     building = False
     changed = False
     gave = False
@@ -227,22 +239,27 @@ async def _run_turn(
             missing, validator.missing = validator.missing, []
             names = ", ".join(sorted({str(m.get("asset", "?")).replace("_", " ")[:30] for m in missing}))
             log.info("turn %.8s not in the library: %s", session.id, names)
-            yield {"op": "note", "text": f"no {names} in the library, sculpting from shapes"}
-            made = 0
+            yield {"op": "note", "text": f"no {names} in the library, " + ("building it from parts" if allow_blueprints else "sculpting from shapes")}
+            made: set[str] = set()
             try:
-                sculpt_prompt = system_prompt
-                if allow_blueprints:
-                    sculpt_prompt += '\nFor this client, replace missing assets with ONE blueprint definition then the original spawn/give referencing it. Do not scatter sculpture parts. Blueprint instructions override the legacy sculpt instruction.'
-                async for raw in _sculpt(session, sculpt_prompt, text, validator.frame, missing,allow_blueprints=allow_blueprints):
+                refused, validator.refused = validator.refused, []
+                async for raw in _sculpt(session, system_prompt, text, validator.frame, missing, allow_blueprints=allow_blueprints, refused=refused):
                     for stmt in send(raw, strict=False):
-                        made += stmt["op"] in ("spawn", "scatter", "give")
+                        if stmt["op"] in ("spawn", "scatter", "give") and not stmt.get("stand_in"):
+                            made.add(str(stmt.get("id", "")).split(".")[0])
                         yield stmt
             except llm.LLMError as exc:
                 log.warning("sculpting failed: %s", exc)
-            if made == 0:
-                for raw in missing:
-                    for stmt in send(raw, strict=False):
-                        yield stmt
+            for raw in missing:
+                if made and (not raw.get("id") or str(raw.get("id")).split(".")[0] in made or len(missing) == 1):
+                    continue
+                # Still nothing for this one. The nearest thing the library does have is better
+                # than a white box with a label on it; the box is only for when there is nothing near.
+                near = catalog.nearest("asset", str(raw.get("asset", "")), holdable_only=raw.get("op") == "give") or catalog.nearest("asset", str(raw.get("asset", "")))
+                if near:
+                    raw = {**raw, "asset": near}
+                for stmt in send(raw, strict=False):
+                    yield stmt
             for raw in waiting:
                 for stmt in send(raw, strict=False):
                     yield stmt

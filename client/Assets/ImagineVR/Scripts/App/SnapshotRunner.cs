@@ -58,6 +58,13 @@ namespace ImagineVR
                 yield break;
             }
             Directory.CreateDirectory(OutputDir);
+            if (UnityEditor.SessionState.GetBool("ImagineSnap.Bare", false))
+            {
+                // pictures of the world alone: no terminal across the middle, no hands in the corners
+                app.Terminal.gameObject.SetActive(false);
+                app.Rig.ShowHand(true, false);
+                app.Rig.ShowHand(false, false);
+            }
 
             if (Sheet.Length > 0)
             {

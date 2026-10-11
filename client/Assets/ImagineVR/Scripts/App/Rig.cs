@@ -44,6 +44,9 @@ namespace ImagineVR
         public event System.Action<Prop, bool> Grabbed, Released;
         internal void OnGrabbed(Prop prop, bool right) { Grabbed?.Invoke(prop, right); }
         internal void OnReleased(Prop prop, bool right) { Released?.Invoke(prop, right); }
+        /// <summary>A held tool is being shaken about, as by someone who wants to be rid of it.</summary>
+        public event System.Action<Prop, bool> Flailed;
+        internal void OnFlailed(Prop prop, bool right) { Flailed?.Invoke(prop, right); }
 
         InputAction _talk, _alt, _menu, _fold, _gripL, _gripR, _triggerL, _triggerR, _stickR, _stickClick;
         InputAction _posL, _rotL, _posR, _rotR, _look, _lookHold;
@@ -317,7 +320,19 @@ namespace ImagineVR
         static readonly Collider[] Hits = new Collider[16];
 
         /// <summary>How long the grip is held squeezed before a tool is let go of.</summary>
-        public const float LetGoHold = 0.5f;
+        public const float LetGoHold = 0.9f;
+        /// <summary>
+        /// A squeeze that begins this soon after taking a tool is the hand closing round it, not a
+        /// wish to drop it. In the 20:45 session the blaster was taken by touch, gripped 70 ms later
+        /// as anyone grips a thing they have just been handed, and half a second on it was gone.
+        /// </summary>
+        public const float GraspGrace = 1.5f;
+        float _grabbedAt;
+        // shaking a tool about is what people do when they want rid of it and do not know how
+        readonly float[] _swings = new float[5];
+        int _swing;
+        Vector3 _swingDir;
+        float _flailedAt = -100f;
 
         public Prop Held => _held;
         public Vector3 Velocity => _velocity;
@@ -349,7 +364,7 @@ namespace ImagineVR
             {
                 SessionLog.Write("press", "button", _right ? "grip_right" : "grip_left", "holding", _held != null ? _held.Def.Id : null);
                 if (_held == null) TryGrab(false);
-                else if (_latched && _held.Def.Tool) _gripSince = Time.time;   // let go of only if this squeeze is held
+                else if (_latched && _held.Def.Tool) { if (Time.time - _grabbedAt > GraspGrace) _gripSince = Time.time; }   // let go of only if this squeeze is held
                 else _latched = false;   // now held by the grip: letting go throws it
             }
             else if (!grip && _gripDown)
@@ -374,6 +389,7 @@ namespace ImagineVR
                 if (trig && !_triggerDown) TryGrab(true);
                 if (_held == null) Reach();
             }
+            if (_held != null) Flail();
             if (!trig) _waitTrigger = false;
             if (_held != null && !_waitTrigger) Use(trig, trigger);
             if (_held != null && !trig) EndUse(_held);
@@ -385,6 +401,28 @@ namespace ImagineVR
                 _held.SetTint(PropSystem.PaintColor(_paintIndex));
                 Sfx.Play("blip", transform.position, 0.4f, 1.3f);
             }
+        }
+
+        /// <summary>
+        /// Five hard changes of direction inside two seconds, with a tool that is used by its trigger
+        /// (a sword or a bat is swung on purpose): the user is trying to shake it off.
+        /// </summary>
+        void Flail()
+        {
+            if (!_latched || !_held.Def.Tool || _gripSince >= 0f) return;
+            BlueprintActor made = _held.GetComponent<BlueprintActor>();
+            bool fired = !string.IsNullOrEmpty(_held.Def.Behavior) || made != null && made.ActiveEmitters.Count > 0;
+            if (!fired || _velocity.magnitude < 1.6f) return;
+            Vector3 dir = _velocity.normalized;
+            if (_swingDir != Vector3.zero && Vector3.Dot(dir, _swingDir) > -0.4f) return;
+            _swingDir = dir;
+            _swings[_swing++ % _swings.Length] = Time.time;
+            float oldest = Time.time;
+            foreach (float at in _swings) oldest = Mathf.Min(oldest, at);
+            if (_swing < _swings.Length || Time.time - oldest > 2f || Time.time - _flailedAt < 12f) return;
+            _flailedAt = Time.time;
+            SessionLog.Write("flail", "hand", _right ? "right" : "left", "asset", _held.Def.Id);
+            _rig.OnFlailed(_held, _right);
         }
 
         /// <summary>What the hand is touching and could pick up, nearest first; null when nothing.</summary>
@@ -496,6 +534,9 @@ namespace ImagineVR
                 _gripRotation = Quaternion.Inverse(transform.rotation) * prop.transform.rotation;
             }
             _fly = 0f;
+            _grabbedAt = Time.time;
+            _swing = 0;
+            _swingDir = Vector3.zero;
             _latched = false;
             _rig.ShowHand(_right, false);
             _rig.Haptic(_right, 0.5f, 0.05f);
@@ -603,12 +644,14 @@ namespace ImagineVR
                     if (pressed && Time.frameCount % 9 == 0) _rig.Haptic(_right, 0.12f, 0.02f);
                     break;
                 case "blaster":
-                    if (pressed && !_triggerDown && Time.time - _lastShot > 0.15f)
+                    AssetDef gun = prop.Def;
+                    if (pressed && (!_triggerDown || gun.Automatic) && Time.time - _lastShot > gun.FireEvery)
                     {
                         _lastShot = Time.time;
-                        Color c = prop.Tint == Color.white ? Pal.Neon : prop.Tint;
-                        prop.System.Fire(tipPosition + aim * 0.1f, aim, c);
-                        _rig.Haptic(_right, 0.8f, 0.06f);
+                        Color c = prop.Tint != Color.white ? prop.Tint : gun.ShotColored ? gun.ShotColor : Pal.Neon;
+                        Vector3 muzzle = gun.HasMuzzle ? TargetPosition + TargetRotation * Vector3.Scale(gun.Muzzle, prop.transform.localScale) : tipPosition + aim * 0.1f;
+                        prop.System.Fire(muzzle, aim, c, gun);
+                        _rig.Haptic(_right, gun.Pellets > 1 ? 1f : 0.8f, gun.Pellets > 1 ? 0.12f : 0.06f);
                     }
                     break;
                 case "wand":

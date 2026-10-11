@@ -23,6 +23,7 @@ namespace ImagineVR
         public float Length = 0.3f; // how far the business end is from the grip, for tools
         public float Born;
         public float LetGoAt;       // when a hand last let go of it
+        public float AwaySince = -1f;   // when it was first found waiting out of the user's reach; negative while in reach
 
         Vector3 _floatAnchor;
         float _lastSound;
@@ -66,7 +67,8 @@ namespace ImagineVR
             {
                 float t = Time.time - Born;
                 Body.MovePosition(_floatAnchor + Vector3.up * (Mathf.Sin(t * 1.6f) * 0.03f));
-                Body.MoveRotation(Quaternion.Euler(0f, t * 25f, 0f) * Quaternion.Euler(Def != null && Def.Tool ? -20f : 0f, 0f, 0f));
+                // a gun hangs level, grip down, as it will sit in the hand; other tools lean back a little
+                Body.MoveRotation(Quaternion.Euler(0f, t * 25f, 0f) * Quaternion.Euler(Def != null && Def.HasMuzzle ? 90f : Def != null && Def.Tool ? -20f : 0f, 0f, 0f));
                 return;
             }
             if (Held || Body.isKinematic) return;
@@ -289,10 +291,12 @@ namespace ImagineVR
         {
             int loose = 0;
             foreach (Prop p in _props) if (p != null && !p.Given) loose++;
+            // spent shots go first: a burst from a rifle must not eat the apples the user was given to throw
+            for (int pass = 0; pass < 2; pass++)
             for (int i = 0; i < _props.Count && loose > MaxPhysics; i++)
             {
                 Prop p = _props[i];
-                if (p == null || p.Given || p.Held) continue;
+                if (p == null || p.Given || p.Held || (pass == 0 && p.GroupId != "shot")) continue;
                 Object.Destroy(p.gameObject);
                 _props.RemoveAt(i--);
                 loose--;
@@ -509,6 +513,22 @@ namespace ImagineVR
                 // A tool the user was given and has let go of comes back to wait within reach: dropped
                 // by accident it is otherwise lost at their feet or across the street, and they have
                 // to ask for another. Thrown on purpose, it is back in a moment to throw again.
+                // Something waiting to be taken waits where the user can take it. They may have been put
+                // somewhere else since it was hung in the air: set down from a ride, shrunk from a giant
+                // (in the 20:45 session the blaster was left floating overhead), or simply walked off.
+                if (p.Given && p.Floating && !p.Held && _world.Head != null)
+                {
+                    bool away = (pos - _world.Head.position).magnitude > Reach;
+                    if (!away) p.AwaySince = -1f;
+                    else if (p.AwaySince < 0f) p.AwaySince = Time.time;
+                    else if (Time.time - p.AwaySince > 1f)
+                    {
+                        Vector3 near = InReach();
+                        p.FloatAt(near);
+                        p.AwaySince = -1f;
+                        SessionLog.Write("recover", "asset", p.Def.Id, "id", p.GroupId, "from", pos, "to", near, "why", "waiting out of reach, brought back");
+                    }
+                }
                 if (p.Given && p.Def.Tool && !p.Held && !p.Floating && Time.time - p.LetGoAt > ComesBackAfter)
                 {
                     Vector3 back = InReach();
@@ -632,15 +652,25 @@ namespace ImagineVR
             trail.emitting = false;
         }
 
-        /// <summary>A small glowing ball fired from a toy blaster. It bounces and knocks things over.</summary>
-        public void Fire(Vector3 position, Vector3 direction, Color color)
+        /// <summary>Glowing balls fired from a toy gun. They bounce and knock things over; each gun fires them its own way.</summary>
+        public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null)
         {
             AssetDef def = Library.Asset("energy_ball") ?? Library.Asset("sphere");
-            Prop shot = Create(def, "shot", position, Quaternion.identity, Vector3.one, color);
-            shot.Body.useGravity = true;
-            shot.Body.linearVelocity = direction.normalized * 20f;
-            Object.Destroy(shot.gameObject, 6f);
-            Sfx.Play("zap", position, 0.7f, 0.9f + Random.value * 0.3f);
+            int pellets = gun != null ? Mathf.Max(1, gun.Pellets) : 1;
+            float speed = gun != null ? gun.ShotSpeed : 20f, size = gun != null ? gun.ShotSize : 1f, life = gun != null ? gun.ShotLife : 6f;
+            direction = direction.normalized;
+            for (int i = 0; i < pellets; i++)
+            {
+                Vector3 aim = direction;
+                if (gun != null && gun.Spread > 0f) aim = Quaternion.Euler(Random.Range(-gun.Spread, gun.Spread), Random.Range(-gun.Spread, gun.Spread), 0f) * aim;
+                Prop shot = Create(def, "shot", position + aim * (0.02f * i), Quaternion.identity, Vector3.one * size, color);
+                shot.Body.useGravity = true;
+                shot.Body.linearVelocity = aim * speed;
+                Object.Destroy(shot.gameObject, life);
+            }
+            Sfx.Play(gun != null ? gun.ShotSound : "zap", position, 0.75f, 0.92f + Random.value * 0.2f);
+            Color flash = color; flash.a = 1f;
+            Fx.Burst(position, flash, Color.white, pellets > 1 ? 14 : 6, pellets > 1 ? 3.5f : 2.2f, 0.035f, 0.09f, 0f, true);
         }
     }
 }

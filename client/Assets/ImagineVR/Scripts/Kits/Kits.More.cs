@@ -75,7 +75,7 @@ namespace ImagineVR
                 "halloween,haunted,spooky,ghost,cemetery,horror", "cemetery,haunted graveyard,halloween,spooky,haunted", Graveyard)
                 .Defaults(sky: "spooky", terrain: "rolling", material: "swamp", height: 0.25f, ambience: "spooky").Greet("Something moved. Probably the wind.");
 
-            Kit("last_stand", "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a blaster to go with it",
+            Kit("last_stand", "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a rifle or a blaster to go with it",
                 "zombie,undead,horror,apocalypse,survival,shoot,fight,battle,enemies,monsters,defend", "zombies,zombie apocalypse,zombie outbreak,zombie horde,zombie shooter,shoot zombies,walking dead,undead,apocalypse,last stand,shooting gallery,invasion,uprising,monster attack", LastStand)
                 .Param("enemy", "any character or animal asset id: zombie (default), robot, alien, skeleton, knight, t_rex ...")
                 .Defaults(sky: "spooky", terrain: "flat", material: "dirt", ambience: "spooky").Greet("They're coming. Grab the blaster and pull the trigger.");
@@ -571,8 +571,38 @@ namespace ImagineVR
                 if (k.Chance(0.75f)) k.Put("fence", -x, 7f, 0f, 1.1f, Pal.Hex("#3A3A40"));
                 if (k.Chance(0.75f)) k.Put("fence", x, 15f, 0f, 1.1f, Pal.Hex("#3A3A40"));
             }
+            // It is a street, so it has sides: dark buildings shoulder to shoulder beyond the verges, a few
+            // windows still lit, and towers closing the far end. Without them the horde stood in an empty
+            // field, and in the 20:45 session that is what was said of it: "it's just zombies around me".
+            string[] blocks = { "apartment_block", "shop", "house", "office_block", "shop", "apartment_block" };
+            foreach (float side in new[] { -1f, 1f })
+                for (float z = -34f; z <= 78f; z += k.Range(10f, 14f))
+                    k.Put(k.Pick(blocks), side * k.Range(23f, 27f), z, side < 0f ? 90f : 270f, k.Range(1.2f, 1.7f), Pal.Hex("#4C4A58"));
+            k.Put("skyscraper", -9f, 96f, 0f, 1.1f, Pal.Hex("#3E3C4A"));
+            k.Put("tower", 8f, 102f, 0f, 1f, Pal.Hex("#3E3C4A"));
+            k.Put("office_block", 20f, 92f, 0f, 1.5f, Pal.Hex("#44424E"));
+            k.Put("office_block", -24f, 90f, 0f, 1.4f, Pal.Hex("#44424E"));
+            // the way back is shut: a bus across the road and a wall of crates
+            k.Put("bus", 0.5f, -14f, 86f, 1f, Pal.Hex("#4A5058"));
+            for (float x = -6f; x <= 6f; x += 1.5f) k.Put("crate", x, -9f + k.Range(-0.4f, 0.4f), k.Range(-20f, 20f), k.Range(0.9f, 1.3f));
+            // what a street has along its kerbs, knocked about
+            for (float z = 10f; z <= 58f; z += 12f)
+            {
+                k.Put(k.Pick("trash_can", "fire_hydrant", "bench", "tire"), -4.6f, z + k.Range(-2f, 2f), k.Range(0f, 360f));
+                k.Put(k.Pick("trash_can", "road_cone", "bench", "tire", "stop_sign"), 4.6f, z + 5f + k.Range(-2f, 2f), k.Range(0f, 360f));
+            }
+            k.Put("traffic_light", -4.4f, 30f, 90f);
+            k.Put("traffic_light", 4.4f, 31f, 270f);
+            k.Put("neon_sign", -21f, 18f, 90f, 1.4f);
+            // fires burning down the street: pools of light to see them coming by
+            k.Put("campfire", 3.8f, 14f, 0f, 0.9f);
+            k.Put("campfire", -4.2f, 26f, 0f, 1.1f);
+            k.Put("campfire", 4.4f, 41f, 0f, 1f);
+            k.Put("barrel", 4.3f, 13.2f, 0f, 1f);
+            k.Put("barrel", -4.8f, 25.4f, 0f, 1f);
+            k.Scatter("tire", k.N(7), 4f, 34f, 0.9f, 1.2f, null, (x, z) => Mathf.Abs(x) > 3.8f && Mathf.Abs(x) < 9f);
             k.Scatter("gravestone", k.N(14), 9f, 34f, 0.8f, 1.3f, null, (x, z) => x < -8f && z > 8f);
-            k.Scatter("dead_tree", k.N(26), 12f, k.Reach, 0.9f, 1.8f, null, (x, z) => Mathf.Abs(x) > 9f);
+            k.Scatter("dead_tree", k.N(26), 12f, k.Reach, 0.9f, 1.8f, null, (x, z) => Mathf.Abs(x) > 9f && Mathf.Abs(x) < 20f || Mathf.Abs(x) > 32f);
             k.Scatter("rock", k.N(16), 6f, 50f, 0.6f, 1.6f, Pal.Hex("#5A5A62"), (x, z) => Mathf.Abs(x) > 5f);
             k.Scatter("tall_grass", k.N(50), 5f, 40f, 0.8f, 1.5f, Pal.Hex("#56603F"), (x, z) => Mathf.Abs(x) > 4.5f);
             for (int i = 0; i < k.N(8); i++) { float a = k.Rand() * Mathf.PI * 2f, r = k.Range(8f, 40f); k.Float("bat", Mathf.Cos(a) * r, k.Range(5f, 14f), Mathf.Sin(a) * r, k.Rand() * 360f, k.Range(1f, 2f)); }

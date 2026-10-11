@@ -357,7 +357,7 @@ def _catalog():
 @pytest.mark.parametrize('wanted,expected', [
     ('spider_man', 'person'), ('bat_man', 'person'), ('cat_woman', 'woman'),   # the thing, not the describer
     ('fire_truck', None), ('monster_truck', None), ('batman', None),          # nothing like it: sculpt
-    ('red_car', 'car'), ('big_oak_tree', 'oak_tree'), ('zombies', 'zombie'), ('pistol', 'blaster'),
+    ('red_car', 'car'), ('big_oak_tree', 'oak_tree'), ('zombies', 'zombie'), ('revolver', 'pistol'), ('ak47', 'rifle'), ('ray_gun', 'blaster'),
 ])
 def test_an_asset_is_never_swapped_for_something_that_only_shares_a_word(wanted, expected):
     assert _catalog().resolve('asset', wanted)[0] == expected

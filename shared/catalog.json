@@ -1,6 +1,6 @@
 {
   "language_version": 1,
-  "catalog_version": "1.242.06794194",
+  "catalog_version": "1.245.2007a222",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
@@ -694,7 +694,7 @@
     },
     {
       "id": "last_stand",
-      "desc": "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a blaster to go with it",
+      "desc": "A night-time street under attack: wrecked cars, a barricade to stand behind, and a horde that keeps coming at you and falls when shot or hit. Zombies unless params says otherwise. Density sets how many. Give the user a rifle or a blaster to go with it",
       "tags": ["zombie", "undead", "horror", "apocalypse", "survival", "shoot", "fight", "battle", "enemies", "monsters", "defend"],
       "aliases": ["zombies", "zombie apocalypse", "zombie outbreak", "zombie horde", "zombie shooter", "shoot zombies", "walking dead", "undead", "apocalypse", "last stand", "shooting gallery", "invasion", "uprising", "monster attack"],
       "defaults": {
@@ -1724,11 +1724,41 @@
     },
     {
       "id": "blaster",
-      "desc": "Toy ray gun that fires bouncing balls of light. Pull the trigger",
-      "tags": ["toy", "gun", "sci-fi", "shoot", "laser", "weapon"],
-      "aliases": ["gun", "ray gun", "laser gun", "toy gun", "zapper", "space gun", "pistol", "handgun", "rifle", "shotgun", "weapon"],
+      "desc": "Toy sci-fi ray gun with a glowing barrel. Pull the trigger: it fires bouncing balls of light",
+      "tags": ["toy", "gun", "sci-fi", "shoot", "laser", "weapon", "space"],
+      "aliases": ["ray gun", "laser gun", "toy gun", "zapper", "space gun", "phaser", "laser pistol", "gun", "weapon"],
       "category": "toys",
-      "size_m": 0.28,
+      "size_m": 0.3,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "pistol",
+      "desc": "Black toy handgun with a slide and sights. Pull the trigger: it fires balls of light",
+      "tags": ["toy", "gun", "handgun", "shoot", "weapon", "police", "spy", "western"],
+      "aliases": ["handgun", "glock", "revolver", "sidearm", "9mm", "desert eagle", "colt", "magnum", "toy pistol"],
+      "category": "toys",
+      "size_m": 0.2,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "rifle",
+      "desc": "Toy assault rifle in the AK-47 pattern: wooden stock and handguard, curved magazine. Hold the trigger for a stream of shots",
+      "tags": ["toy", "gun", "rifle", "ak47", "shoot", "weapon", "army", "soldier", "military"],
+      "aliases": ["ak47", "ak 47", "ak", "assault rifle", "machine gun", "kalashnikov", "m16", "m4", "carbine", "automatic rifle", "sniper rifle", "sniper", "toy rifle", "long gun", "smg", "submachine gun"],
+      "category": "toys",
+      "size_m": 0.9,
+      "holdable": true,
+      "prop": true
+    },
+    {
+      "id": "shotgun",
+      "desc": "Toy pump-action shotgun with a wooden stock. Each pull of the trigger fires a spread of balls of light",
+      "tags": ["toy", "gun", "shotgun", "shoot", "weapon", "western", "hunter", "farm"],
+      "aliases": ["pump shotgun", "pump action", "boomstick", "12 gauge", "double barrel", "sawed off", "toy shotgun", "musket", "blunderbuss"],
+      "category": "toys",
+      "size_m": 0.85,
       "holdable": true,
       "prop": true
     },
@@ -2177,8 +2207,8 @@
     },
     {
       "id": "sheep",
-      "desc": "Woolly white sheep",
-      "tags": ["animal", "farm", "field", "wool", "flock"],
+      "desc": "Woolly sheep: a thick cream fleece, dark face and legs",
+      "tags": ["animal", "farm", "field", "wool", "flock", "pasture"],
       "aliases": ["lamb", "ewe", "ram"],
       "category": "animals",
       "size_m": 1

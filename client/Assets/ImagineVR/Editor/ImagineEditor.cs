@@ -442,7 +442,7 @@ namespace ImagineVR.EditorTools
 
         /// <summary>
         /// -executeMethod ImagineVR.EditorTools.Snapshot.Run -snapScripts a.ndjson;b.ndjson -snapOut dir
-        ///   [-snapTimes 2,7] [-snapYaws 0,120,240] [-snapPitch -4] [-snapWelcome 1]
+        ///   [-snapTimes 2,7] [-snapYaws 0,120,240] [-snapPitch -4] [-snapWelcome 1] [-snapBare 1]
         /// </summary>
         public static void Run()
         {
@@ -454,6 +454,7 @@ namespace ImagineVR.EditorTools
             SessionState.SetFloat("ImagineSnap.Pitch", float.Parse(Arg("-snapPitch", "-4"), System.Globalization.CultureInfo.InvariantCulture));
             SessionState.SetBool("ImagineSnap.Welcome", Arg("-snapWelcome", "0") == "1");
             SessionState.SetString("ImagineSnap.Sheet", Arg("-snapSheet", ""));
+            SessionState.SetBool("ImagineSnap.Bare", Arg("-snapBare", "0") == "1");
             Setup.OpenMainScene();
             EditorApplication.EnterPlaymode();
         }

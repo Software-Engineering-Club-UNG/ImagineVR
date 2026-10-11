@@ -85,9 +85,12 @@ headset, server or keys are needed for the built-in demos.
   **X** to recentre it. The first-arrival A-button hint disappears after talking or its
   timeout; hint state is not saved between sessions.
 - Touch a floating given item to take it, or point and pull the trigger. Grip also grabs.
-  Tools stay in your hand; hold grip squeezed for half a second to drop them (a quick squeeze
+  Tools stay in your hand; hold grip squeezed for about a second to drop them (a quick squeeze
   does nothing), and a dropped tool floats back to within reach. Trigger uses the held tool
   (the pull used to take it does not also fire it).
+- Shaking a held gun about brings up a hint for how to drop it. The catalog has four guns
+  (`blaster`, `pistol`, `rifle`, `shotgun`), each with its own sound and rate of fire; the
+  rifle keeps firing while the trigger is held.
 - Hold **X** in the headset or **R** on desktop for **two seconds** to start over. A
   countdown appears before resetting objects, held items, paint, sky, terrain, weather,
   player size, rides, pending turns, and conversation. The terminal and hints restart;
