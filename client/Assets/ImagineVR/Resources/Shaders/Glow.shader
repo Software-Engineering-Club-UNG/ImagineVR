@@ -26,6 +26,7 @@ Shader "ImagineVR/Glow"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #pragma multi_compile_local _ IM_BAKED
             #pragma target 3.5
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -44,6 +45,9 @@ Shader "ImagineVR/Glow"
                 half4 color : COLOR;
                 float2 uv : TEXCOORD0;
                 float2 uv2 : TEXCOORD1;
+            #ifdef IM_BAKED
+                float4 pivot : TEXCOORD2;   // see Lit.shader
+            #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -62,19 +66,27 @@ Shader "ImagineVR/Glow"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
                 float4x4 m = GetObjectToWorldMatrix();
+            #ifdef IM_BAKED
+                float3 origin = v.pivot.xyz;
+            #else
                 float3 origin = float3(m._m03, m._m13, m._m23);
+            #endif
                 float h = ImHash(origin.xz);
-
                 float stagger = saturate(length(origin.xz) / 100.0) * 0.75 + h * 0.25;
                 float a = saturate(_Appear * 3.0 - stagger * 2.0);
-
+            #ifdef IM_BAKED
+                float3 pos = (v.positionOS.xyz - origin) * a;
+                ImRotateY(pos, _Motion.w * (_Time.y + h * 10.0));
+                float3 center = origin + pos;
+                float scale = v.pivot.w;
+            #else
                 float3 pos = v.positionOS.xyz * a;
                 ImRotateY(pos, _Motion.w * (_Time.y + h * 10.0));
                 float3 center = mul(m, float4(pos, 1.0)).xyz;
+                float scale = length(float3(m._m00, m._m10, m._m20));
+            #endif
                 center.y += sin(_Time.y * _Motion.z + h * 6.2831) * _Motion.y;
                 ImRotateY(center, _Motion.x * _Time.y * (0.6 + 0.8 * h));
-
-                float scale = length(float3(m._m00, m._m10, m._m20));
                 float radius = v.uv2.x * scale * a;
                 float3 right = UNITY_MATRIX_V[0].xyz;
                 float3 up = UNITY_MATRIX_V[1].xyz;

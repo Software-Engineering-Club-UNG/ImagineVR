@@ -23,6 +23,7 @@ namespace ImagineVR
         public float Length = 0.3f; // how far the business end is from the grip, for tools
         public float Born;
         public float LetGoAt;       // when a hand last let go of it
+        public float RuledAt = -1f;     // when a rule last fired for it being hit, so one knock is one hit
         public float AwaySince = -1f;   // when it was first found waiting out of the user's reach; negative while in reach
 
         Vector3 _floatAnchor;
@@ -34,10 +35,6 @@ namespace ImagineVR
 
         public void SetTint(Color c)
         {
-            if(GetComponent<BlueprintActor>()!=null)
-            {
-                Tint=c; foreach(var renderer in Visual.GetComponentsInChildren<Renderer>()) { var block=new MaterialPropertyBlock(); renderer.GetPropertyBlock(block); block.SetColor("_Tint",c); block.SetFloat("_Appear",1); renderer.SetPropertyBlock(block); } return;
-            }
             Tint = c;
             if (_renderer == null) _renderer = Visual.GetComponent<Renderer>();
             if (_props == null) _props = new MaterialPropertyBlock();
@@ -90,79 +87,6 @@ namespace ImagineVR
         }
     }
 
-    /// <summary>A spot that reacts when the right kind of prop arrives: a golf hole, a hoop, a target.</summary>
-    public sealed class ScoreZone : MonoBehaviour
-    {
-        public string Accepts;
-        public string Message;
-        World _world;
-        float _cooldown;
-        int _count;
-
-        public static GameObject Create(World world, Vector3 position, float radius, string accepts, string message)
-        {
-            var go = new GameObject("ScoreZone");
-            go.transform.SetParent(world.transform, false);
-            go.transform.position = position;
-            SphereCollider c = go.AddComponent<SphereCollider>();
-            c.isTrigger = true;
-            c.radius = radius;
-            ScoreZone zone = go.AddComponent<ScoreZone>();
-            zone.Accepts = accepts;
-            zone.Message = message;
-            zone._world = world;
-            return go;
-        }
-
-        void OnTriggerEnter(Collider other)
-        {
-            if (Time.time < _cooldown) return;
-            Prop prop = other.GetComponentInParent<Prop>();
-            if (prop == null || prop.Def == null || prop.Held) return;
-            if (!string.IsNullOrEmpty(Accepts) && !prop.Def.Id.Contains(Accepts) && prop.Def.Behavior != Accepts) return;
-            _cooldown = Time.time + 1.5f;
-            _count++;
-            Fx.Confetti(transform.position + Vector3.up * 0.3f);
-            Sfx.Play("confetti", transform.position, 0.9f);
-            _world.Emit(_count > 1 ? Message + "  (" + _count + ")" : Message);
-            _world.Rules.Broadcast("goal_reached", Message);
-        }
-    }
-
-    /// <summary>A spot that reacts when the user themselves arrives: the way out of a maze, a finish line.</summary>
-    public sealed class Goal : MonoBehaviour
-    {
-        public float Radius = 2f;
-        public string Message;
-        World _world;
-        float _cooldown;
-
-        public static GameObject Create(World world, Vector3 position, float radius, string message)
-        {
-            var go = new GameObject("Goal");
-            go.transform.SetParent(world.transform, false);
-            go.transform.position = position;
-            Goal goal = go.AddComponent<Goal>();
-            goal.Radius = radius;
-            goal.Message = message;
-            goal._world = world;
-            return go;
-        }
-
-        void Update()
-        {
-            if (Time.time < _cooldown || _world.Head == null) return;
-            Vector3 to = _world.Head.position - transform.position;
-            to.y = 0f;
-            if (to.magnitude > Radius) return;
-            _cooldown = Time.time + 8f;
-            Fx.Confetti(transform.position + Vector3.up * 1.5f);
-            Sfx.Play("confetti", transform.position, 0.9f);
-            _world.Emit(Message);
-            _world.Rules.Broadcast("goal_reached", Message);
-        }
-    }
-
     /// <summary>Creates and looks after physics props and the things the user is given to hold.</summary>
     public sealed class PropSystem
     {
@@ -179,11 +103,6 @@ namespace ImagineVR
         int _auto;
 
         public IReadOnlyList<Prop> All => _props;
-        public Prop AttachGenerated(GameObject root,AssetDef def,string id,Transform visual)
-        {
-            var p=root.GetComponent<Prop>(); if(p==null) p=root.AddComponent<Prop>(); p.Def=def; p.GroupId=id; p.Visual=visual; p.Body=root.GetComponent<Rigidbody>(); p.System=this; p.Born=Time.time; p.Length=Mathf.Max(.1f,def.Bounds.max.y);
-            if(!_props.Contains(p)) _props.Add(p); return p;
-        }
         public float Gravity => _gravity;
 
         public PropSystem(World world)
@@ -218,7 +137,7 @@ namespace ImagineVR
 
         // ------------------------------------------------------------------ creation
 
-        Prop Create(AssetDef def, string groupId, Vector3 position, Quaternion rotation, Vector3 scale, Color tint, bool registerRules = true)
+        Prop Create(AssetDef def, string groupId, Vector3 position, Quaternion rotation, Vector3 scale, Color tint)
         {
             var go = new GameObject("Prop_" + def.Id);
             go.transform.SetParent(_root, false);
@@ -281,7 +200,6 @@ namespace ImagineVR
             prop.Length = Mathf.Max(0.1f, b.max.y * scale.y);
             prop.SetTint(tint);
             _props.Add(prop);
-            if (registerRules) _world.Rules?.RegisterProp(prop);
             Trim();
             return prop;
         }
@@ -316,9 +234,18 @@ namespace ImagineVR
         }
 
         /// <summary>A physics prop made by a kit. It is removed with the kit.</summary>
-        public Prop SpawnLoose(string groupId, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale, Color tint, bool registerRules = true)
+        public Prop SpawnLoose(string groupId, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale, Color tint)
         {
-            return Create(def, groupId, position, rotation, scale, tint, registerRules);
+            return Create(def, groupId, position, rotation, scale, tint);
+        }
+
+        /// <summary>Takes one prop out of the world, out of the hand first if it is in one.</summary>
+        public void Destroy(Prop p)
+        {
+            if (p == null) return;
+            if (p.Holder != null) p.Holder.ForceRelease();
+            _props.Remove(p);
+            Object.Destroy(p.gameObject);
         }
 
         public void RemoveQuietly(string id)
@@ -566,10 +493,15 @@ namespace ImagineVR
 
         public void OnHit(Prop prop, Collision collision, float speed)
         {
-            RuleBody rule = prop.GetComponent<RuleBody>();
+            // struck by a shot or by something thrown hard: that is a hit, and rules may have something to say
             Prop source = collision.collider.GetComponentInParent<Prop>();
-            if (rule != null && rule.Hit(source != null ? rule.Engine.Find(source.gameObject) : null,
-                source != null && source.GroupId == "shot" ? "projectile" : source != null ? "thrown" : "collision", speed)) return;
+            if (prop.GroupId != "shot" && source != null && (source.GroupId == "shot" || speed > 2.5f) && Time.time - prop.RuledAt > 0.25f)
+            {
+                prop.RuledAt = Time.time;
+                bool taken = _world.Rules.Fire("hit", Rules.Of(prop));
+                if (source.GroupId == "shot") Object.Destroy(source.gameObject);
+                if (taken) return;
+            }
             Vector3 point = collision.contactCount > 0 ? collision.GetContact(0).point : prop.transform.position;
             float volume = Mathf.Clamp01(speed / 8f);
             switch (prop.Def.Behavior)

@@ -15,7 +15,7 @@
 
   # render worlds to PNG files (needs a GPU; stays open until the pictures are saved)
   ./scripts/unity.ps1 -Method ImagineVR.EditorTools.Snapshot.Run -Graphics -NoQuit `
-      -Extra '-snapScripts','shared/examples/golf-course.ndjson','-snapOut','client/Snapshots','-snapYaws','0,120,240'
+      -Extra '-snapScripts','scene.ndjson','-snapOut','client/Snapshots','-snapYaws','0,120,240'
 
   # build the Quest APK
   ./scripts/unity.ps1 -Method ImagineVR.EditorTools.Builder.BuildAndroid -Target Android -NoQuit -TimeoutSec 3600

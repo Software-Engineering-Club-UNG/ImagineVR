@@ -25,17 +25,17 @@ namespace ImagineVR
     }
 
     /// <summary>
-    /// Everything one statement created: a spawned object, a scatter, or a whole kit.
-    /// Drawn with GPU instancing, one draw call per mesh and tint, with no GameObjects.
+    /// Everything one statement created: a spawned object or a whole scatter. Its still items are
+    /// combined into a few ordinary meshes on ordinary renderers (see ObjectSystem.Rebuild).
     /// </summary>
     public sealed class Group
     {
         public string Id;
-        public string Kind;                 // spawn, scatter, kit
+        public string Kind;                 // spawn, scatter
         public Statement Source;
+        public string Asset;                // the asset its items are copies of
         public readonly List<Placement> Items = new List<Placement>();
-        public readonly List<GameObject> Extras = new List<GameObject>();   // labels, colliders, triggers
-        public readonly List<Mesh> OwnedMeshes = new List<Mesh>();          // meshes built just for this group
+        public readonly List<GameObject> Extras = new List<GameObject>();   // creatures, movers, labels, colliders
 
         public float Appear, AppearTarget = 1f, AppearSeconds = 1.5f;
         public bool Removing;
@@ -45,20 +45,16 @@ namespace ImagineVR
         public float Scale = 1f;
         public bool Dirty = true;
 
-        internal readonly List<Batch> Batches = new List<Batch>();
-        internal readonly List<Matrix4x4[]> Shadows = new List<Matrix4x4[]>();   // ground shadows, in runs of up to 500
-        internal Bounds ShadowBounds;
-
-        internal sealed class Batch
-        {
-            public Mesh Mesh;
-            public Matrix4x4[] Matrices;
-            public int Count;
-            public Bounds Bounds;
-            public Color Tint;
-            public bool AbsoluteTint;
-            public MaterialPropertyBlock Props = new MaterialPropertyBlock();
-        }
+        internal GameObject Root;
+        internal readonly List<MeshRenderer> Renderers = new List<MeshRenderer>();
+        internal MeshRenderer Shadow;
+        internal readonly List<Mesh> Combined = new List<Mesh>();
+        internal readonly MaterialPropertyBlock Props = new MaterialPropertyBlock();
+        internal float ShownAppear = -1f;
+        internal Color ShownTint;
+        internal Vector4 ShownMotion;
+        /// <summary>How many items and triangles are really in the renderers: what the session log reports.</summary>
+        public int Drawn, Triangles;
 
         public void Add(Placement p) { Items.Add(p); Dirty = true; }
     }
@@ -72,7 +68,8 @@ namespace ImagineVR
         public const int MaxSpawned = 60, MaxScatterCount = 300, MaxScatterTotal = 1500;
 
         readonly World _world;
-        readonly Material _lit, _glow;
+        readonly Transform _root;
+        readonly Material _lit, _glow, _litBaked, _glowBaked;
         readonly Dictionary<string, Group> _groups = new Dictionary<string, Group>();
         readonly List<Group> _order = new List<Group>();
         readonly List<Group> _dying = new List<Group>();
@@ -86,8 +83,14 @@ namespace ImagineVR
         public ObjectSystem(World world)
         {
             _world = world;
-            _lit = new Material(Shader.Find("ImagineVR/Lit")) { name = "ImagineLit", enableInstancing = true };
-            _glow = new Material(Shader.Find("ImagineVR/Glow")) { name = "ImagineGlow", enableInstancing = true };
+            _root = new GameObject("Scenery").transform;
+            _root.SetParent(world.transform, false);
+            _lit = new Material(Shader.Find("ImagineVR/Lit")) { name = "ImagineLit" };
+            _glow = new Material(Shader.Find("ImagineVR/Glow")) { name = "ImagineGlow" };
+            _litBaked = new Material(_lit) { name = "ImagineLitBaked" };
+            _glowBaked = new Material(_glow) { name = "ImagineGlowBaked" };
+            _litBaked.EnableKeyword("IM_BAKED");
+            _glowBaked.EnableKeyword("IM_BAKED");
         }
 
         // ------------------------------------------------------------------ bookkeeping
@@ -197,7 +200,7 @@ namespace ImagineVR
             int alive = 0;
             foreach (Group other in _order) foreach (GameObject extra in other.Extras) if (extra != null && extra.GetComponent<Creature>() != null) alive++;
             if (alive >= Creature.MaxLive) return true;
-            g.Extras.Add(Creature.Create(_world, def, position, scale, g.Tint, behavior));
+            g.Extras.Add(Creature.Create(_world, def, position, scale, g.Tint, behavior, g.Id));
             return true;
         }
 
@@ -223,23 +226,6 @@ namespace ImagineVR
             box.size = Vector3.Max(b.size, Vector3.one * 0.05f);
             box.sharedMaterial = PropSystem.Bouncy(0.2f);
             g.Extras.Add(go);
-        }
-
-        /// <summary>
-        /// A spot where something happens: the user arriving (a finish line), or the right thing
-        /// landing there (a ball in a goal). It has no look of its own; put a flag or a net beside it.
-        /// </summary>
-        public void Goal(Statement s)
-        {
-            if (!s.TryVec3("at", out Vector3 at)) return;
-            at = Statement.InWorld(s.Frame(), at);
-            Group g = Begin(s.Str("id"), "goal", s, 0.3f);
-            if (!Application.isPlaying) return;
-            float radius = Mathf.Clamp(s.Num("radius", 2f), 0.3f, 20f);
-            string who = s.Str("for", "user"), text = s.Str("text", "Made it");
-            var position = new Vector3(at.x, _world.Terrain.HeightAt(at.x, at.z) + at.y, at.z);
-            g.Extras.Add(who == "user" ? ImagineVR.Goal.Create(_world, position, radius, text)
-                : ScoreZone.Create(_world, position, radius, who == "any" ? "" : who, text));
         }
 
         static float Fit(AssetDef def)
@@ -305,13 +291,14 @@ namespace ImagineVR
             }
 
             Group g = Begin(s.Str("id"), "spawn", s, s.T(0.9f));
+            g.Asset = def.Id;
             if (s.TryColor("tint", out Color tint)) g.Tint = tint;
             g.Motion = MotionFor(s.Str("motion", "none"), def);
             if (Application.isPlaying && s.TryPath("path", out List<Vector3> points))
             {
                 // it travels: a car in traffic, a rival on a track, a ship crossing the bay
                 var route = new Route(points, s.Flag("loop", true));
-                g.Extras.Add(Mover.Create(_world, def, route, Mathf.Clamp(s.Num("speed", 4f), 0.1f, 40f), s.Num("start", 0f), scale, g.Tint));
+                g.Extras.Add(Mover.Create(_world, def, route, Mathf.Clamp(s.Num("speed", 4f), 0.1f, 40f), s.Num("start", 0f), scale, g.Tint, g.Id));
             }
             else if (!Enliven(g, def, pos, scale.y, s.Str("behavior")))
             {
@@ -366,7 +353,7 @@ namespace ImagineVR
         {
             string name = s.Str("asset", "cube");
             AssetDef def = Library.FindAsset(name);
-            if (!s.Str("id", "").StartsWith(World.Cover, System.StringComparison.Ordinal)) _world.Placed(s, name, def, def == null, s.Frame().position, null);
+            bool standIn = def == null;
             if (def == null) def = Library.Asset("cube");
             int count = Mathf.Clamp(s.Int("count", 12), 1, MaxScatterCount);
 
@@ -385,16 +372,27 @@ namespace ImagineVR
             }
 
             Group g = Begin(s.Str("id"), "scatter", s, s.T(1.6f));
+            g.Asset = def.Id;
             if (s.TryColor("tint", out Color tint)) g.Tint = tint;
             g.Motion = MotionFor(s.Str("motion", def.Airborne ? "orbit" : "none"), def);
             Populate(g, s, def, count);
+            if (!g.Id.StartsWith(World.Cover, System.StringComparison.Ordinal))
+            {
+                // where the nearest one actually stands, not where the scatter was centred
+                Vector3 nearest = s.Frame().position;
+                float best = float.MaxValue;
+                Vector3 user = _world.Head != null ? _world.Head.position : Vector3.zero;
+                foreach (Placement p in g.Items) { float d = Flat(p.Position - user).sqrMagnitude; if (d < best) { best = d; nearest = p.Position; } }
+                foreach (GameObject extra in g.Extras) if (extra != null) { float d = Flat(extra.transform.position - user).sqrMagnitude; if (d < best) { best = d; nearest = extra.transform.position; } }
+                _world.Placed(s, name, def, standIn, nearest, g.Items.Count + g.Extras.Count == 0 ? "nothing was placed: no ground suited it" : null,
+                    g.Items.Count, g.Extras.Count);
+            }
             return g;
         }
 
         /// <summary>Fills a scatter. The same seed always gives the same first N positions, so raising the count only adds.</summary>
         void Populate(Group g, Statement s, AssetDef def, int count)
         {
-            _world.Rules?.ForgetGroup(g);
             g.Items.Clear();
             foreach (GameObject extra in g.Extras) if (extra != null && (extra.name == "Solid" || extra.GetComponent<Creature>() != null)) UnityEngine.Object.Destroy(extra);
             g.Extras.RemoveAll(extra => extra == null || extra.name == "Solid" || extra.GetComponent<Creature>() != null);
@@ -585,6 +583,8 @@ namespace ImagineVR
                 if (s.TryColor("tint", out Color tint)) g.Tint = tint;
                 if (s.Has("scale")) { g.Scale = Mathf.Clamp(s.Num("scale", 1f), 0.05f, 60f); g.Dirty = true; }
                 if (s.Has("motion")) g.Motion = MotionFor(s.Str("motion"), null);
+                if (s.Has("behavior")) foreach (GameObject extra in g.Extras) { Creature c = extra != null ? extra.GetComponent<Creature>() : null; if (c != null) c.SetBehavior(s.Str("behavior")); }
+                if (s.Has("tint")) foreach (GameObject extra in g.Extras) { Creature c = extra != null ? extra.GetComponent<Creature>() : null; if (c != null) c.SetTint(g.Tint); }
                 if (s.Has("count") && g.Kind == "scatter" && g.Source != null)
                 {
                     AssetDef def = Library.FindAsset(g.Source.Str("asset", "cube")) ?? Library.Asset("cube");
@@ -593,7 +593,6 @@ namespace ImagineVR
                     if (count == 0) { Retire(g, s.T(0.8f)); continue; }
                     Populate(g, g.Source, def, count);
                 }
-                if (s.Has("density") && g.Kind == "kit") _world.Kits.Rebuild(g, s.Num("density"));
             }
         }
 
@@ -619,24 +618,99 @@ namespace ImagineVR
         }
 
         // ------------------------------------------------------------------ drawing
+        //
+        // Still scenery is combined, a group at a time, into ordinary meshes on ordinary
+        // MeshRenderers: one for each quarter of the world the group reaches into, so that what is
+        // behind the user is culled whole. A 300-tree forest is four draw calls.
+        //
+        // It was GPU-instanced once (Graphics.RenderMeshInstanced). That drew in the editor and
+        // drew NOTHING in the headset build, for the whole of the first day: the build strips the
+        // instancing variants of shaders that only runtime-made materials use. Creatures and props,
+        // which were MeshRenderers, were all anyone ever saw. Do not go back to instancing without
+        // checking a real build (see README, "Check a build, not the editor").
 
-        struct BatchKey : IEquatable<BatchKey>
+        sealed class Bucket
         {
-            public Mesh Mesh; public Color32 Tint; public int Sector; public bool AbsoluteTint;
-            public bool Equals(BatchKey o) => Mesh == o.Mesh && Sector == o.Sector && AbsoluteTint == o.AbsoluteTint && Tint.r == o.Tint.r && Tint.g == o.Tint.g && Tint.b == o.Tint.b;
-            public override bool Equals(object obj) => obj is BatchKey k && Equals(k);
-            public override int GetHashCode() => (Mesh != null ? Mesh.GetHashCode() : 0) ^ (Tint.r << 16 | Tint.g << 8 | Tint.b) ^ (Sector * 7919);
+            public readonly List<CombineInstance> Parts = new List<CombineInstance>();
+            public readonly List<Vector4> Pivots = new List<Vector4>();
+            public int Vertices, Triangles;
         }
 
-        readonly Dictionary<BatchKey, List<Matrix4x4>> _scratch = new Dictionary<BatchKey, List<Matrix4x4>>();
+        static readonly Dictionary<long, Mesh> Singles = new Dictionary<long, Mesh>();
+        readonly Dictionary<int, Bucket> _buckets = new Dictionary<int, Bucket>();
         readonly List<Matrix4x4> _shadowScratch = new List<Matrix4x4>();
+
+        /// <summary>One submesh of a library mesh as a mesh of its own, so that combining copies exactly its vertices.</summary>
+        static Mesh Single(Mesh mesh, int sub)
+        {
+            if (mesh.subMeshCount == 1) return mesh;
+            long key = ((long)mesh.GetInstanceID() << 4) | (uint)sub;
+            if (Singles.TryGetValue(key, out Mesh single) && single != null) return single;
+            int[] indices = mesh.GetIndices(sub);
+            Vector3[] verts = mesh.vertices, normals = mesh.normals;
+            Color[] colors = mesh.colors;
+            var uv0 = new List<Vector2>(); var uv1 = new List<Vector2>();
+            mesh.GetUVs(0, uv0); mesh.GetUVs(1, uv1);
+            var map = new Dictionary<int, int>();
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var c = new List<Color>(); var a = new List<Vector2>(); var b = new List<Vector2>();
+            var tris = new int[indices.Length];
+            for (int i = 0; i < indices.Length; i++)
+            {
+                int old = indices[i];
+                if (!map.TryGetValue(old, out int now))
+                {
+                    now = v.Count; map[old] = now;
+                    v.Add(verts[old]); n.Add(old < normals.Length ? normals[old] : Vector3.up); c.Add(old < colors.Length ? colors[old] : Color.white);
+                    a.Add(old < uv0.Count ? uv0[old] : Vector2.zero); b.Add(old < uv1.Count ? uv1[old] : Vector2.zero);
+                }
+                tris[i] = now;
+            }
+            single = new Mesh { name = mesh.name + "_" + sub };
+            if (v.Count > 65000) single.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            single.SetVertices(v); single.SetNormals(n); single.SetColors(c); single.SetUVs(0, a); single.SetUVs(1, b);
+            single.SetTriangles(tris, 0, true);
+            Singles[key] = single;
+            return single;
+        }
+
+        void Discard(Group g)
+        {
+            foreach (MeshRenderer r in g.Renderers) if (r != null) UnityEngine.Object.Destroy(r.gameObject);
+            if (g.Shadow != null) UnityEngine.Object.Destroy(g.Shadow.gameObject);
+            foreach (Mesh m in g.Combined) if (m != null) UnityEngine.Object.Destroy(m);
+            g.Renderers.Clear();
+            g.Combined.Clear();
+            g.Shadow = null;
+            g.Drawn = g.Triangles = 0;
+            g.ShownAppear = -1f;
+        }
+
+        MeshRenderer Chunk(Group g, string name, Mesh mesh, Material material)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(g.Root.transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = material;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            r.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            g.Combined.Add(mesh);
+            return r;
+        }
 
         void Rebuild(Group g)
         {
             g.Dirty = false;
-            g.Batches.Clear();
-            g.Shadows.Clear();
-            _scratch.Clear();
+            Discard(g);
+            if (g.Items.Count == 0) return;
+            if (g.Root == null)
+            {
+                g.Root = new GameObject("Group_" + g.Id);
+                g.Root.transform.SetParent(_root, false);
+            }
+            _buckets.Clear();
             _shadowScratch.Clear();
             bool moving = g.Motion.x != 0f;
             float waterY = _world.Terrain.WaterY;
@@ -650,52 +724,62 @@ namespace ImagineVR
                     if (p.OnWater && !float.IsNaN(waterY) && ground < waterY) ground = waterY;
                     pos.y += ground;
                 }
-                // split by quadrant so groups behind the user can be culled as a whole
+                Vector3 scale = p.Scale * g.Scale;
+                Matrix4x4 matrix = Matrix4x4.TRS(pos, p.Rotation, scale);
+                // split by quarter so the part of a group behind the user is culled as a whole
                 int sector = moving ? 0 : (pos.x >= 0f ? 1 : 0) | (pos.z >= 0f ? 2 : 0);
-                var key = new BatchKey { Mesh = p.Mesh, Tint = p.Tint, Sector = sector, AbsoluteTint = p.AbsoluteTint };
-                if (!_scratch.TryGetValue(key, out List<Matrix4x4> list))
+                var pivot = new Vector4(pos.x, pos.y, pos.z, Mathf.Max(scale.x, scale.y, scale.z));
+                for (int sub = 0; sub < p.Mesh.subMeshCount && sub < 2; sub++)
                 {
-                    list = new List<Matrix4x4>();
-                    _scratch[key] = list;
+                    int key = sector * 2 + sub;
+                    if (!_buckets.TryGetValue(key, out Bucket bucket)) _buckets[key] = bucket = new Bucket();
+                    Mesh single = Single(p.Mesh, sub);
+                    int count = single.vertexCount;
+                    if (count == 0) continue;
+                    bucket.Parts.Add(new CombineInstance { mesh = single, subMeshIndex = 0, transform = matrix });
+                    for (int i = 0; i < count; i++) bucket.Pivots.Add(pivot);
+                    bucket.Vertices += count;
+                    bucket.Triangles += (int)(single.GetIndexCount(0) / 3);
                 }
-                list.Add(Matrix4x4.TRS(pos, p.Rotation, p.Scale * g.Scale));
+                g.Drawn++;
 
                 // whatever stands on the ground and stays put gets a shadow there
-                if (p.Grounded && !moving && g.Motion.y == 0f && Shadows.Wanted(p.Mesh.bounds, p.Scale * g.Scale, p.Position.y, out Vector2 half))
+                if (p.Grounded && !moving && g.Motion.y == 0f && Shadows.Wanted(p.Mesh.bounds, scale, p.Position.y, out Vector2 half))
                 {
                     float floor = p.OnWater && !float.IsNaN(waterY) ? waterY : float.NegativeInfinity;
                     var yaw = Quaternion.Euler(0f, p.Rotation.eulerAngles.y, 0f);
-                    Vector3 centre = pos + p.Rotation * Vector3.Scale(p.Mesh.bounds.center, p.Scale * g.Scale);
-                    Matrix4x4 shadow = Shadows.Matrix(_world.Terrain, centre.x, centre.z, floor, yaw, half, 1f);
-                    var spot = new Bounds(shadow.GetColumn(3), Vector3.one * (Mathf.Max(half.x, half.y) * 3f));
-                    if (_shadowScratch.Count == 0) g.ShadowBounds = spot; else g.ShadowBounds.Encapsulate(spot);
-                    _shadowScratch.Add(shadow);
+                    Vector3 centre = pos + p.Rotation * Vector3.Scale(p.Mesh.bounds.center, scale);
+                    _shadowScratch.Add(Shadows.Matrix(_world.Terrain, centre.x, centre.z, floor, yaw, half, 1f));
                 }
             }
-            for (int start = 0; start < _shadowScratch.Count; start += 500)
-                g.Shadows.Add(_shadowScratch.GetRange(start, Mathf.Min(500, _shadowScratch.Count - start)).ToArray());
-            foreach (KeyValuePair<BatchKey, List<Matrix4x4>> pair in _scratch)
+
+            foreach (KeyValuePair<int, Bucket> pair in _buckets)
             {
-                List<Matrix4x4> list = pair.Value;
-                for (int start = 0; start < list.Count; start += 500)
+                Bucket bucket = pair.Value;
+                if (bucket.Parts.Count == 0) continue;
+                var mesh = new Mesh { name = g.Id + "_" + pair.Key };
+                if (bucket.Vertices > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                mesh.CombineMeshes(bucket.Parts.ToArray(), true, true);
+                if (mesh.vertexCount != bucket.Pivots.Count)
                 {
-                    int n = Mathf.Min(500, list.Count - start);
-                    var batch = new Group.Batch { Mesh = pair.Key.Mesh, Count = n, Matrices = new Matrix4x4[n], Tint = pair.Key.Tint, AbsoluteTint = pair.Key.AbsoluteTint };
-                    Bounds mb = pair.Key.Mesh.bounds;
-                    var bounds = new Bounds();
-                    for (int i = 0; i < n; i++)
-                    {
-                        Matrix4x4 m = list[start + i];
-                        batch.Matrices[i] = m;
-                        Vector3 center = m.MultiplyPoint3x4(mb.center);
-                        float radius = mb.extents.magnitude * m.lossyScale.x;
-                        var one = new Bounds(center, Vector3.one * (radius * 2f));
-                        if (i == 0) bounds = one; else bounds.Encapsulate(one);
-                    }
-                    bounds.Expand(2f);
-                    batch.Bounds = moving ? new Bounds(Vector3.zero, Vector3.one * 2000f) : bounds;
-                    g.Batches.Add(batch);
+                    // must not happen; if it ever does, say so loudly and draw it unanimated rather than not at all
+                    Debug.LogError("ImagineVR: combined " + g.Id + " has " + mesh.vertexCount + " vertices, expected " + bucket.Pivots.Count);
+                    bucket.Pivots.Clear();
+                    Vector3[] verts = mesh.vertices;
+                    foreach (Vector3 vert in verts) bucket.Pivots.Add(new Vector4(vert.x, vert.y, vert.z, 1f));
                 }
+                mesh.SetUVs(2, bucket.Pivots);
+                Bounds bounds = mesh.bounds;
+                bounds.Expand(pair.Key % 2 == 1 ? 4f : 2f);   // wind sway, and halos wider than their points
+                mesh.bounds = moving || g.Motion.w != 0f ? new Bounds(Vector3.zero, Vector3.one * 2000f) : bounds;
+                mesh.UploadMeshData(!Application.isEditor);   // the headset keeps no second copy; the editor does, for the tests to read
+                g.Renderers.Add(Chunk(g, pair.Key % 2 == 0 ? "Solid" : "Glow", mesh, pair.Key % 2 == 0 ? _litBaked : _glowBaked));
+                g.Triangles += bucket.Triangles;
+            }
+            if (_shadowScratch.Count > 0)
+            {
+                Mesh shadows = Shadows.Bake(_shadowScratch, null);
+                g.Shadow = Chunk(g, "Shadows", shadows, Shadows.Material);
             }
         }
 
@@ -708,8 +792,8 @@ namespace ImagineVR
                 Step(g, dt);
                 if (g.Appear <= 0.0001f)
                 {
-                    foreach (Mesh m in g.OwnedMeshes) if (m != null) UnityEngine.Object.Destroy(m);
-                    g.OwnedMeshes.Clear();
+                    Discard(g);
+                    if (g.Root != null) UnityEngine.Object.Destroy(g.Root);
                     _dying.RemoveAt(i);
                 }
             }
@@ -720,39 +804,49 @@ namespace ImagineVR
             g.Appear = Mathf.MoveTowards(g.Appear, g.AppearTarget, dt / g.AppearSeconds);
         }
 
-        public void Render()
+        /// <summary>How many renderers, items and triangles are being drawn right now: for the session log.</summary>
+        public void Census(out int renderers, out int items, out int triangles)
         {
-            foreach (Group g in _order) Draw(g);
-            foreach (Group g in _dying) Draw(g);
+            renderers = items = triangles = 0;
+            foreach (Group g in _order) { renderers += g.Renderers.Count; items += g.Drawn; triangles += g.Triangles; }
         }
 
-        void Draw(Group g)
+        public void Render()
         {
-            if (g.Dirty) Rebuild(g);
-            if (g.Appear <= 0.0001f) return;
-            // shadows arrive last, once the things casting them have finished growing
-            float shade = Mathf.Clamp01(g.Appear * 3f - 2f);
-            foreach (Matrix4x4[] run in g.Shadows) Shadows.Draw(run, run.Length, g.ShadowBounds, shade);
-            foreach (Group.Batch b in g.Batches)
+            // a change of ground re-settles everything; spread that over frames so it is never one long stall
+            int budget = 600;   // items combined this frame; the first group always goes, however big
+            foreach (Group g in _order)
             {
-                Color tint = b.AbsoluteTint ? b.Tint : g.Tint * (Color)b.Tint;
-                b.Props.SetFloat(AppearId, g.Appear);
-                b.Props.SetColor(TintId, tint);
-                b.Props.SetVector(MotionId, g.Motion);
-                b.Props.SetFloat(SwayId, g.Sway);
-                var rp = new RenderParams(_lit)
-                {
-                    matProps = b.Props,
-                    worldBounds = b.Bounds,
-                    shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off,
-                    receiveShadows = false,
-                };
-                Graphics.RenderMeshInstanced(rp, b.Mesh, 0, b.Matrices, b.Count);
-                if (b.Mesh.subMeshCount > 1)
-                {
-                    rp.material = _glow;
-                    Graphics.RenderMeshInstanced(rp, b.Mesh, 1, b.Matrices, b.Count);
-                }
+                if (g.Dirty && budget > 0) { budget -= Mathf.Max(g.Items.Count, 1); Rebuild(g); }
+                Show(g);
+            }
+            foreach (Group g in _dying) Show(g);
+        }
+
+        static readonly int ShadowStrengthId = Shader.PropertyToID("_Strength");
+
+        void Show(Group g)
+        {
+            if (g.Renderers.Count == 0 && g.Shadow == null) return;
+            if (g.Appear == g.ShownAppear && g.Tint == g.ShownTint && g.Motion == g.ShownMotion) return;
+            g.ShownAppear = g.Appear; g.ShownTint = g.Tint; g.ShownMotion = g.Motion;
+            bool visible = g.Appear > 0.0001f;
+            g.Props.SetFloat(AppearId, g.Appear);
+            g.Props.SetColor(TintId, g.Tint);
+            g.Props.SetVector(MotionId, g.Motion);
+            g.Props.SetFloat(SwayId, g.Sway);
+            foreach (MeshRenderer r in g.Renderers)
+            {
+                r.enabled = visible;
+                r.SetPropertyBlock(g.Props);
+            }
+            if (g.Shadow != null)
+            {
+                // shadows arrive last, once the things casting them have finished growing
+                float shade = Mathf.Clamp01(g.Appear * 3f - 2f);
+                g.Shadow.enabled = shade > 0.001f;
+                g.Props.SetFloat(ShadowStrengthId, shade);
+                g.Shadow.SetPropertyBlock(g.Props);
             }
         }
     }

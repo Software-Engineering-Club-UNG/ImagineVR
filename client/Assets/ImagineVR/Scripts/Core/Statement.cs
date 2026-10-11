@@ -18,9 +18,8 @@ namespace ImagineVR
         static readonly HashSet<string> WorldOps = new HashSet<string>
         {
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
-            "kit", "spawn", "scatter", "give", "ride", "goal", "player", "modify", "remove", "ambience",
-            "rule", "rule_remove",
-            "blueprint", "blueprint_remove", "blueprint_edit",
+            "spawn", "scatter", "give", "ride", "player", "modify", "remove", "ambience",
+            "make", "when",
         };
 
         public bool IsStream => StreamOps.Contains(Op);
@@ -37,6 +36,19 @@ namespace ImagineVR
                 return false;
             statement = new Statement { Op = name.ToLowerInvariant(), Fields = fields };
             return true;
+        }
+
+        /// <summary>A view of a nested object (a part, a `fires`, an action) with the same accessors as a statement.</summary>
+        public static Statement Wrap(Dictionary<string, object> fields) => new Statement { Op = "", Fields = fields ?? new Dictionary<string, object>() };
+
+        public Vector3 Vec(string key, Vector3 fallback) => TryVec3(key, out Vector3 v) ? v : fallback;
+
+        public List<Dictionary<string, object>> ObjList(string key)
+        {
+            var result = new List<Dictionary<string, object>>();
+            if (Fields.TryGetValue(key, out object v) && v is List<object> list)
+                foreach (object item in list) if (item is Dictionary<string, object> d) result.Add(d);
+            return result;
         }
 
         public static Statement Make(string op, params object[] keyValues)
@@ -195,7 +207,7 @@ namespace ImagineVR
 
         static readonly string[] Shown =
         {
-            "preset", "type", "material", "kit", "asset", "loop", "count", "area", "place", "distance",
+            "preset", "type", "material", "asset", "name", "kind", "event", "target", "loop", "count", "area", "place", "distance",
             "density", "size", "intensity", "gravity", "stars", "clouds", "moon", "aurora", "nebula",
             "sun_elevation", "height", "scale", "tint", "color", "motion", "physics", "keep", "id",
         };
@@ -211,6 +223,7 @@ namespace ImagineVR
             {
                 string leadText = Str(lead, "");
                 if (Op == "scatter" && Has("count")) leadText += " × " + Int("count");
+                if (Op == "make" && Fields.TryGetValue("parts", out object made) && made is List<object> madeParts) leadText += ", " + madeParts.Count + " parts";
                 sb.Append(leadText);
                 first = false;
             }
@@ -238,7 +251,9 @@ namespace ImagineVR
                 case "sky": return Has("preset") ? "preset" : null;
                 case "terrain": return Has("type") ? "type" : null;
                 case "weather": return "type";
-                case "kit": return "kit";
+                case "make": return "name";
+                case "when": return "event";
+                case "ride":
                 case "spawn":
                 case "scatter":
                 case "give": return "asset";

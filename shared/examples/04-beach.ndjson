@@ -1,7 +1,0 @@
-# Put me on a tropical beach
-{"op":"clear"}
-{"op":"sky","preset":"clear_noon","t":4}
-{"op":"terrain","type":"beach","material":"sand","t":3}
-{"op":"kit","id":"beach","kit":"beach","density":0.7,"size":0.7}
-{"op":"ambience","loop":"ocean_waves"}
-{"op":"say","text":"Sand under your feet and the whole afternoon ahead."}

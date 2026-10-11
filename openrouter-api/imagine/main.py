@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
@@ -16,11 +15,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import LANGUAGE_VERSION, config, stt, tts, llm
 from .catalog import Catalog
-from .script import to_frame
+from .language import to_frame
 from .session import SessionStore
 from .turn import run_turn, reset_stt_slots
-from .rules import CAPABILITY, CAPABILITIES, USER_STATE, RuleError, validate_snapshot
-from .blueprints import CAPABILITY as BLUEPRINT_CAPABILITY, CONTRACT as BLUEPRINT_CONTRACT
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("imagine")
@@ -49,8 +46,8 @@ def load_files(force: bool = False) -> None:
     state.system_prompt = state.prompt_template.replace("{{CATALOG}}", state.catalog.render())
     state.catalog_mtime, state.prompt_mtime = catalog_mtime, prompt_mtime
     log.info(
-        "catalog %s loaded: %d kits, %d assets, prompt is %d characters",
-        state.catalog.version, len(state.catalog.ids("kit")), len(state.catalog.ids("asset")), len(state.system_prompt),
+        "catalog %s loaded: %d assets, prompt is %d characters",
+        state.catalog.version, len(state.catalog.ids("asset")), len(state.system_prompt),
     )
 
 
@@ -68,7 +65,7 @@ async def lifespan(_app: FastAPI):
     load_files(force=True)
     reset_stt_slots()
     if config.OFFLINE:
-        log.warning("no OPENROUTER_API_KEY: running with the offline director (keywords only, no AI)")
+        log.warning("no OPENROUTER_API_KEY: every turn will answer that no model is connected")
     else:
         log.info("model: %s", config.MODEL)
     await asyncio.to_thread(stt.warm_up)
@@ -81,21 +78,6 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="ImagineVR", lifespan=lifespan)
-
-
-# An app that understands the richer blueprint parts says so; one built before them is sent plainer recipes.
-RICH_BLUEPRINTS = 'runtime-blueprints-v2'
-_ONLY = re.compile(r'<!--(blueprints|shapes-only)-->\n?(.*?)<!--/\1-->\n?', re.S)
-
-
-def for_client(prompt: str, blueprints: bool) -> str:
-    """
-    The instructions as this app should hear them. Passages marked `blueprints` are for an app
-    that can build things from recipes, and `shapes-only` for one that cannot: each app is told
-    one way of making what the library lacks, never two that contradict each other.
-    """
-    keep = 'blueprints' if blueprints else 'shapes-only'
-    return _ONLY.sub(lambda m: m.group(2) if m.group(1) == keep else '', prompt)
 
 
 def check_token(token: str | None) -> None:
@@ -117,7 +99,6 @@ async def health():
         "model": "offline" if config.OFFLINE else config.MODEL,
         "stt": f"local:{config.STT_MODEL}" if config.STT == "local" else config.STT,
         "tts": tts.enabled(),
-        "capabilities": [CAPABILITY, BLUEPRINT_CAPABILITY, RICH_BLUEPRINTS, USER_STATE],
     }
 
 
@@ -128,7 +109,7 @@ async def turn(
     x_session_id: str | None = Header(default=None),
     x_catalog_version: str | None = Header(default=None),
     x_user_pose: str | None = Header(default=None),
-    x_client_capabilities: str | None = Header(default=None),
+    x_user_state: str | None = Header(default=None),
 ):
     check_token(x_app_token)
     if not x_session_id:
@@ -171,19 +152,9 @@ async def turn(
     base_url = config.PUBLIC_URL or str(request.base_url).rstrip("/")
 
     async def stream():
-        allow_rules = CAPABILITY in (x_client_capabilities or '').split(',')
-        allow_blueprints = allow_rules and BLUEPRINT_CAPABILITY in (x_client_capabilities or '').split(',')
-        rich_blueprints = allow_blueprints and RICH_BLUEPRINTS in (x_client_capabilities or '').split(',')
-        prompt = for_client(state.system_prompt, allow_blueprints)
-        if allow_rules:
-            prompt += '\n\n' + (config.PROMPT_PATH.parent / 'rules-prompt.md').read_text(encoding='utf-8')
-            prompt += '\nRULE CAPABILITIES:\n' + json.dumps(CAPABILITIES, separators=(',', ':'))
-        if allow_blueprints:
-            prompt += '\n\n' + (config.PROMPT_PATH.parent / 'blueprints-prompt.md').read_text(encoding='utf-8')
-            prompt += '\nBLUEPRINT CAPABILITIES:\n' + json.dumps(BLUEPRINT_CONTRACT,separators=(',',':'))
         statements = run_turn(
-            session, state.catalog, prompt, text=text, audio=audio, base_url=base_url,
-            frame=to_frame(x_user_pose), allow_rules=allow_rules, allow_blueprints=allow_blueprints, rich_blueprints=rich_blueprints,
+            session, state.catalog, state.system_prompt, text=text, audio=audio, base_url=base_url,
+            frame=to_frame(x_user_pose), user_state=" ".join((x_user_state or "").split())[:300],
         )
         pending = None
         try:
@@ -215,34 +186,20 @@ async def turn(
 async def reset(x_app_token: str | None = Header(default=None), x_session_id: str | None = Header(default=None)):
     check_token(x_app_token)
     if x_session_id:
-        state.sessions.get(x_session_id)
         await state.sessions.reset(x_session_id)
-    return Response(status_code=204, headers={'X-Session-Generation': str(state.sessions.get(x_session_id).generation)} if x_session_id else {})
+    return Response(status_code=204)
 
 
-@app.post('/v1/session/runtime')
-async def runtime(request: Request, x_app_token: str | None = Header(default=None), x_session_id: str | None = Header(default=None)):
+@app.post("/v1/session/runtime")
+async def runtime_from_an_old_app(x_app_token: str | None = Header(default=None)):
+    """
+    The first version of the app posts its rule state here before every turn and refuses to send
+    the turn if this fails. Nothing is done with it now; answering keeps a headset that has not
+    been updated yet talking, though it will not understand `make` or `when`. Delete this once
+    no old build is in use.
+    """
     check_token(x_app_token)
-    if not x_session_id:
-        raise HTTPException(400, 'missing X-Session-Id')
-    body = bytearray()
-    async for chunk in request.stream():
-        body.extend(chunk)
-        if len(body) > 1_000_000: raise HTTPException(413, 'runtime snapshot too large')
-    try:
-        snapshot = validate_snapshot(json.loads(body))
-    except (ValueError, UnicodeDecodeError) as exc:
-        raise HTTPException(400, 'invalid runtime snapshot: ' + str(exc)) from exc
-    session = state.sessions.get(x_session_id)
-    async with session.lock:
-        if snapshot['generation'] != session.generation or snapshot['sequence'] <= session.runtime_sequence:
-            raise HTTPException(409, 'stale runtime snapshot; reset session')
-        session.world.runtime = snapshot
-        session.world.rules = {rule['id']: rule for rule in snapshot['rules']}
-        if 'blueprints' in snapshot:
-            session.world.blueprints = {b['id']: b for b in snapshot['blueprints']}
-        session.runtime_sequence = snapshot['sequence']
-    return {'ok': True, 'generation': session.generation, 'sequence': snapshot['sequence']}
+    return {"ok": True}
 
 
 @app.get("/v1/audio/{clip_id}")

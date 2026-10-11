@@ -15,7 +15,6 @@ KINDS = {
     "sky": "sky_presets",
     "terrain": "terrain_types",
     "material": "materials",
-    "kit": "kits",
     "asset": "assets",
     "ambience": "ambience",
     "weather": "weather",
@@ -25,7 +24,6 @@ DEFAULT_LIMITS = {
     "max_spawned": 60,
     "max_scatter_count": 300,
     "max_scatter_total": 1500,
-    "max_kits": 3,
     "max_physics": 40,
     "safe_radius_m": 3,
     "world_radius_m": 120,
@@ -141,25 +139,18 @@ class Catalog:
                 best_id, best_score = eid, score
         return best_id
 
-    def search(self, kind: str, text: str, limit: int = 3) -> list[tuple[str, float]]:
-        """Score every entry of a kind against free text. Used by the offline director."""
-        query = {_stem(w) for w in words(text)} - _STOP
-        spaced = " " + " ".join(words(text)) + " "  # whole words only: "hell" is not in "hello"
-        scored = []
-        for eid, id_words, aliases, other_words in self._index[kind]:
-            alias_hit = any(f" {p} " in spaced or f" {p}s " in spaced for p in [a.replace("_", " ") for a in aliases] + [eid.replace("_", " ")])
-            score = 3.0 * len(query & id_words) + 1.5 * len(query & other_words) + (4.0 if alias_hit else 0.0)
-            if id_words and id_words <= query:
-                score += 3.0
-            if score > 0:
-                scored.append((eid, score))
-        scored.sort(key=lambda pair: -pair[1])
-        return scored[:limit]
+    def alias(self, kind: str, name: str) -> str | None:
+        """The entry that lists exactly this name as an alias, if one does."""
+        raw = name.strip().lower().replace(" ", "_").replace("-", "_")
+        for eid, _id_words, aliases, _other in self._index[kind]:
+            if raw in aliases:
+                return eid
+        return None
 
     def vocabulary(self) -> set[str]:
-        """Every word the catalog knows, for correcting what speech recognition misheard."""
+        """Every word the catalog knows, for the speech recogniser to lean on."""
         vocab: set[str] = set()
-        for kind in ("kit", "asset", "weather"):
+        for kind in ("asset", "weather"):
             for eid, entry in self._entries[kind].items():
                 vocab.update(words(eid))
                 for name in entry.get("aliases", []) + entry.get("tags", []):
@@ -169,77 +160,26 @@ class Catalog:
     # ------------------------------------------------------------------ prompt
 
     def render(self) -> str:
-        """The catalog as compact text for the model's instructions."""
+        """The catalog as compact text for the model's instructions: ids, not descriptions.
+
+        Every turn pays for this, so it is kept to what the model needs to choose an id. An id
+        says what the thing is; the size is there so scenes come out in proportion.
+        """
         out: list[str] = []
-
-        def section(title: str, kind: str, extra=None):
-            entries = self._entries[kind]
-            if not entries:
-                return
-            out.append(f"## {title}")
-            for eid, e in entries.items():
-                if e.get("primitive"):
-                    continue
-                line = f"- {eid}: {e.get('desc', '')}"
-                if extra:
-                    more = extra(e)
-                    if more:
-                        line += f" {more}"
-                out.append(line)
-            out.append("")
-
-        def kit_extra(e):
-            bits = []
-            if e.get("params"):
-                bits.append("params: " + "; ".join(f"{k} = {v}" for k, v in e["params"].items()))
-            d = e.get("defaults") or {}
-            if d:
-                bits.append(
-                    "defaults: "
-                    + ", ".join(f"{k} {json.dumps(v) if isinstance(v, dict) else v}" for k, v in d.items())
-                )
-            return f"({' | '.join(bits)})" if bits else ""
-
-        section("Sky presets (sky.preset)", "sky")
-        section("Terrain types (terrain.type)", "terrain")
-        section("Ground materials (terrain.material)", "material")
-        section("Kits (kit.kit) - whole themed places", "kit", kit_extra)
-
-        # Assets grouped by category
-        assets = [e for e in self._entries["asset"].values() if not e.get("primitive")]
-        categories: dict[str, list[dict]] = {}
-        for e in assets:
-            categories.setdefault(e.get("category", "other"), []).append(e)
-        out.append("## Assets (spawn.asset, scatter.asset, give.asset)")
-        out.append("Marks: [hold] can be given to hold; [prop] can use physics:true; size is height in metres at scale 1.")
-        for cat, entries in categories.items():
-            out.append(f"### {cat}")
-            for e in entries:
-                marks = ""
-                if e.get("holdable"):
-                    marks += " [hold]"
-                if e.get("prop"):
-                    marks += " [prop]"
-                size = e.get("size_m")
-                size_txt = f" ({size:g}m)" if isinstance(size, (int, float)) else ""
-                out.append(f"- {e['id']}: {e.get('desc', '')}{size_txt}{marks}")
+        for title, kind in (("Sky presets", "sky"), ("Terrain types", "terrain"), ("Ground materials", "material"),
+                            ("Weather", "weather"), ("Ambience loops", "ambience")):
+            out.append(f"{title}: " + ", ".join(self._entries[kind]))
+        categories: dict[str, list[str]] = {}
+        for e in self._entries["asset"].values():
+            if e.get("primitive") or e.get("category") == "shapes":
+                continue
+            size = e.get("size_m")
+            mark = "*" if e.get("holdable") else ""
+            label = f"{e['id']}{mark}" + (f" {size:g}m" if isinstance(size, (int, float)) else "")
+            categories.setdefault(e.get("category", "other"), []).append(label)
+        out.append("Assets (height at scale 1; * is made to be held):")
+        for cat, labels in categories.items():
+            out.append(f"- {cat}: " + ", ".join(labels))
         if self.primitives:
-            out.append("### shapes")
-            out.append("- " + ", ".join(self.primitives) + ": plain shapes, 1m, tint them. Use when nothing else fits.")
-        out.append("")
-
-        section("Weather (weather.type)", "weather")
-        section("Ambience loops (ambience.loop)", "ambience")
-        if self.motions:
-            out.append("## Motions (motion)")
-            out.append("- " + ", ".join(self.motions))
-            out.append("")
-        lim = self.limits
-        out.append("## Limits")
-        out.append(
-            f"- at most {lim['max_spawned']} spawned objects, {lim['max_scatter_count']} per scatter, "
-            f"{lim['max_scatter_total']} scattered in total, {lim['max_kits']} kits, "
-            f"{lim['max_physics']} physics objects"
-        )
-        out.append(f"- the world is {lim['world_radius_m']} m in radius; nothing is placed within {lim['safe_radius_m']} m of the user")
+            out.append("- plain shapes (1 m, white, take a tint): " + ", ".join(self.primitives))
         return "\n".join(out)

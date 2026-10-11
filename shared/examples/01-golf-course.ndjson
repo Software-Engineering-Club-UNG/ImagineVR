@@ -1,8 +1,0 @@
-# I want to see a golf course
-{"op":"sky","preset":"clear_noon","t":4}
-{"op":"terrain","type":"rolling","material":"grass","height":0.25,"seed":7,"t":3}
-{"op":"kit","id":"course","kit":"golf_course","density":0.6,"size":0.7,"seed":3}
-{"op":"scatter","id":"birds","asset":"bird","count":9,"area":"sky","motion":"orbit"}
-{"op":"scatter","id":"clouds","asset":"cloud","count":7,"area":"sky","radius":[60,160],"height":[45,80],"scale":[1.5,3.5],"motion":"drift"}
-{"op":"ambience","loop":"birds_breeze"}
-{"op":"say","text":"Welcome to the first tee. The green is straight ahead."}

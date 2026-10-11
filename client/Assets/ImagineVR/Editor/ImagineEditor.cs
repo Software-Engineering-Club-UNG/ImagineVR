@@ -73,7 +73,7 @@ namespace ImagineVR.EditorTools
 
         static void EnsureFolders()
         {
-            foreach (string folder in new[] { "Scenes", "Settings", "Resources", "Resources/Fonts", "Resources/Examples", "Fonts" })
+            foreach (string folder in new[] { "Scenes", "Settings", "Resources", "Resources/Fonts", "Fonts" })
             {
                 string path = Root + "/" + folder;
                 if (!AssetDatabase.IsValidFolder(path))
@@ -281,14 +281,13 @@ namespace ImagineVR.EditorTools
             Library.EnsureLoaded();
             var root = new Dictionary<string, object>
             {
-                ["language_version"] = 1,
+                ["language_version"] = 2,
                 ["catalog_version"] = "",
                 ["limits"] = new Dictionary<string, object>
                 {
                     ["max_spawned"] = ObjectSystem.MaxSpawned,
                     ["max_scatter_count"] = ObjectSystem.MaxScatterCount,
                     ["max_scatter_total"] = ObjectSystem.MaxScatterTotal,
-                    ["max_kits"] = KitSystem.MaxKits,
                     ["max_physics"] = PropSystem.MaxPhysics,
                     ["safe_radius_m"] = (int)World.SafeRadius,
                     ["world_radius_m"] = (int)World.Radius,
@@ -312,36 +311,6 @@ namespace ImagineVR.EditorTools
             var materials = new List<object>();
             foreach (GroundMaterial m in Library.GroundMaterials) materials.Add(m.ToCatalog());
             root["materials"] = materials;
-
-            var kits = new List<object>();
-            foreach (KitDef k in Library.Kits)
-            {
-                Dictionary<string, object> d = k.ToCatalog();
-                var defaults = new Dictionary<string, object>();
-                if (k.Sky != null) defaults["sky"] = k.Sky;
-                if (k.TerrainType != null)
-                {
-                    var terrain = new Dictionary<string, object> { ["type"] = k.TerrainType };
-                    if (k.TerrainMaterial != null) terrain["material"] = k.TerrainMaterial;
-                    if (k.TerrainHeight >= 0f) terrain["height"] = k.TerrainHeight;
-                    if (k.TerrainGrid > 0f) terrain["grid"] = k.TerrainGrid;
-                    if (k.GridColor != null) terrain["grid_color"] = k.GridColor;
-                    defaults["terrain"] = terrain;
-                }
-                if (k.Ambience != null) defaults["ambience"] = k.Ambience;
-                if (k.Weather != null) defaults["weather"] = k.Weather;
-                if (!float.IsNaN(k.Gravity)) defaults["gravity"] = k.Gravity;
-                if (defaults.Count > 0) d["defaults"] = defaults;
-                if (k.Params.Count > 0)
-                {
-                    var ps = new Dictionary<string, object>();
-                    foreach (KeyValuePair<string, string> p in k.Params) ps[p.Key] = p.Value;
-                    d["params"] = ps;
-                }
-                if (k.Greeting != null) d["greeting"] = k.Greeting;
-                kits.Add(d);
-            }
-            root["kits"] = kits;
 
             var assets = new List<object>();
             var primitives = new List<object>();
@@ -386,19 +355,8 @@ namespace ImagineVR.EditorTools
             string file = Path.Combine(shared, "catalog.json");
             File.WriteAllText(file, MiniJson.Serialize(root, true) + "\n", new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(Application.dataPath, "ImagineVR", "Resources", "CatalogVersion.txt"), version + "\n", new UTF8Encoding(false));
-            // The built-in demos are the example scripts, copied to where the app can load them.
-            string examples = Path.Combine(shared, "examples");
-            string builtIn = Path.Combine(Application.dataPath, "ImagineVR", "Resources", "Examples");
-            if (Directory.Exists(examples))
-            {
-                Directory.CreateDirectory(builtIn);
-                foreach (string old in Directory.GetFiles(builtIn, "*.txt")) File.Delete(old);
-                foreach (string source in Directory.GetFiles(examples, "*.ndjson"))
-                    File.Copy(source, Path.Combine(builtIn, Path.GetFileNameWithoutExtension(source) + ".txt"), true);
-            }
-
             AssetDatabase.Refresh();
-            Debug.Log("ImagineVR: exported catalog " + version + " (" + assets.Count + " assets, " + kits.Count + " kits, " +
+            Debug.Log("ImagineVR: exported catalog " + version + " (" + assets.Count + " assets, " +
                       skies.Count + " skies) to " + file);
         }
 
@@ -455,6 +413,7 @@ namespace ImagineVR.EditorTools
             SessionState.SetBool("ImagineSnap.Welcome", Arg("-snapWelcome", "0") == "1");
             SessionState.SetString("ImagineSnap.Sheet", Arg("-snapSheet", ""));
             SessionState.SetBool("ImagineSnap.Bare", Arg("-snapBare", "0") == "1");
+            SessionState.SetBool("ImagineSnap.Probe", Arg("-snapProbe", "0") == "1");
             Setup.OpenMainScene();
             EditorApplication.EnterPlaymode();
         }
@@ -480,6 +439,32 @@ namespace ImagineVR.EditorTools
             UnityEditor.Build.Reporting.BuildSummary summary = report.summary;
             Debug.Log("ImagineVR build: " + summary.result + ", " + (summary.totalSize / (1024 * 1024)) + " MB, " +
                       summary.totalErrors + " errors, " + summary.totalWarnings + " warnings -> " + output);
+            if (Application.isBatchMode) EditorApplication.Exit(summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+        }
+
+        /// <summary>
+        /// A player for this Mac, to check a real build without the headset: it goes through the same
+        /// shader stripping as the headset build, which the editor does not. Run what it makes with
+        ///   Builds/ImagineVRCheck.app/Contents/MacOS/ImagineVR -batchmode -snapOut dir -snapScripts "a.ndjson;b.ndjson" -snapProbe 1
+        /// (the same -snap arguments as the editor snapshot). Start Unity with -buildTarget StandaloneOSX.
+        /// </summary>
+        public static void BuildMacCheck()
+        {
+            string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ImagineVRCheck.app"));
+            Directory.CreateDirectory(Path.GetDirectoryName(output));
+            // macOS will not package an app that uses the microphone without saying why
+            if (string.IsNullOrEmpty(PlayerSettings.macOS.microphoneUsageDescription))
+                PlayerSettings.macOS.microphoneUsageDescription = "ImagineVR listens while you hold the talk button.";
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { "Assets/ImagineVR/Scenes/Main.unity" },
+                locationPathName = output,
+                target = BuildTarget.StandaloneOSX,
+                targetGroup = BuildTargetGroup.Standalone,
+                options = BuildOptions.None,
+            };
+            UnityEditor.Build.Reporting.BuildSummary summary = BuildPipeline.BuildPlayer(options).summary;
+            Debug.Log("ImagineVR check build: " + summary.result + ", " + summary.totalErrors + " errors -> " + output);
             if (Application.isBatchMode) EditorApplication.Exit(summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
         }
 
@@ -541,7 +526,7 @@ namespace ImagineVR.EditorTools
             GetWindow<ReplayWindow>("Replay Script").Refresh();
         }
 
-        static string ExamplesDir => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "shared", "examples"));
+        static string ExamplesDir => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "shared"));
 
         void Refresh()
         {
@@ -556,7 +541,7 @@ namespace ImagineVR.EditorTools
             if (!playing) EditorGUILayout.HelpBox("Press Play first. Scripts are played into the running world.", MessageType.Info);
             using (new EditorGUI.DisabledScope(!playing))
             {
-                EditorGUILayout.LabelField("Examples in shared/examples", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Scripts in shared/", EditorStyles.boldLabel);
                 _scroll = EditorGUILayout.BeginScrollView(_scroll);
                 foreach (string file in _files)
                 {

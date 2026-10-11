@@ -1,4 +1,0 @@
-{"op":"rule","id":"net.score","selector":{"group":"net"},"event":"zone_enter","filters":{"radius":2,"source_asset":"basketball"},"actions":[{"action":"counter_add","name":"score","value":1,"target":"world"},{"action":"particles","preset":"confetti"}]}
-{"op":"rule","id":"net.win","selector":{"group":"net"},"event":"counter_reached","filters":{"name":"score","threshold":3},"once":true,"actions":[{"action":"weather","type":"snow","intensity":0.5,"target":"world"},{"action":"message","text":"Three baskets!","target":"world"}]}
-{"op":"spawn","id":"net","asset":"flag","at":[0,0,8]}
-{"op":"give","id":"ball","asset":"basketball"}

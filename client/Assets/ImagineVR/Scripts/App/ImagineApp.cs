@@ -36,8 +36,6 @@ namespace ImagineVR
 
         ImagineSettings _settings;
         TMP_FontAsset _font;
-        TextAsset[] _examples;
-        int _demo;
         string _typed = "";
         bool _focusField;
         bool _foveationSet;
@@ -60,8 +58,6 @@ namespace ImagineVR
                 "server", _settings.ServerUrl, "settings_from", _settings.Source, "log", SessionLog.Path);
             _font = Resources.Load<TMP_FontAsset>("Fonts/ImagineMono");
             if (_font == null) _font = TMP_Settings.defaultFontAsset;
-            _examples = Resources.LoadAll<TextAsset>("Examples");
-            System.Array.Sort(_examples, (a, b) => string.CompareOrdinal(a.name, b.name));
 
             Library.EnsureLoaded();
             Sfx.Init(transform);
@@ -84,6 +80,7 @@ namespace ImagineVR
             Client = gameObject.AddComponent<TurnClient>();
             Client.Settings = _settings;
             Client.Pose = UserPose;
+            Client.UserState = UserState;
             Client.World = World;
             TextAsset version = Resources.Load<TextAsset>("CatalogVersion");
             if (version != null) Client.CatalogVersion = version.text.Trim();
@@ -108,6 +105,7 @@ namespace ImagineVR
             World.Noted += Terminal.Note;
             World.Happened += OnWorldEvent;
             World.Emptied += Conductor.ResetFirstLight;
+            Conductor.TurnEnded += _ => NextIdea();
         }
 
         /// <summary>
@@ -123,6 +121,82 @@ namespace ImagineVR
             return string.Format(CultureInfo.InvariantCulture, "{0:0.00},{1:0.00},{2:0.0}", p.x, p.z, yaw);
         }
 
+        /// <summary>The headset's own account of the user, which the model is told to trust over its memory of what it gave them.</summary>
+        string UserState()
+        {
+            var parts = new List<string>();
+            Prop left = Rig.LeftGrabber != null ? Rig.LeftGrabber.Held : null, right = Rig.RightGrabber != null ? Rig.RightGrabber.Held : null;
+            if (right != null) parts.Add("holding " + right.Def.Id + " in the right hand");
+            if (left != null) parts.Add("holding " + left.Def.Id + " in the left hand");
+            if (left == null && right == null) parts.Add("hands empty");
+            var waiting = new List<string>();
+            foreach (Prop p in World.Props.All) if (p != null && p.Given && !p.Held && !waiting.Contains(p.Def.Id)) waiting.Add(p.Def.Id);
+            if (waiting.Count > 0) parts.Add("within reach, not yet taken: " + string.Join(", ", waiting));
+            parts.Add(World.Vehicle != null && World.Vehicle.Riding ? "riding " + World.Vehicle.Asset : "on foot");
+            if (World.Rules.Score != 0) parts.Add("score " + World.Rules.Score);
+            return string.Join("; ", parts);
+        }
+
+        // ------------------------------------------------------------------ what to try next
+        //
+        // An empty prompt is the hardest part of a sandbox: the user has to think of something.
+        // So there is always one idea beside the talk hint, chosen from what the world is missing
+        // right now, and never the same one twice running. None of them is a feature: each is just
+        // a sentence the general machinery can already do.
+
+        static readonly string[] Places =
+        {
+            "a pirate island at sunset", "a neon city in the rain", "a snowy village at night", "the moon, with a golf club",
+            "a canyon to fly a dragon through", "a jungle temple", "a haunted graveyard", "an alien planet with two suns",
+            "a medieval castle on a cliff", "the bottom of the ocean",
+        };
+        static readonly string[] ToHold = { "give me a flamethrower", "give me a lightsaber", "give me a bow", "give me a rocket launcher", "give me a giant hammer", "give me a paintbrush" };
+        static readonly string[] ToRide = { "let me ride a dragon", "put me in a monster truck", "let me fly a jet", "let me ride a giant snail", "put me on a hoverboard", "let me drive a tank" };
+        static readonly string[] Alive = { "fill it with dinosaurs", "send robots after me", "add a herd of deer", "make it rain frogs", "put whales in the sky" };
+        static readonly string[] React = { "make them explode when hit", "make them turn gold when hit", "when I hit one, spawn two more", "make them burst into confetti" };
+        static readonly string[] Twist = { "turn off gravity", "shrink me to mouse size", "make me a giant", "make it night", "make everything huge", "set up bowling", "add a storm", "build me a racetrack" };
+        string _lastIdea;
+
+        void NextIdea()
+        {
+            var pool = new List<string>();
+            if (World.Unbuilt) pool.AddRange(Places);
+            else
+            {
+                bool holding = Rig.LeftGrabber.Held != null || Rig.RightGrabber.Held != null;
+                if (!holding) pool.AddRange(ToHold);
+                if (World.Vehicle != null && !World.Vehicle.Riding) pool.AddRange(ToRide);
+                if (Creature.All.Count == 0) pool.AddRange(Alive);
+                else if (World.Rules.Count == 0) { pool.AddRange(React); pool.AddRange(React); }   // the most fun, so the likeliest
+                pool.AddRange(Twist);
+            }
+            pool.Remove(_lastIdea);
+            _lastIdea = pool[Random.Range(0, pool.Count)];
+            Voice.Idea = _lastIdea;
+            Terminal.SetHint(Voice.HintText());
+        }
+
+        /// <summary>
+        /// The dark room is not silent: a low pad hangs in it until the first place is built, and
+        /// comes back when everything is cleared away. A place that names no sound of its own goes quiet.
+        /// </summary>
+        void DarkRoomSound()
+        {
+            if (Quiet) return;
+            bool dark = World.IsDark && World.Objects.Count == 0;
+            if (dark && !_darkHum && !World.Ambience.IsPlaying)
+            {
+                World.Ambience.Apply(Statement.Make("ambience", "loop", "synth_pad", "volume", 0.3));
+                _darkHum = true;
+            }
+            else if (!dark && _darkHum)
+            {
+                if (World.Ambience.Current == "synth_pad") World.Ambience.Stop(4f);
+                _darkHum = false;
+            }
+        }
+        bool _darkHum;
+
         void OnWorldEvent(string text)
         {
             SessionLog.Write("event", "text", text);
@@ -136,7 +210,11 @@ namespace ImagineVR
             yield return null;
             Terminal.Recenter(true);
             if (Quiet) yield break;
+            Sfx.Play("boot", Terminal.transform.position, 0.9f);
+            Rig.Haptic(true, 0.3f, 0.5f);
+            Rig.Haptic(false, 0.3f, 0.5f);
             Welcome();
+            NextIdea();
             Hints.Arm();
             yield return new WaitForSeconds(0.6f);
             yield return CheckServer();
@@ -172,11 +250,10 @@ namespace ImagineVR
                 Terminal.Raw("  " + Terminal.Tag(Terminal.Text, "Enter") + Terminal.Tag(d, " to type") + "   " +
                              Terminal.Tag(Terminal.Text, "Space") + Terminal.Tag(d, " to speak") + "   " +
                              Terminal.Tag(Terminal.Text, "right mouse") + Terminal.Tag(d, " to look"), 56);
-                Terminal.Raw("  " + Terminal.Tag(Terminal.Text, "F1-F8") + Terminal.Tag(d, " demos") + "   " +
-                             Terminal.Tag(Terminal.Text, "E") + Terminal.Tag(d, " grab") + "   " +
+                Terminal.Raw("  " + Terminal.Tag(Terminal.Text, "E") + Terminal.Tag(d, " grab") + "   " +
                              Terminal.Tag(Terminal.Text, "click") + Terminal.Tag(d, " use") + "   " +
                              Terminal.Tag(Terminal.Text, "C") + Terminal.Tag(d, " tuck away") + "   " +
-                             Terminal.Tag(Terminal.Text, "F12") + Terminal.Tag(d, " start over"), 68);
+                             Terminal.Tag(Terminal.Text, "F12") + Terminal.Tag(d, " start over"), 56);
             }
             Terminal.SetHint(Voice.HintText());
         }
@@ -202,9 +279,9 @@ namespace ImagineVR
             Dictionary<string, object> health = null;
             yield return Client.Health(h => health = h);
             Online = health != null;
-            string library = Library.AssetList.Count + " objects, " + Library.Kits.Count + " kits";
+            string library = Library.AssetList.Count + " things, and anything else gets made";
             SessionLog.Write("server", "online", Online, "health", health != null ? MiniJson.Serialize(health) : null,
-                "app_catalog", Client.CatalogVersion, "objects", Library.AssetList.Count, "kits", Library.Kits.Count);
+                "app_catalog", Client.CatalogVersion, "objects", Library.AssetList.Count);
             if (Online)
             {
                 string model = health.TryGetValue("model", out object m) && m is string ms ? ms : "?";
@@ -212,14 +289,12 @@ namespace ImagineVR
                 if (slash >= 0) model = model.Substring(slash + 1);
                 Terminal.Note("online. model " + model + ". library: " + library);
                 Terminal.SetTitle(null, Terminal.Tag(Terminal.Green, Terminal.Dot) + Terminal.Tag(Terminal.Dim, " " + model));
-                // a server that wants to know what is in the user's hands is told, with each turn
-                World.Rules.ReportUser = health.TryGetValue("capabilities", out object caps) && caps is List<object> list && list.Contains(RuleEngine.UserState);
                 yield return Client.ResetSession();
             }
             else
             {
                 Terminal.Note("no server at that address. library: " + library);
-                Terminal.Note(Rig.XrActive ? "press B to play a built-in demo" : "press F1 to F8 to play a built-in demo");
+                Terminal.Note("nothing can be built until it is reachable: check the wifi, then hold X to try again");
                 Terminal.SetTitle(null, Terminal.Tag(Terminal.Red, Terminal.Dot) + Terminal.Tag(Terminal.Dim, " offline"));
             }
         }
@@ -231,33 +306,15 @@ namespace ImagineVR
             if (Rig.XrActive && !_foveationSet) _foveationSet = TryFoveation();
             Terminal.SetFoldKey(Rig.XrActive ? "Y" : "C");
             Sample();
+            DarkRoomSound();
 
-            if (Rig.FoldPressed && !Typing)
-            {
-                if(Rig.Grip(true)>.9f && Rig.Grip(false)>.9f)
-                {
-                    if(World.Blueprints.PlayerHealth<=0) { World.Blueprints.ResetHealth(); Terminal.Note("Session health restored"); }
-                    else { World.Blueprints.PlayerDamageEnabled=!World.Blueprints.PlayerDamageEnabled; Terminal.Note("Player damage "+(World.Blueprints.PlayerDamageEnabled?"enabled":"disabled")+" for this session"); }
-                }
-                else Terminal.Toggle();
-            }
+            if (Rig.FoldPressed && !Typing) Terminal.Toggle();
 
             // X (or R): a tap recentres the terminal, and holding it down resets everything
             if (Rig.MenuPressed && !Typing)
             {
-                if (Rig.Grip(true) > .9f && Rig.Grip(false) > .9f)
-                {
-                    _holdSince = -1f; // this entire X press belongs to the opt-in gesture
-                    Terminal.SetOverride(null);
-                    World.Rules.PlayerEffectsEnabled = !World.Rules.PlayerEffectsEnabled;
-                    Terminal.Note("Automatic player movement " + (World.Rules.PlayerEffectsEnabled ? "enabled" : "disabled") + " for this session");
-                    SessionLog.Write("rules", "player_effects", World.Rules.PlayerEffectsEnabled);
-                }
-                else
-                {
-                    Terminal.Recenter(false);
-                    _holdSince = Time.unscaledTime;
-                }
+                Terminal.Recenter(false);
+                _holdSince = Time.unscaledTime;
             }
             if (_holdSince >= 0f)
             {
@@ -283,20 +340,9 @@ namespace ImagineVR
                 }
             }
 
-            // B cycles the built-in demos, unless the right hand is holding a paintbrush (B then changes colour).
-            // In the headset that is only for when there is no server: B sits beside A, and a thumb that
-            // slipped onto it laid a golf course over a zombie street the server knew nothing about.
-            if (Rig.AltPressed && !Typing && _examples.Length > 0 && !(Rig.XrActive && Online))
-            {
-                Prop held = Rig.RightGrabber != null ? Rig.RightGrabber.Held : null;
-                if (held == null || held.Def.Behavior != "paint") PlayDemo(_demo++);
-            }
-
             Keyboard kb = Keyboard.current;
             if (kb != null && !Rig.XrActive && !Typing)
             {
-                Key[] keys = { Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6, Key.F7, Key.F8 };
-                for (int i = 0; i < keys.Length; i++) if (kb[keys[i]].wasPressedThisFrame) PlayDemo(i);
                 if (kb.f12Key.wasPressedThisFrame) ResetEverything("F12");
                 if (kb.enterKey.wasPressedThisFrame) _focusField = true;
             }
@@ -313,21 +359,6 @@ namespace ImagineVR
                 display.foveatedRenderingFlags = XRDisplaySubsystem.FoveatedRenderingFlags.None;
             }
             return Displays.Count > 0;
-        }
-
-        public void PlayDemo(int index)
-        {
-            if (_examples.Length == 0) return;
-            TextAsset example = _examples[((index % _examples.Length) + _examples.Length) % _examples.Length];
-            string text = example.text;
-            string label = example.name.Replace('-', ' ').Replace('_', ' ');
-            // an optional first line "# what the user says" becomes the prompt shown in the terminal
-            if (text.StartsWith("#"))
-            {
-                int end = text.IndexOf('\n');
-                if (end > 0) { label = text.Substring(1, end - 1).Trim(); text = text.Substring(end + 1); }
-            }
-            Conductor.SubmitScript(text, label);
         }
 
         public void BackToDark() { ResetEverything("editor"); }
@@ -348,7 +379,6 @@ namespace ImagineVR
             if (Online) StartCoroutine(Client.ResetSession(old));
 
             World.ResetEverything(1.5f);   // also lets go of whatever is in the hands
-            _demo = 0;
 
             Terminal.Clear();
             Terminal.SetCollapsed(false);
@@ -359,6 +389,7 @@ namespace ImagineVR
             Terminal.Blank();
             Terminal.Note("started over: the world, what you were holding and the conversation are all cleared");
             Hints.Arm();
+            NextIdea();
 
             Sfx.Play("whoosh", Terminal.transform.position, 0.7f, 0.8f);
             Rig.Haptic(true, 0.8f, 0.2f);
@@ -376,6 +407,8 @@ namespace ImagineVR
             _frames = 0;
             Vector3 look = Rig.Head.forward;
             Prop left = Rig.LeftGrabber.Held, right = Rig.RightGrabber.Held;
+            // what is really being drawn, not what was asked for: the first day's logs said "placed" for scenery nobody could see
+            World.Objects.Census(out int renderers, out int drawn, out int triangles);
             SessionLog.Write("state", "head", Rig.Head.position, "yaw", Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg,
                 "rig", Rig.transform.position, "fps", Mathf.Round(fps), "headset", Rig.XrActive,
                 "dark", World.IsDark, "passthrough", QuestFeature.Passthrough,
@@ -383,7 +416,8 @@ namespace ImagineVR
                 "riding", World.Vehicle != null ? World.Vehicle.Asset : null,
                 "stick", System.Math.Round(_stickPeak, 2), "speed", World.Vehicle != null ? System.Math.Round(World.Vehicle.Speed, 1) : 0.0,
                 "left", left != null ? left.Def.Id : null, "right", right != null ? right.Def.Id : null,
-                "objects", World.Objects.Count, "props", World.Props.All.Count);
+                "objects", World.Objects.Count, "props", World.Props.All.Count, "alive", Creature.All.Count,
+                "renderers", renderers, "drawn", drawn, "triangles", triangles, "rules", World.Rules.Count, "score", World.Rules.Score);
             _stickPeak = 0f;
         }
 
@@ -397,9 +431,6 @@ namespace ImagineVR
         void OnGUI()
         {
             if (Rig == null || Rig.XrActive || Quiet) return;
-            World.Rules.PlayerEffectsEnabled = GUI.Toggle(new Rect(12, 12, 280, 25), World.Rules.PlayerEffectsEnabled, "Allow rule-driven player effects (this session)");
-            World.Blueprints.PlayerDamageEnabled=GUI.Toggle(new Rect(12,40,280,25),World.Blueprints.PlayerDamageEnabled,"Allow player damage (this session)");
-            if(GUI.Button(new Rect(12,68,200,25),"Reset health ("+Mathf.CeilToInt(World.Blueprints.PlayerHealth)+")")) World.Blueprints.ResetHealth();
             const string fieldName = "ImaginePrompt";
             float w = Mathf.Min(Screen.width - 40f, 720f), h = 30f;
             var rect = new Rect((Screen.width - w) * 0.5f, Screen.height - h - 16f, w, h);

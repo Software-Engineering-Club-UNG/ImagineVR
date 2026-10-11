@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ImagineVR
@@ -16,6 +17,13 @@ namespace ImagineVR
         const float RiseSeconds = 1.6f, FallSeconds = 0.4f, LieSeconds = 1.1f, SinkSeconds = 0.8f;
 
         static int _alive, _downed;
+        /// <summary>Every living thing in the world, for rules that are about them.</summary>
+        public static readonly List<Creature> All = new List<Creature>();
+        public AssetDef Def => _def;
+        public string GroupId;
+        public float Height => _height;
+        /// <summary>On its feet: not fallen, and not away waiting to come back.</summary>
+        public bool Up => _state == State.Arriving || _state == State.Walking;
 
         enum Mode { Chase, Wander, Flee }
         enum State { Arriving, Walking, Falling, Down, Gone }
@@ -28,12 +36,30 @@ namespace ImagineVR
         Mode _mode;
         State _state;
         bool _rises;                 // climbs out of the ground, as the undead do
-        bool _ruleStill;
+        bool _still;
 
         public void SetBehavior(string behavior)
         {
-            _ruleStill = behavior == "still";
+            _still = behavior == "still";
             _mode = behavior == "wander" ? Mode.Wander : behavior == "flee" ? Mode.Flee : Mode.Chase;
+        }
+
+        public void SetTint(Color tint)
+        {
+            _props.SetColor("_Tint", tint);
+            _renderer.SetPropertyBlock(_props);
+        }
+
+        /// <summary>Gone at once, to come back in a moment as a fresh one: what `respawn` and an explosion do to it.</summary>
+        public void Vanish()
+        {
+            if (_state == State.Gone) return;
+            _state = State.Gone;
+            _t = 0f;
+            _wait = Random.Range(2f, 4f);
+            _renderer.enabled = false;
+            _collider.enabled = false;
+            _shadow.Fade = 0f;
         }
         float _t, _wait, _height, _radius, _speed, _stop, _home, _phase, _nextSound, _lift, _pause, _size;
         Vector3 _centre, _goal;
@@ -47,7 +73,7 @@ namespace ImagineVR
         public static string DefaultFor(AssetDef def) => def.Behavior == "zombie" ? "chase" : null;
 
         /// <summary>Makes one creature standing at (position.x, position.z). The caller owns the returned object.</summary>
-        public static GameObject Create(World world, AssetDef def, Vector3 position, float scale, Color tint, string behavior)
+        public static GameObject Create(World world, AssetDef def, Vector3 position, float scale, Color tint, string behavior, string groupId = null)
         {
             if (_alive == 0) _downed = 0;
             scale = Mathf.Clamp(scale, 0.3f, 4f);
@@ -82,6 +108,8 @@ namespace ImagineVR
             Creature c = go.AddComponent<Creature>();
             c._world = world;
             c._def = def;
+            c.GroupId = groupId;
+            c._still = behavior == "still";
             c._visual = visual.transform;
             c._renderer = mr;
             c._collider = capsule;
@@ -119,8 +147,8 @@ namespace ImagineVR
             return go;
         }
 
-        void Awake() { _alive++; }
-        void OnDestroy() { _alive--; }
+        void Awake() { _alive++; All.Add(this); }
+        void OnDestroy() { _alive--; All.Remove(this); }
 
         Vector3 User
         {
@@ -147,7 +175,6 @@ namespace ImagineVR
 
         void Update()
         {
-            if (_ruleStill && _state == State.Walking) { Struck(); return; }
             float dt = Time.deltaTime;
             _t += dt;
             Vector3 p = transform.position;
@@ -171,7 +198,8 @@ namespace ImagineVR
                 case State.Walking:
                 {
                     float pace = 0f;
-                    if (_mode == Mode.Chase)
+                    if (_still) { }
+                    else if (_mode == Mode.Chase)
                     {
                         heading = toUser;
                         if (toUser.magnitude > _stop) pace = _speed;
@@ -269,8 +297,6 @@ namespace ImagineVR
                         }
                         transform.position = p;
                         Arrive();
-                        RuleBody rule = GetComponent<RuleBody>();
-                        if (rule != null) rule.Engine.CreatureRespawned(rule.Entity);
                     }
                     break;
             }
@@ -303,8 +329,7 @@ namespace ImagineVR
                 Vector3 grip = prop.Visual.position, tip = grip + prop.Visual.up * prop.Length;
                 if (Touches(tip) || Touches((grip + tip) * 0.5f) || Touches(grip))
                 {
-                    RuleBody rule = GetComponent<RuleBody>();
-                    if (rule == null || !rule.Hit(_world.Rules.Find(prop.gameObject), "melee", swing.magnitude)) Knock(swing);
+                    if (!_world.Rules.Fire("hit", Rules.Of(this))) Knock(swing);
                     return;
                 }
             }
@@ -322,10 +347,9 @@ namespace ImagineVR
             Prop prop = collision.collider.GetComponentInParent<Prop>();
             if (prop == null || collision.relativeVelocity.magnitude < 2f) return;
             Vector3 away = transform.position - prop.transform.position;
-            RuleBody rule = GetComponent<RuleBody>();
-            bool replaced = rule != null && rule.Hit(_world.Rules.Find(prop.gameObject), prop.GroupId == "shot" ? "projectile" : "thrown", collision.relativeVelocity.magnitude);
+            bool taken = _world.Rules.Fire("hit", Rules.Of(this));
             if (prop.GroupId == "shot") Destroy(prop.gameObject);
-            if (!replaced) Knock(away);
+            if (!taken) Knock(away);
         }
 
         /// <summary>Knocks it flat, falling in the given direction.</summary>

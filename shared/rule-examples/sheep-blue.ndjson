@@ -1,1 +1,0 @@
-{"op":"rule","id":"sheep.hit","selector":{"asset":"sheep"},"event":"hit","filters":{"source_kind":"projectile"},"mode":"replace","actions":[{"action":"tint","color":"#0000FF","target":"self"}]}

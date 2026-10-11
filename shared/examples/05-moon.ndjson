@@ -1,8 +1,0 @@
-# I want to stand on the moon
-{"op":"clear"}
-{"op":"sky","preset":"deep_space","t":4}
-{"op":"terrain","type":"craters","material":"moon","t":3}
-{"op":"physics","gravity":0.16}
-{"op":"kit","id":"moon","kit":"moon_base","density":0.6,"size":0.7}
-{"op":"ambience","loop":"space_hum"}
-{"op":"say","text":"One small step. Try throwing one of those rocks."}

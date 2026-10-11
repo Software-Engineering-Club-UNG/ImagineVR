@@ -410,8 +410,7 @@ namespace ImagineVR
         void Flail()
         {
             if (!_latched || !_held.Def.Tool || _gripSince >= 0f) return;
-            BlueprintActor made = _held.GetComponent<BlueprintActor>();
-            bool fired = !string.IsNullOrEmpty(_held.Def.Behavior) || made != null && made.ActiveEmitters.Count > 0;
+            bool fired = !string.IsNullOrEmpty(_held.Def.Behavior);
             if (!fired || _velocity.magnitude < 1.6f) return;
             Vector3 dir = _velocity.normalized;
             if (_swingDir != Vector3.zero && Vector3.Dot(dir, _swingDir) > -0.4f) return;
@@ -496,24 +495,12 @@ namespace ImagineVR
         {
             Near(null);
             SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "took", "asset", prop.Def.Id, "id", prop.GroupId, "how", how, "given", prop.Given);
-            RuleBody rule = prop.GetComponent<RuleBody>();
-            if (rule != null) rule.Engine.Emit("grab", rule.Entity);
+            if (World.Instance != null) World.Instance.Rules.Fire("grab", Rules.Of(prop));
             _held = prop;
             prop.Holder = this;
             prop.Floating = false;
             prop.Body.isKinematic = true;
-            var blueprint=prop.GetComponent<BlueprintActor>();
-            var grip=blueprint!=null?BlueprintData.Wrap(blueprint.Recipe).Obj("capabilities")?.TryGetValue("grip",out object gripData)==true?gripData as Dictionary<string,object>:null:null;
-            if(grip!=null)
-            {
-                // with no rotation asked for, something long and upright (a sword, a torch) runs along the
-                // controller as a baked tool does, and does not stand up out of the fist into the user's face
-                Vector3 size=blueprint.Bounds.size;
-                Vector3 natural=size.y>Mathf.Max(size.x,size.z)*1.5f?new Vector3(90f,0f,0f):Vector3.zero;
-                _gripRotation=Quaternion.Euler(BlueprintData.Vec(grip,"rotation",natural));
-                _gripOffset=-(_gripRotation*Vector3.Scale(BlueprintData.Vec(grip,"position",Vector3.zero),prop.transform.localScale));
-            }
-            else if (prop.Def.Tool)
+            if (prop.Def.Tool)
             {
                 // a tool's handle sits in the fist and its length runs along the controller's forward axis
                 _gripOffset = Vector3.zero;
@@ -566,8 +553,6 @@ namespace ImagineVR
                 prop.Body.linearVelocity = _velocity * 1.25f;
                 prop.Body.angularVelocity = _angular;
             }
-            RuleBody rule = prop.GetComponent<RuleBody>();
-            if (rule != null) rule.Released(thrown);
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }
@@ -605,20 +590,10 @@ namespace ImagineVR
             if (pressed && !_using)
             {
                 _using = true;
-                RuleBody rule = prop.GetComponent<RuleBody>();
-                _replaceUse = rule != null && rule.Engine.Emit("use_start", rule.Entity);
-                BlueprintActor made = prop.GetComponent<BlueprintActor>();
-                SessionLog.Write("use", "hand", _right ? "right" : "left", "asset", prop.Def.Id, "id", prop.GroupId, "rule", _replaceUse, "emitters", made != null ? made.ActiveEmitters.Count : 0);
+                _replaceUse = World.Instance != null && World.Instance.Rules.Fire("use", Rules.Of(prop));
+                SessionLog.Write("use", "hand", _right ? "right" : "left", "asset", prop.Def.Id, "id", prop.GroupId, "rule", _replaceUse, "fires", prop.Def.Behavior);
             }
             if (_replaceUse) return;
-            // Something built at runtime has no behaviour of its own, so with no rule written for
-            // its trigger, the trigger fires whatever it can fire: a gun shoots because it is a gun.
-            BlueprintActor actor = prop.GetComponent<BlueprintActor>();
-            if (actor != null)
-            {
-                if (pressed && actor.FireHeld() > 0) _rig.Haptic(_right, 0.8f, 0.06f);
-                return;
-            }
             Vector3 tipPosition = TargetPosition + (TargetRotation * Vector3.up) * prop.Length;
             Vector3 aim = TargetRotation * Vector3.up;
             switch (prop.Def.Behavior)
@@ -681,8 +656,6 @@ namespace ImagineVR
 
         void EndUse(Prop prop)
         {
-            RuleBody rule = prop != null ? prop.GetComponent<RuleBody>() : null;
-            if (_using && rule != null) rule.Engine.Emit("use_end", rule.Entity);
             _using = _replaceUse = false;
             if (_stroke != null && prop != null) prop.System.EndStroke(_stroke);
             _stroke = null;

@@ -19,12 +19,10 @@ namespace ImagineVR
         public SkySystem Sky { get; private set; }
         public TerrainSystem Terrain { get; private set; }
         public ObjectSystem Objects { get; private set; }
-        public KitSystem Kits { get; private set; }
         public PropSystem Props { get; private set; }
         public WeatherSystem Weather { get; private set; }
         public AmbienceSystem Ambience { get; private set; }
-        public RuleEngine Rules { get; private set; }
-        public BlueprintSystem Blueprints { get; private set; }
+        public Rules Rules { get; private set; }
 
         /// <summary>The user's head. Used to place things in reach and to aim sounds.</summary>
         public Transform Head;
@@ -53,7 +51,7 @@ namespace ImagineVR
         /// Records, for the session log, where something asked for actually ended up and what stood
         /// in for it: the first thing to read when "it said it made one but I can't see it".
         /// </summary>
-        public void Placed(Statement s, string asked, AssetDef used, bool standIn, Vector3 position, string problem)
+        public void Placed(Statement s, string asked, AssetDef used, bool standIn, Vector3 position, string problem, int still = -1, int alive = -1)
         {
             float distance = 0f, bearing = 0f;
             if (Head != null)
@@ -66,7 +64,8 @@ namespace ImagineVR
             }
             SessionLog.Write("placed", "op", s.Op, "id", s.Str("id"), "asked", asked, "used", used != null ? used.Id : null,
                 "stand_in", standIn, "at", position, "metres_from_user", Math.Round(distance, 2), "degrees_from_gaze", Math.Round(bearing, 1),
-                "in_view", Mathf.Abs(bearing) < 45f && distance < 60f, "problem", problem);
+                "in_view", Mathf.Abs(bearing) < 45f && distance < 60f, "problem", problem,
+                "still", still < 0 ? (object)null : still, "alive", alive < 0 ? (object)null : alive, "made", used != null && used.Made);
         }
 
         /// <summary>True until the first sky statement brings light into the dark room.</summary>
@@ -82,18 +81,15 @@ namespace ImagineVR
             Sky.SetWorldRadius(Radius);
             Terrain = new TerrainSystem(transform, SafeRadius);
             Objects = new ObjectSystem(this);
-            Kits = new KitSystem(this);
             Props = new PropSystem(this);
             Weather = new WeatherSystem(this);
             Ambience = new AmbienceSystem(this);
-            Rules = new RuleEngine(this);
-            Blueprints = new BlueprintSystem(this);
+            Rules = new Rules(this);
             Terrain.Changed += OnGroundChanged;
         }
 
         void OnGroundChanged()
         {
-            Kits.RebuildAll();
             Objects.Resettle();
         }
 
@@ -111,6 +107,14 @@ namespace ImagineVR
                 case "sky":
                     if (Sky.IsDark && !s.Has("t")) s.Fields["t"] = 4.0;   // the first light takes its time
                     Sky.ApplySky(s);
+                    if (s.Has("fog") || s.Has("fog_color"))
+                    {
+                        // `fog` on a sky is the same thing as a `fog` statement after it
+                        Statement fog = Statement.Make("fog", "t", (double)s.T(1.5f));
+                        if (s.Has("fog")) fog.Fields["density"] = (double)s.Num("fog");
+                        if (s.Has("fog_color")) fog.Fields["color"] = s.Str("fog_color");
+                        Sky.ApplyFog(fog);
+                    }
                     _everLit = true;
                     _clearSkyAtTurnEnd = false;
                     break;
@@ -125,21 +129,18 @@ namespace ImagineVR
                     break;
                 case "weather": Weather.Apply(s); break;
                 case "physics": Props.SetGravity(s.Num("gravity", 1f)); break;
-                case "kit": Kits.Apply(s); _everLit = true; break;
-                case "spawn": EnsureLight(); if(!Blueprints.Spawn(s)) Objects.Spawn(s); break;
+                case "make": Maker.Make(s); break;
+                case "spawn": EnsureLight(); Objects.Spawn(s); break;
                 case "scatter": EnsureLight(); Objects.Scatter(s); break;
-                case "give": EnsureLight(); if(!Blueprints.Spawn(s)) Props.Give(s); break;
+                case "give": EnsureLight(); Props.Give(s); break;
                 case "ride": EnsureLight(); if (Vehicle != null) Vehicle.Apply(s); break;
-                case "goal": Objects.Goal(s); break;
                 case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
-                case "modify": Objects.Modify(s); Props.Modify(s); Blueprints.Modify(s); break;
-                case "remove": Rules.RemovingGroup(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); break;
+                case "modify": Objects.Modify(s); Props.Modify(s); break;
+                case "remove": Objects.Remove(s); Props.Remove(s.Str("id")); Rules.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
                 case "clear": Clear(s); break;
-                case "rule": case "rule_remove": Rules.SyncEntities(); Rules.Install(s); break;
-                case "blueprint": case "blueprint_remove": case "blueprint_edit": Blueprints.Apply(s); break;
+                case "when": Rules.Install(s); break;
             }
-            Rules.SyncEntities();
         }
 
         /// <summary>Ids of what grows on the ground by itself. Not the model's: it never sees, counts or removes them.</summary>
@@ -204,7 +205,7 @@ namespace ImagineVR
 
         static bool Builds(string op)
         {
-            return op == "sky" || op == "terrain" || op == "kit" || op == "spawn" || op == "scatter" || op == "ride" || op == "goal";
+            return op == "sky" || op == "terrain" || op == "spawn" || op == "scatter" || op == "ride";
         }
 
         /// <summary>Things should never be built in total darkness: give them a default sky to be seen by.</summary>
@@ -225,11 +226,12 @@ namespace ImagineVR
                 return;
             }
             List<string> keep = s.StrList("keep");
-            Rules.Reset(keep.Contains("rules"));
-            Blueprints.Reset();
+            Rules.Clear();
             Objects.Clear(t);
-            Kits.Forget();
             Props.ClearLoose();
+            // A new place is a new start on foot. (The ride used to survive: asked for a maze after a
+            // drive round New York, the user found themselves still sitting in the taxi.)
+            if (Vehicle != null) Vehicle.Dismount();
             if (!keep.Contains("weather")) Weather.Stop();
             if (!keep.Contains("ambience")) Ambience.Stop(t);
             Props.SetGravity(1f);
@@ -261,11 +263,8 @@ namespace ImagineVR
         /// <summary>Back to the dark room.</summary>
         public void ResetToDark(float seconds)
         {
-            Blueprints.Reset();
-            Rules.Reset();
-            Rules.PlayerEffectsEnabled = false;
+            Rules.Clear();
             Objects.Clear(seconds);
-            Kits.Forget();
             Props.ClearLoose();
             Weather.Stop();
             Ambience.Stop(seconds);
@@ -274,7 +273,6 @@ namespace ImagineVR
             Sky.Reset(seconds);
             _clearGroundAtTurnEnd = _clearSkyAtTurnEnd = false;
             if (Vehicle != null) { Vehicle.Dismount(); Vehicle.Resize(1f); Vehicle.Home(); }
-            Rules.SyncEntities();
         }
 
         /// <summary>
@@ -283,10 +281,9 @@ namespace ImagineVR
         /// </summary>
         public void ResetEverything(float seconds)
         {
-            Blueprints.Reset(true);
             ResetToDark(seconds);
             Props.ClearAll();
-            Rules.SyncEntities();
+            Library.ForgetMade();
             SessionLog.Write("reset", "what", "world");
             Emptied?.Invoke();
         }
@@ -324,7 +321,6 @@ namespace ImagineVR
             _real = Mathf.MoveTowards(_real, QuestFeature.Passthrough && IsDark ? 1f : 0f, dt / 2.5f);
             Shader.SetGlobalFloat(RealId, _real);
             Rules.Tick(dt);
-            Blueprints.Tick();
         }
 
         static readonly int RealId = Shader.PropertyToID("_ImReal");

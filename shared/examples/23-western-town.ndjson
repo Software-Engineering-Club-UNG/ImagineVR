@@ -1,8 +1,0 @@
-# A wild west town
-{"op":"clear"}
-{"op":"sky","preset":"desert_noon","t":4}
-{"op":"terrain","type":"flat","material":"dirt","t":2}
-{"op":"kit","id":"west","kit":"western_town","density":0.7,"size":0.8}
-{"op":"weather","type":"dust","intensity":0.3}
-{"op":"ambience","loop":"desert_wind"}
-{"op":"say","text":"This town is not big enough for the both of us."}

@@ -1,9 +1,0 @@
-# Take me under the sea
-{"op":"clear"}
-{"op":"sky","preset":"underwater","t":4}
-{"op":"terrain","type":"rolling","material":"seabed","height":0.35,"t":3}
-{"op":"physics","gravity":0.25}
-{"op":"kit","id":"reef","kit":"coral_reef","density":0.7,"size":0.5}
-{"op":"weather","type":"bubbles","intensity":0.5}
-{"op":"ambience","loop":"underwater"}
-{"op":"say","text":"Deep breath. The reef is all around you."}

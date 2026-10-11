@@ -1,7 +1,0 @@
-# A farm in the countryside
-{"op":"clear"}
-{"op":"sky","preset":"morning","t":4}
-{"op":"terrain","type":"rolling","material":"grass","height":0.2,"features":["path"],"patches":"dry_grass","t":3}
-{"op":"kit","id":"farm","kit":"farm","density":0.7,"size":0.7}
-{"op":"ambience","loop":"birds_breeze"}
-{"op":"say","text":"Morning on the farm. The animals are in the paddock ahead."}
