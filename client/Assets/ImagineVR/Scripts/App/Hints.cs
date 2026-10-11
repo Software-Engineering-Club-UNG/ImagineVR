@@ -198,7 +198,7 @@ namespace ImagineVR
                 _folds = TeachFolds;   // they have found it
                 if (_fold != null) { _fold.Dismiss(); _fold = null; }
             }
-            else if (!World.IsDark && !Conductor.Busy && Rig.Stick.magnitude > 0.6f) OfferFold();   // walking with the terminal in the way
+            else if (!World.IsDark && !Conductor.Busy && Mathf.Max(Rig.Stick.magnitude, Rig.MoveStick.magnitude) > 0.6f) OfferFold();   // walking with the terminal in the way
         }
 
         bool Moving => World.Vehicle != null && Mathf.Abs(World.Vehicle.Speed) > 0.5f;

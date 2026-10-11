@@ -180,6 +180,8 @@ namespace ImagineVR
                     break;
             }
 
+            if (_world.Vehicle != null) _world.Vehicle.PassThrough(go.GetComponent<Collider>());   // loose things never shove the user about
+
             Rigidbody body = go.AddComponent<Rigidbody>();
             float volumeScale = Mathf.Max(0.05f, scale.x * scale.y * scale.z);
             body.mass = Mathf.Clamp(def.Mass * Mathf.Pow(volumeScale, 0.7f), 0.02f, 400f);

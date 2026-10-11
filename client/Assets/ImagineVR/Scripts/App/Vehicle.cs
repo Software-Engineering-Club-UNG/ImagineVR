@@ -58,6 +58,8 @@ namespace ImagineVR
             walker = rig.gameObject.AddComponent<CharacterController>();
             walker.radius = 0.3f; walker.height = 1.6f; walker.center = Vector3.up * 0.8f;
             walker.skinWidth = 0.03f; walker.stepOffset = 0.15f; walker.slopeLimit = 50; walker.enabled = false;
+            walker.minMoveDistance = 0f;   // a slow push of the stick at a high frame rate is still a step
+            foreach (Collider own in rig.GetComponentsInChildren<Collider>(true)) PassThrough(own);
             _world = world;
             _terminal = terminal;
             _comfort = Comfort.Create(rig.Head);
@@ -344,6 +346,16 @@ namespace ImagineVR
             if (_terminal != null && (p != before || turn != 0f)) _terminal.Carry(p - turned, turn, centre + (p - turned));
 
             if (dt > 0f) Liven(dt, snapped ? 0f : turn / dt, xr);
+        }
+
+        /// <summary>
+        /// The walking capsule is for walls, floors and doors. The user's own hands are inside it most
+        /// of the time, and whatever they hold or throw starts there: left to collide, a rifle carried
+        /// across the chest threw the user 80 metres in a second. Those all pass through it.
+        /// </summary>
+        public void PassThrough(Collider other)
+        {
+            if (walker != null && other != null && other != walker) Physics.IgnoreCollision(walker, other);
         }
 
         public static float Snap(float horizontal, ref bool armed)

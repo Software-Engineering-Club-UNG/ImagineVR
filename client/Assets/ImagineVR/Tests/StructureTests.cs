@@ -90,6 +90,19 @@ namespace ImagineVR.Tests
             Assert.AreEqual(world.Structures.FloorAt(Vector3.zero), bottom, 0.08f);
         }
 
+        [UnityTest] public IEnumerator AnInteriorTakesItsOwnColoursAndAMisnamedRoomStillGetsItsThing()
+        {
+            Assert.IsTrue(Build(Plan.Replace("\"theme\":\"dungeon\"", "\"theme\":\"castle\",\"wall\":\"#FF00FF\",\"floor\":\"#00FF00\",\"light\":\"#FFAA00\",\"brightness\":0.8")));
+            yield return null;
+            Mesh room = root.GetComponentsInChildren<MeshFilter>().First(f => f.name == "Room_entry").sharedMesh;
+            Assert.IsTrue(room.colors.Any(c => c.r > 0.3f && c.b > 0.3f && c.g < 0.05f), "the walls are the colour asked for");
+            Assert.IsTrue(room.colors.Any(c => c.g > 0.5f && c.r < 0.05f && c.b < 0.05f), "and the floor");
+            Assert.IsTrue(Statement.TryParse("{\"op\":\"spawn\",\"id\":\"lost\",\"asset\":\"chair\",\"room\":\"ballroom\",\"at\":[0,0,2]}", out var spawn));
+            world.Apply(spawn);
+            for (int i = 0; i < 12; i++) yield return null;
+            Assert.IsTrue(root.GetComponentsInChildren<MeshRenderer>().Any(r => r.transform.parent.name == "Group_lost"), "nothing is refused for naming a room that is not there");
+        }
+
         [UnityTest] public IEnumerator PlayerCapsuleIsBlockedByWallAndClosedDoor()
         {
             Assert.IsTrue(Build(Plan)); yield return null;

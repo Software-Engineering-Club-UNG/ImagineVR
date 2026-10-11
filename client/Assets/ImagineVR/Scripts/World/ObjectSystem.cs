@@ -283,9 +283,10 @@ namespace ImagineVR
 
             // all of that was worked out around the user; now put it where they actually are
             Pose frame = s.Frame();
-            if (s.Has("room"))
+            // a room that is not there is no reason to place nothing: the thing goes in front of the user as any other would
+            if (s.Has("room") && _world.Structures.TryRoomPose(s.Str("room"), out Pose room))
             {
-                if (!_world.Structures.TryRoomPose(s.Str("room"), out frame)) { _world.Note("That room does not exist; nothing was placed."); return null; }
+                frame = room;
                 Vector3 roomPosition = Statement.InWorld(frame, pos);
                 roomPosition.y -= _world.SurfaceHeight(roomPosition.x, roomPosition.z);
                 pos = roomPosition;

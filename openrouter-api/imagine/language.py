@@ -8,6 +8,7 @@ fault in it, and the user watched the terminal say "rejected" while nothing appe
 
 from __future__ import annotations
 
+import difflib
 import math
 import re
 
@@ -469,10 +470,16 @@ class Checker:
         return normalize(raw, self.frame)
 
     def _door(self, raw):
-        identity = name_of(raw.get("id"))
-        if not self.structures or not self.world.structure or not any(d["id"] == identity for d in self.world.structure["doors"]):
-            self.problem = "That door is not in the current structure."
+        # Nothing is refused: a door named a little wrongly is the nearest one there is, and with no
+        # doors at all there is nothing to do and nothing to complain of.
+        if not self.structures or not self.world.structure or not self.world.structure["doors"]:
             return None
+        ids = [d["id"] for d in self.world.structure["doors"]]
+        identity = name_of(raw.get("id") or raw.get("door"))
+        if identity not in ids:
+            close = difflib.get_close_matches(identity, ids, n=1, cutoff=0.0)
+            wanted = name_of(raw.get("room"))
+            identity = next((d["id"] for d in self.world.structure["doors"] if wanted and d["room"] == wanted), close[0] if close else ids[0])
         return {"id": identity, "state": pick(raw.get("state"), ("open", "close", "toggle"), "toggle")}
 
     def _common(self, raw, out):
@@ -492,9 +499,12 @@ class Checker:
             room = name_of(raw.get("room"))
             structure = self.world.structure
             target = next((r for r in structure["rooms"] if r["id"] == room), None) if structure else None
-            if not self.structures or target is None:
-                self.problem = "That room is not in the current structure."
-                return None
+            if target is None and self.structures and structure:
+                # a room named a little wrongly is the nearest one there is, or the way in
+                ids = [r["id"] for r in structure["rooms"]]
+                room = (difflib.get_close_matches(room, ids, n=1, cutoff=0.6) or [structure["entry"]])[0]
+                target = next(r for r in structure["rooms"] if r["id"] == room)
+        if raw.get("room") and self.structures and self.world.structure:
             p = out["at"] or [0, 0, 0]
             out["room"] = room
             out["at"] = [num(p[0], -target["size"][0] / 2 + 1, target["size"][0] / 2 - 1),

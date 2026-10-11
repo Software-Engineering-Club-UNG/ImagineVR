@@ -6,20 +6,20 @@ import math
 CAPABILITY = "structures-v1"
 PROMPT = """
 # Explorable interiors (structures-v1)
-For being INSIDE a dungeon, house or spaceship, use `structure`, never a scatter of themed props.
-{"op":"structure","id":"dungeon","theme":"dungeon","layout":"chain","enter":true,"rooms":[{"id":"entry","size":[6,8]},{"id":"hall","size":[8,10]},{"id":"treasury","size":[6,6]}]}
-Themes: dungeon (dark brick and torches), house (wood/plaster), sci_fi (metal and lamps).
-Layouts: chain (up to 8 rooms), hub (central room then up to 4 branches). Rooms have size [width,depth], 4..16m; height 2.5..6m defaults to 3. Optional seed, at [x,0,z], rot_y. One active structure; a new structure replaces it. enter:true safely puts the user in the first room, only use for requests to go inside.
-The client provides real floors, ceilings, solid walls and interactive doors automatically. Do not build wall pieces with make/scatter. Add furniture with spawn using room:"entry" and at:[x,y,z] LOCAL to that room; y is above its floor. Use room ids from CURRENT WORLD. Keep furniture away from the room centre/doorways.
-Controls: point an EMPTY hand at a door within 2 metres and press trigger (desktop: look at it and press F). Do not tell them to grab or physically push the door. On foot, left joystick walks/strafes, right joystick snaps 45 degrees; riding still uses existing right-stick steering.
-Door ids are in the structure's normalized doors list. {"op":"door","id":"dungeon_door_1_hall","state":"open"}; states open/close/toggle. The user's live door/room state overrides remembered commands. Use remove with the structure id to remove it.
-For a new dungeon: clear, sky, structure with enter:true, room-local furnishings, cave_drips ambience, say. Do not add terrain inside, heavy fog, weather, or bright global lighting. Say what actually exists, not that unspecified functionality works.
+To be INSIDE a building of any kind (a dungeon, a house, a spaceship, a castle, a school, a shop, a bunker, a cave of rooms), use `structure`: connected rooms with real floors, ceilings, solid walls and doors that open. Never build its walls from plain shapes, `make` or `scatter`; the built-places rules are for what stands in the open and for what goes INSIDE the rooms.
+{"op":"structure","id":"keep","theme":"dungeon","wall":"#8A8478","floor":"#4A4640","light":"#FFB060","brightness":0.15,"layout":"chain","enter":true,"rooms":[{"id":"entry","size":[6,8]},{"id":"hall","size":[8,10]},{"id":"treasury","size":[6,6]}]}
+`theme` is the starting look: `dungeon` (dark brick, torches), `house` (wood and plaster), `sci_fi` (metal panels, cool lamps). Make it THIS place with `wall`, `floor` and `light` colours and `brightness` (0 pitch dark .. 1 bright): a candy shop is `house` with pink walls, a castle is `dungeon` with pale stone and more light.
+Layouts: `chain` (up to 8 rooms in a row), `hub` (a central room and up to 4 off it). A room is `size` [width,depth], 4..16 m; `height` 2.5..6, default 3. Optional `seed`, `at` [x,0,z], `rot_y`. One structure at a time; a new one replaces it. `enter:true` puts the user in the first room: use it when they ask to be inside.
+Fill the rooms: `spawn` with `room:"entry"` and `at:[x,y,z]` measured from the middle of that room's floor. Use room ids from CURRENT WORLD. Keep the middle of each room and its doorways clear. Give every room three or four things that say what it is for, something loose to pick up, and put what is alive or dangerous in the rooms beyond the first.
+Doors: the user points an EMPTY hand at a door within 2 m and pulls the trigger (desktop: look at it, press F). Never tell them to grab or push one. On foot the left stick walks and strafes, the right stick turns in 45 degree steps; riding steers with the right stick as before.
+Door ids are in the structure's `doors` list in CURRENT WORLD: {"op":"door","id":"keep_door_1_hall","state":"open"}; `state` is open, close or toggle. What the headset reports about rooms and doors is the truth. `remove` with the structure's id takes it away.
+A new interior is: `clear`, `sky`, `structure` with `enter:true`, things in its rooms, an `ambience`, `say`. No terrain, weather or heavy fog inside. Say what is there to do.
 """
 
 
 def normalize(raw: dict, frame=None) -> dict:
     # Import here to avoid a language <-> structures module cycle.
-    from .language import name_of, num, pick, vec, flag
+    from .language import color, name_of, num, pick, vec, flag
 
     identity = name_of(raw.get("id"), "interior")
     theme = pick(raw.get("theme"), ("dungeon", "house", "sci_fi"), "dungeon")
@@ -96,7 +96,11 @@ def normalize(raw: dict, frame=None) -> dict:
             at = [dx * fc - dz * fs, 0, dx * fs + dz * fc]
         else:
             at = [wx, 0, wz]
+    # A theme is a starting look. Any of these, given, replaces its part of it: the interior of
+    # anything at all is a theme plus its own colours and light.
+    look = {key: color(raw.get(key)) for key in ("wall", "floor", "light")}
+    look["brightness"] = num(raw.get("brightness"), 0, 1)
     return {"id": identity, "theme": theme, "layout": layout, "height": height,
             "seed": int(num(raw.get("seed"), 0, 99999, 0)), "at": at, "rot_y": yaw,
             "enter": flag(raw.get("enter")), "entry": rooms[0]["id"], "rooms": rooms,
-            "zones": zones, "doors": doors}
+            "zones": zones, "doors": doors, **{k: v for k, v in look.items() if v is not None}}

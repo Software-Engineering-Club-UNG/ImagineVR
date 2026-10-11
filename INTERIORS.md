@@ -11,7 +11,7 @@ The `structures-v1` client capability enables enclosed, single-floor structures.
 | Open / close door | Point an empty hand at a door within 2 m and press trigger | Look at door and press F |
 | Ride / steer | Existing right-stick controls, unchanged | Existing riding controls |
 
-Closed doors and walls block joystick movement. A door pauses while a player or physics object obstructs its swing. Room-scale tracking is never forcibly moved: a safety fade hides views through a wall when the real headset crosses it.
+Closed doors and walls block joystick movement. The walking capsule ignores the user's own hands and every loose prop, so nothing held or thrown can block or shove them. A door pauses while a player or physics object obstructs its swing. Room-scale tracking is never forcibly moved: a safety fade hides views through a wall when the real headset crosses it.
 
 ## Examples
 
@@ -29,7 +29,8 @@ The model writes the compact room description. The backend sends a normalized `z
 
 | Setting | First version |
 |---|---|
-| Themes | `dungeon` (brick/torches), `house` (wood/plaster), `sci_fi` (metal/lamps) |
+| Themes | `dungeon` (brick/torches), `house` (wood/plaster), `sci_fi` (metal/lamps): a starting look only |
+| Look | Optional `wall`, `floor` and `light` colours and `brightness` 0..1 replace the theme's own, so an interior can be any kind of place |
 | Layouts | `chain`: up to 8 rooms; `hub`: centre plus up to 4 branches |
 | Rooms | Default 6 × 8 m; dimensions 4–16 m |
 | Ceilings | Default 3 m; 2.5–6 m |
@@ -39,7 +40,7 @@ The model writes the compact room description. The backend sends a normalized `z
 | Lighting | Per-room ambient and two bounded local lights; no real-time shadow maps |
 | Terrain | Common floor above sampled terrain; foundation skirts, no landscape flattening |
 
-Static geometry uses GameObjects/MeshRenderers and box colliders; there is no enclosing building-sized collider. Indoor volumes suppress outdoor sunlight for the shared solid-object shader. Lights are scoped to their room, so outdoor appearance is unchanged. Invalid builds leave the previous structure intact and report a note. Removing/clearing the floor relocates the player to terrain.
+Static geometry uses GameObjects/MeshRenderers and box colliders; there is no enclosing building-sized collider. Indoor volumes suppress outdoor sunlight for the shared solid-object shader. Lights are scoped to their room, so outdoor appearance is unchanged. Invalid builds leave the previous structure intact and report a note. A `spawn` or `door` that names a room or door that is not there is not refused: the server uses the nearest one. Removing/clearing the floor relocates the player to terrain.
 
 Multi-floor layouts, stairs, destruction, locks/keys, grabbed hinges, and physically simulated door pushing are not included. Lighting is stylized rather than a physically accurate simulation of illumination through doors. Optional `seed`, `at`, and `rot_y` control appearance/placement. `enter:true` relocates the player; otherwise placement leaves them outside/currently positioned.
 

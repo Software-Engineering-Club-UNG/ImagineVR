@@ -66,8 +66,12 @@ def test_room_placement_and_door_state():
     assert c.world.structure["doors"][0]["state"] == "open"
     c.check({"op": "door", "id": door, "state": "toggle"})
     assert c.world.structure["doors"][0]["state"] == "closed"
-    assert c.check({"op": "door", "id": "missing"}) is None
-    assert c.check({"op": "spawn", "asset": "chair", "room": "missing"}) is None
+    # nothing is refused: a door or a room named wrongly is the nearest there is
+    assert c.check({"op": "door", "id": door[:-2], "state": "open"})["id"] == door
+    assert c.check({"op": "door", "room": structure["doors"][1]["room"]})["id"] == structure["doors"][1]["id"]
+    assert c.check({"op": "spawn", "asset": "chair", "room": "the entry"})["room"] == "entry"
+    assert c.check({"op": "spawn", "asset": "chair", "room": "ballroom"})["room"] == "entry"
+    assert c.problem is None
     assert "structure" in c.world.render()
     c.check({"op": "remove", "id": "dungeon"})
     assert c.world.structure is None
@@ -97,3 +101,18 @@ def test_long_identifiers_remain_targetable():
 def test_normalized_world_can_be_reused_without_losing_dimensions():
     plan = normalize({"rooms": [{"id": "entry", "size": [12, 16]}, {"id": "hall", "size": [8, 10]}], "height": 5})
     assert normalize(plan) == plan
+
+
+def test_an_interior_may_look_like_anything():
+    plan = normalize({"theme": "castle", "wall": "#EEDDCC", "floor": "pink", "light": "#FFAA00", "brightness": 7})
+    assert plan["theme"] == "dungeon", "an unknown theme is the default one"
+    assert plan["wall"] == "#EEDDCC" and plan["light"] == "#FFAA00" and plan["brightness"] == 1
+    assert "floor" not in plan, "a colour that is not one is left to the theme"
+    assert normalize(plan) == plan
+    assert "wall" not in normalize({"theme": "house"})
+
+
+def test_a_door_with_no_structure_is_nothing_and_no_complaint():
+    c = checker()
+    assert c.check({"op": "door", "id": "front"}) is None and c.problem is None
+    assert c.check({"op": "spawn", "asset": "chair", "room": "kitchen"})["asset"] == "chair"

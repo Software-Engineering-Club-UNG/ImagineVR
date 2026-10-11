@@ -20,6 +20,10 @@ namespace ImagineVR
         Material material;
         Collider[] colliders = new Collider[0];
         string theme, entry;
+        // How it looks. A theme is only a starting point: any of these may be given outright, so an
+        // interior can be a school, a castle, a cave or a sweet shop and not just the three themes.
+        Color wallColor, floorColor, lampColor;
+        float ambient, flicker;
         public string Id { get; private set; }
         public bool Active => root != null;
         public int ZoneCount => zones.Count;
@@ -46,6 +50,11 @@ namespace ImagineVR
                 var source = s.ObjList("zones");
                 if (source.Count == 0 || source.Count > MaxZones) throw new ArgumentException("Invalid room layout; expected 1..15 zones.");
                 string newTheme = s.Str("theme", "dungeon");
+                bool dungeon = newTheme == "dungeon", house = newTheme == "house";
+                Color newWall = s.TryColor("wall", out Color givenWall) ? givenWall : Pal.Hex(dungeon ? "#77756C" : house ? "#C6B79B" : "#738899");
+                Color newFloor = s.TryColor("floor", out Color givenFloor) ? givenFloor : Pal.Hex(dungeon ? "#55534B" : house ? "#84603C" : "#495E70");
+                Color newLamp = s.TryColor("light", out Color givenLamp) ? givenLamp : dungeon ? new Color(1.1f, 0.55f, 0.16f) : new Color(0.65f, 0.85f, 1f);
+                float newAmbient = s.Has("brightness") ? Mathf.Lerp(0.02f, 0.6f, Mathf.Clamp01(s.Num("brightness"))) : dungeon ? 0.035f : 0.22f;
                 Pose frame = s.Frame();
                 Vector3 origin = Statement.InWorld(frame, s.Vec("at", Vector3.zero));
                 Quaternion rotation = frame.rotation * Quaternion.Euler(0, s.Num("rot_y"), 0);
@@ -85,8 +94,8 @@ namespace ImagineVR
                 candidate.transform.SetPositionAndRotation(new Vector3(origin.x, floor, origin.z), rotation);
                 if (material == null) material = new Material(world.Objects.LitMaterial) { name = "Interior", enableInstancing = false };
                 for (int i = 0; i < source.Count; i++)
-                    BuildRoom(candidate.transform, newZones[i], Statement.Wrap(source[i]), newTheme, s.Int("seed"), newMeshes, newDoors);
-                foreach (Room room in newZones) AddLampVisuals(room, candidate.transform, newTheme, newMeshes);
+                    BuildRoom(candidate.transform, newZones[i], Statement.Wrap(source[i]), newTheme, newWall, newFloor, s.Int("seed"), newMeshes, newDoors);
+                foreach (Room room in newZones) AddLampVisuals(room, candidate.transform, newTheme, newLamp, newMeshes);
                 if (!newZones.Exists(r => r.Id == s.Str("entry"))) throw new ArgumentException("Missing entry room.");
                 if (newDoors.Count != s.ObjList("doors").Count) throw new ArgumentException("Door plan does not match openings.");
                 var checkedDoors = new HashSet<string>();
@@ -109,6 +118,7 @@ namespace ImagineVR
                     throw new ArgumentException("The player is too tall for this ceiling; resize the player or increase room height.");
                 Clear();
                 root = candidate; Id = s.Str("id", "interior"); theme = newTheme; entry = s.Str("entry");
+                wallColor = newWall; floorColor = newFloor; lampColor = newLamp; ambient = newAmbient; flicker = dungeon ? 1f : 0f;
                 zones.AddRange(newZones); meshes.AddRange(newMeshes);
                 foreach (var d in newDoors) doors.Add(d.Key, d.Value);
                 root.SetActive(true);
@@ -143,12 +153,10 @@ namespace ImagineVR
             return a.OpenSides.Contains(side) && b.OpenSides.Contains(opposite);
         }
 
-        void BuildRoom(Transform parent, Room r, Statement plan, string style, int seed, List<Mesh> owned, Dictionary<string, StructureDoor> builtDoors)
+        void BuildRoom(Transform parent, Room r, Statement plan, string style, Color wall, Color ground, int seed, List<Mesh> owned, Dictionary<string, StructureDoor> builtDoors)
         {
             var go = new GameObject("Room_" + r.Id); go.transform.SetParent(parent, false); go.transform.localPosition = r.Center;
             var mb = new MeshBuilder();
-            Color wall = Pal.Hex(style == "dungeon" ? "#77756C" : style == "house" ? "#C6B79B" : "#738899");
-            Color ground = Pal.Hex(style == "dungeon" ? "#55534B" : style == "house" ? "#84603C" : "#495E70");
             // Floor/ceiling subdivisions keep vertex lighting useful at room scale.
             Tile(mb, r.Size.x, r.Size.z, -0.10f, ground);
             Tile(mb, r.Size.x, r.Size.z, r.Size.y + 0.10f, wall * 0.75f);
@@ -230,14 +238,15 @@ namespace ImagineVR
             return go.AddComponent<BoxCollider>().WithSize(size);
         }
 
-        void AddLampVisuals(Room r, Transform parent, string style, List<Mesh> owned)
+        void AddLampVisuals(Room r, Transform parent, string style, Color glow, List<Mesh> owned)
         {
             for (int i = 0; i < 2; i++)
             {
                 Vector3 p = r.Center + new Vector3((i == 0 ? -1 : 1) * (r.Size.x / 2 - 0.25f), Mathf.Min(1.9f, r.Size.y - 0.5f), 0);
                 var mb = new MeshBuilder();
                 mb.Col(style == "dungeon" ? "#67482E" : "#455262").Box(p - Vector3.up * 0.16f, new Vector3(0.12f, 0.4f, 0.12f));
-                mb.Col(style == "dungeon" ? "#FFB14C" : "#CBE8FF").Emit(1).Box(p, new Vector3(0.16f, 0.20f, 0.16f));
+                float brightest = Mathf.Max(glow.r, Mathf.Max(glow.g, glow.b), 0.01f);
+                mb.Col(Color.Lerp(glow / brightest, Color.white, 0.35f)).Emit(1).Box(p, new Vector3(0.16f, 0.20f, 0.16f));
                 Mesh mesh = mb.Build("Lamp"); owned.Add(mesh);
                 var lamp = new GameObject("Lamp"); lamp.transform.SetParent(parent, false);
                 lamp.AddComponent<MeshFilter>().sharedMesh = mesh; lamp.AddComponent<MeshRenderer>().sharedMaterial = material;
@@ -310,7 +319,7 @@ namespace ImagineVR
             Bounds bounds = new Bounds(zones[0].Center + Vector3.up * (zones[0].Size.y / 2), zones[0].Size);
             for (int i = 0; i < zones.Count; i++)
             {
-                Room r = zones[i]; centres[i] = new Vector4(r.Center.x, r.Size.y / 2, r.Center.z, theme == "dungeon" ? 0.035f : 0.22f);
+                Room r = zones[i]; centres[i] = new Vector4(r.Center.x, r.Size.y / 2, r.Center.z, ambient);
                 bounds.Encapsulate(new Bounds(r.Center + Vector3.up * (r.Size.y / 2), r.Size));
                 halves[i] = new Vector4(r.Size.x / 2 + 0.13f, r.Size.y / 2 + 0.13f, r.Size.z / 2 + 0.13f, 0);
                 for (int j = 0; j < 2; j++) lights[i * 2 + j] = new Vector4(r.Center.x + (j == 0 ? -1 : 1) * (r.Size.x / 2 - 0.25f), Mathf.Min(1.9f, r.Size.y - 0.5f), r.Center.z, 4.5f);
@@ -321,7 +330,7 @@ namespace ImagineVR
             Shader.SetGlobalInt("_ImRoomCount", zones.Count);
             Shader.SetGlobalVectorArray("_ImRoomCenters", centres); Shader.SetGlobalVectorArray("_ImRoomHalves", halves);
             Shader.SetGlobalVectorArray("_ImRoomLights", lights);
-            Shader.SetGlobalVector("_ImRoomLightColor", theme == "dungeon" ? new Vector4(1.1f, 0.55f, 0.16f, 1) : new Vector4(0.65f, 0.85f, 1f, 0));
+            Shader.SetGlobalVector("_ImRoomLightColor", new Vector4(lampColor.r, lampColor.g, lampColor.b, flicker));
         }
 
         public void Remove(string id) { if (id == Id) Clear(); }
