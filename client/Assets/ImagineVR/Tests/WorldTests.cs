@@ -163,6 +163,25 @@ namespace ImagineVR.Tests
         }
 
         /// <summary>
+        /// A built place is laid out from stretched plain shapes and rows. Each piece used to be turned
+        /// to face the user, so a lane or a wall off to one side lay skewed across the room, and a row
+        /// ran the wrong way: the object's right is the user's left.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator BuildingBlocksLieSquareAndRowsRunAsWritten()
+        {
+            Play("{\"op\":\"terrain\",\"type\":\"flat\",\"material\":\"concrete\"}");
+            Play("{\"op\":\"spawn\",\"id\":\"lanes\",\"asset\":\"cube\",\"at\":[-2.4,0,7.5],\"scale\":[1.1,0.02,13],\"repeat\":3,\"step\":[2.4,0,0]}");
+            yield return Settle();
+            // (from the vertices: a renderer's own bounds are padded so nothing is culled while it grows in)
+            Vector3[] points = Drawn("lanes").SelectMany(r => r.GetComponent<MeshFilter>().sharedMesh.vertices.Select(v => r.transform.TransformPoint(v))).ToArray();
+            Assert.AreEqual(-2.95f, points.Min(v => v.x), 0.05f, "the first lane is where it was put, not turned");
+            Assert.AreEqual(2.95f, points.Max(v => v.x), 0.05f, "and the others follow to the right");
+            Assert.AreEqual(1f, points.Min(v => v.z), 0.05f);
+            Assert.AreEqual(14f, points.Max(v => v.z), 0.05f);
+        }
+
+        /// <summary>
         /// The terminal keeps its last 300 lines. Once it was full, the next thing said threw (the new
         /// line was looked up at a place the list no longer reached) and the request was never played:
         /// to the user, the app had stopped listening. It took about fourteen minutes to get there.
