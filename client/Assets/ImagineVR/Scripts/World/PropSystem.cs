@@ -104,6 +104,7 @@ namespace ImagineVR
         int _auto;
 
         public IReadOnlyList<Prop> All => _props;
+        public World World => _world;
         public float Gravity => _gravity;
 
         public PropSystem(World world)
@@ -202,6 +203,7 @@ namespace ImagineVR
             prop.Born = Time.time;
             prop.Length = Mathf.Max(0.1f, b.max.y * scale.y);
             prop.SetTint(tint);
+            if (def.Held != null) go.AddComponent<HeldItemRuntime>().Init(prop, def.Held);
             _props.Add(prop);
             Trim();
             return prop;
@@ -496,6 +498,7 @@ namespace ImagineVR
                 // back to hang in front of someone who had just dropped it on purpose annoyed everyone.
                 float since = Time.time - p.LetGoAt;
                 if (p.Given && p.Def.Tool && p.Thrown && !p.Held && !p.Floating
+                    && (p.GetComponent<HeldItemRuntime>() == null || !p.GetComponent<HeldItemRuntime>().Busy)
                     && ((since > 1.2f && p.Body.linearVelocity.sqrMagnitude < 0.05f) || since > 4f))
                 {
                     p.Thrown = false;
@@ -553,7 +556,12 @@ namespace ImagineVR
             {
                 prop.RuledAt = Time.time;
                 bool taken = _world.Rules.Fire("hit", Rules.Of(prop));
-                if (source.GroupId == "shot") Object.Destroy(source.gameObject);
+                if (source.GroupId == "shot")
+                {
+                    HeldItemRuntime payload = source.GetComponent<HeldItemRuntime>();
+                    if (!taken && payload != null && payload.Armed) payload.Detonate();
+                    else Object.Destroy(source.gameObject);
+                }
                 if (taken) return;
             }
             Vector3 point = collision.contactCount > 0 ? collision.GetContact(0).point : prop.transform.position;
@@ -666,6 +674,12 @@ namespace ImagineVR
                 }
                 shot.Body.useGravity = true;
                 shot.Body.linearVelocity = aim * speed;
+                if (gun != null && gun.Held != null && gun.Held.Effect.Length > 0)
+                {
+                    var payload = shot.GetComponent<HeldItemRuntime>() ?? shot.gameObject.AddComponent<HeldItemRuntime>();
+                    payload.Init(shot, new HeldProfile("payload", color, gun.Held.Effect) { Radius = 2.5f });
+                    payload.Released(true, aim * speed, null);
+                }
                 Object.Destroy(shot.gameObject, life);
             }
             Sfx.Play(gun != null ? gun.ShotSound : "zap", position, 0.75f, 0.92f + Random.value * 0.2f);

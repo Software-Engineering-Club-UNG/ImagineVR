@@ -297,7 +297,7 @@ namespace ImagineVR
             rot = frame.rotation * rot;
             _world.Placed(s, name, def, standIn, pos, null);
 
-            if (s.Flag("physics") && _world.Props != null && (def.Prop || def.Primitive))
+            if ((s.Flag("physics") || def.Held != null) && _world.Props != null && (def.Prop || def.Primitive))
             {
                 _world.Props.SpawnPhysics(s, def, Copies(s, pos, rot, RowClear(def, scale)), scale);
                 return null;

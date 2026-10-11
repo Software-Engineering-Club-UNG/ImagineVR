@@ -76,7 +76,7 @@ Shader "ImagineVR/Terrain"
 
                 float3 nws = TransformObjectToWorldNormal(v.normalOS);
                 o.positionCS = TransformWorldToHClip(ws);
-                o.color = half4(ImLight(v.color.rgb * _Tint.rgb, nws), max(ImFog(ws, _WorldSpaceCameraPos), ImEdge(ws)));
+                o.color = half4(ImInteriorLight(v.color.rgb * _Tint.rgb, nws, ws), max(ImFog(ws, _WorldSpaceCameraPos), ImEdge(ws)));
                 o.ground = float3(ws.xz, dist);
                 return o;
             }

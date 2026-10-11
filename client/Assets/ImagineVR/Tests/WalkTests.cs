@@ -2,6 +2,8 @@ using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.InputSystem;
+using System.Reflection;
 
 namespace ImagineVR.Tests
 {
@@ -61,6 +63,144 @@ namespace ImagineVR.Tests
             _walked = _rigObject.transform.position - from;
         }
         Vector3 _walked;
+
+        [UnityTest]
+        public IEnumerator GrapplingPullUsesWalkingCollisionAndCanBeCancelled()
+        {
+            for (int i = 0; i < 30; i++) yield return null;
+            Vector3 from = _rigObject.transform.position;
+            _vehicle.PullTo(from + Vector3.right * 4);
+            for (int i = 0; i < 80; i++) yield return null;
+            Assert.Greater(_rigObject.transform.position.x - from.x, 3.7f);
+            _vehicle.PullTo(_rigObject.transform.position + Vector3.forward * 8);
+            yield return Travel(Vector2.left, 30);
+            Assert.Less(_walked.x, -0.5f);
+            Assert.Less(Mathf.Abs(_walked.z), 0.2f);
+        }
+
+        void Ride(string asset, string extra = "")
+        {
+            Assert.IsTrue(Statement.TryParse("{\"op\":\"ride\",\"asset\":\"" + asset + "\"" + extra + "}", out Statement ride));
+            _world.Apply(ride);
+            Assert.IsTrue(_vehicle.Riding, asset);
+        }
+
+        IEnumerator Travel(Vector2 input, int frames = 120)
+        {
+            _vehicle.Autopilot = input;
+            Vector3 from = _rigObject.transform.position;
+            for (int i = 0; i < frames; i++) yield return null;
+            _walked = _rigObject.transform.position - from;
+        }
+
+        [UnityTest]
+        public IEnumerator AllRideKindsStrafeWithoutSteering()
+        {
+            foreach (string asset in new[] { "car", "horse", "dragon" })
+            {
+                Ride(asset);
+                float yaw = _rigObject.transform.eulerAngles.y;
+                yield return Travel(Vector2.right);
+                Assert.Greater(_walked.x, 2f, asset);
+                Assert.Less(Mathf.Abs(_walked.z), 0.05f, asset);
+                Assert.Less(Mathf.Abs(Mathf.DeltaAngle(yaw, _rigObject.transform.eulerAngles.y)), 0.01f, asset);
+                if (asset == "dragon") Assert.Greater(_walked.y, 1f, "flight altitude still rises");
+                _vehicle.Autopilot = Vector2.zero;
+                _vehicle.Dismount();
+                yield return null;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RidingIsHeadRelativeAndBrakesToAStop()
+        {
+            Ride("car");
+            _rig.enabled = false;
+            _rig.Head.localRotation = Quaternion.Euler(0, 90, 0);
+            yield return Travel(Vector2.up);
+            Assert.Greater(_walked.x, 2f);
+            Assert.Less(Mathf.Abs(_walked.z), 0.05f);
+            yield return Travel(Vector2.zero, 120);
+            Assert.Less(_vehicle.Speed, 0.01f);
+            yield return Travel(Vector2.zero, 30);
+            Assert.Less(new Vector2(_walked.x, _walked.z).magnitude, 0.01f);
+        }
+
+        [UnityTest]
+        public IEnumerator ReverseAndDiagonalHaveTheSameTopSpeed()
+        {
+            Ride("car"); yield return Travel(Vector2.up, 160);
+            float forward = _vehicle.Speed;
+            _vehicle.Dismount(); yield return null;
+            Ride("car"); yield return Travel(Vector2.down, 160);
+            Assert.AreEqual(forward, _vehicle.Speed, 0.05f);
+            _vehicle.Dismount(); yield return null;
+            Ride("car"); yield return Travel(Vector2.one, 160);
+            Assert.AreEqual(forward, _vehicle.Speed, 0.05f);
+        }
+
+        [UnityTest]
+        public IEnumerator MountedXrUsesLeftMovementAndRightSnapAcrossDismount()
+        {
+            var gamepad = InputSystem.AddDevice<Gamepad>();
+            var left = new InputAction("TestMove", InputActionType.Value, "<Gamepad>/leftStick");
+            var right = new InputAction("TestTurn", InputActionType.Value, "<Gamepad>/rightStick");
+            left.Enable(); right.Enable();
+            const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+            _rig.enabled = false;
+            typeof(Rig).GetField("_stickL", fields).SetValue(_rig, left);
+            typeof(Rig).GetField("_stickR", fields).SetValue(_rig, right);
+            typeof(Rig).GetField("<XrActive>k__BackingField", fields).SetValue(_rig, true);
+            try
+            {
+                Ride("car");
+                InputSystem.QueueDeltaStateEvent(gamepad.leftStick, Vector2.right); InputSystem.Update();
+                Vector3 from = _rigObject.transform.position;
+                for (int i = 0; i < 120; i++) yield return null;
+                Assert.Greater(_rigObject.transform.position.x - from.x, 2);
+                Assert.AreEqual(0, _rigObject.transform.eulerAngles.y, 0.01f);
+                InputSystem.QueueDeltaStateEvent(gamepad.leftStick, Vector2.zero); InputSystem.Update();
+                for (int i = 0; i < 120; i++) yield return null;
+                _rig.Head.localPosition += Vector3.right * 0.3f;
+                Vector3 head = _rig.Head.position;
+                InputSystem.QueueDeltaStateEvent(gamepad.rightStick, Vector2.right); InputSystem.Update();
+                for (int i = 0; i < 4; i++) yield return null;
+                Assert.AreEqual(45, _rigObject.transform.eulerAngles.y, 0.01f);
+                Assert.Less(Vector2.Distance(new Vector2(head.x, head.z), new Vector2(_rig.Head.position.x, _rig.Head.position.z)), 0.01f);
+                Assert.Less(_vehicle.Speed, 0.01f);
+                _vehicle.Dismount(); yield return null;
+                Ride("horse"); yield return null;
+                Assert.AreEqual(45, _rigObject.transform.eulerAngles.y, 0.01f);
+                InputSystem.QueueDeltaStateEvent(gamepad.rightStick, Vector2.zero); InputSystem.Update(); yield return null;
+                InputSystem.QueueDeltaStateEvent(gamepad.rightStick, Vector2.left); InputSystem.Update(); yield return null;
+                Assert.Less(Mathf.Abs(Mathf.DeltaAngle(0, _rigObject.transform.eulerAngles.y)), 0.01f);
+            }
+            finally { left.Dispose(); right.Dispose(); InputSystem.RemoveDevice(gamepad); }
+        }
+
+        [UnityTest]
+        public IEnumerator ScriptedRoutesStillControlRides()
+        {
+            Ride("car", ",\"path\":[[0,0,0],[0,0,20]],\"loop\":false");
+            yield return Travel(Vector2.right, 120);
+            Assert.Greater(_walked.z, 2f);
+            Assert.Less(Mathf.Abs(_walked.x), 0.05f);
+        }
+
+        [UnityTest]
+        public IEnumerator GroundRideStillStopsAtSolidWalls()
+        {
+            var wall = new GameObject("RideWall");
+            wall.transform.SetParent(_root.transform);
+            wall.transform.position = new Vector3(0, 2, 4);
+            wall.AddComponent<BoxCollider>().size = new Vector3(12, 4, 0.2f);
+            Physics.SyncTransforms();
+            Ride("car");
+            yield return Travel(Vector2.up, 180);
+            Assert.Greater(_walked.z, 0.5f);
+            Assert.Less(_rigObject.transform.position.z, 3.6f);
+            Assert.Less(_vehicle.Speed, 0.1f);
+        }
 
         [UnityTest]
         public IEnumerator WalkingGoesForward()

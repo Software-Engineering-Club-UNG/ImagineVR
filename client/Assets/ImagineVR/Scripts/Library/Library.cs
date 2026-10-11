@@ -71,6 +71,7 @@ namespace ImagineVR
     public sealed class AssetDef : Entry
     {
         public string Category;
+        public HeldProfile Held;
         public bool Made;                       // built at runtime by a `make` statement, not part of the library
         public float Size = 1f;                 // nominal height in metres, for the catalog
         public Action<MeshBuilder> Recipe;
@@ -178,6 +179,7 @@ namespace ImagineVR
         static partial void RegisterAmbience();
         static partial void RegisterAnimals();
         static partial void RegisterMoreHoldables();
+        static partial void RegisterExtendedHoldables();
 
         /// <summary>Registers everything. Safe to call more than once.</summary>
         public static void EnsureLoaded()
@@ -191,6 +193,7 @@ namespace ImagineVR
             RegisterHoldables();
             RegisterMoreHoldables();
             RegisterAnimals();
+            RegisterExtendedHoldables();
             RegisterThemes();
             RegisterSkyPresets();
             RegisterGround();

@@ -23,7 +23,9 @@ namespace ImagineVR
     ///   walk / strafe      left thumbstick             W A S D
     ///   turn 45 degrees    right thumbstick
     ///   open nearby door   point + free-hand trigger   F (look at door)
-    ///   steer when riding  right thumbstick            W A S D
+    ///   move when riding   left thumbstick             W A S D
+    ///   turn when riding   right thumbstick (45°)
+    ///   get off a ride     click right thumbstick      hold Q
     ///   look                                           hold right mouse button
     /// </summary>
     public sealed class Rig : MonoBehaviour
@@ -567,6 +569,7 @@ namespace ImagineVR
             if (World.Instance != null) World.Instance.Rules.Fire("grab", Rules.Of(prop));
             _held = prop;
             prop.Holder = this;
+            prop.GetComponent<HeldItemRuntime>()?.Grabbed();
             prop.Floating = false;
             prop.Body.isKinematic = true;
             if (prop.Def.Tool)
@@ -633,6 +636,9 @@ namespace ImagineVR
                 prop.Body.linearVelocity = _velocity;
                 prop.Body.angularVelocity = Vector3.zero;
             }
+            // Native item logic receives Israel's final launch velocity; never replace the hand/COM calculation.
+            // A deliberate slow drop arms grenades, but only an actual throw starts disc/boomerang flight.
+            prop.GetComponent<HeldItemRuntime>()?.Released(thrown, prop.Body.linearVelocity, transform, really);
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }
@@ -677,6 +683,7 @@ namespace ImagineVR
             if (_replaceUse) return;
             Vector3 tipPosition = TargetPosition + (TargetRotation * Vector3.up) * prop.Length;
             Vector3 aim = TargetRotation * Vector3.up;
+            prop.GetComponent<HeldItemRuntime>()?.Use(pressed, pressed && !_triggerDown, tipPosition, aim);
             switch (prop.Def.Behavior)
             {
                 case "paint":
@@ -737,6 +744,7 @@ namespace ImagineVR
 
         void EndUse(Prop prop)
         {
+            if (prop != null) prop.GetComponent<HeldItemRuntime>()?.EndUse();
             _using = _replaceUse = false;
             if (_stroke != null && prop != null) prop.System.EndStroke(_stroke);
             _stroke = null;

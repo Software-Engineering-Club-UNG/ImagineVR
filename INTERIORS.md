@@ -9,7 +9,7 @@ The `structures-v1`/`structures-v2` client capabilities enable enclosed, single-
 | Walk / strafe | Left joystick, relative to head direction | WASD / arrows |
 | Turn | Right joystick left/right: 45° once, then release | Existing mouse look |
 | Open / close door | Point an empty hand at a door within 2 m and press trigger | Look at door and press F |
-| Ride / steer | Existing right-stick controls, unchanged | Existing riding controls |
+| Ride / strafe / turn | Same left-stick movement and right-stick 45° turns as walking | WASD / arrows and mouse look |
 
 Closed doors and walls block joystick movement. The walking capsule ignores the user's own hands and every loose prop, so nothing held or thrown can block or shove them. A door pauses while a player or physics object obstructs its swing. Room-scale tracking is never forcibly moved: a safety fade hides views through a wall when the real headset crosses it.
 

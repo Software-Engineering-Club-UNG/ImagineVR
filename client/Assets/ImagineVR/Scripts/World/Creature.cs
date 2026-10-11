@@ -175,6 +175,7 @@ namespace ImagineVR
 
         void Update()
         {
+            if (Time.time < stasisUntil && _state == State.Walking) { Stride(0, 0); return; }
             float dt = Time.deltaTime;
             _t += dt;
             Vector3 p = transform.position;
@@ -310,6 +311,9 @@ namespace ImagineVR
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(heading), 1f - Mathf.Exp(-dt * 5f));
         }
 
+        float stasisUntil;
+        public void Stasis(float seconds) { stasisUntil = Mathf.Max(stasisUntil, Time.time + Mathf.Clamp(seconds, 0, 10)); }
+
         /// <summary>Poses the legs: where in the step they are, and how far they reach (0 stands still).</summary>
         void Stride(float phase, float reach)
         {
@@ -346,6 +350,8 @@ namespace ImagineVR
             if (_state != State.Arriving && _state != State.Walking) return;
             Prop prop = collision.collider.GetComponentInParent<Prop>();
             if (prop == null || collision.relativeVelocity.magnitude < 2f) return;
+            HeldItemRuntime payload = prop.GetComponent<HeldItemRuntime>();
+            if (payload != null && payload.Profile.Action == "payload" && payload.Armed) { payload.Detonate(); return; }
             Vector3 away = transform.position - prop.transform.position;
             bool taken = _world.Rules.Fire("hit", Rules.Of(this));
             if (prop.GroupId == "shot") Destroy(prop.gameObject);

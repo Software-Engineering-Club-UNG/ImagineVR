@@ -110,8 +110,6 @@ namespace ImagineVR
                     mb.Col(Pal.Black).Cyl(V(0, -0.1f, 0), 0.014f, 0.012f, 0.3f, 6);
                     mb.Col(Pal.Hex("#3A6A4A")).Cyl(V(0, 0.2f, 0), 0.008f, 0.003f, 1.6f, 5, false);
                     mb.Col(Pal.Metal).Push(V(0.03f, 0.22f, 0), V(0, 0, 90f)).Cyl(V(0, -0.015f, 0), 0.025f, 0.025f, 0.03f, 8).Pop();
-                    mb.Col(Pal.OffWhite).Rod(V(0, 1.8f, 0), V(0.25f, 1.3f, 0), 0.002f, 0.002f, 3, false);
-                    mb.Col(Pal.Red).Sphere(V(0.25f, 1.28f, 0), 0.02f, 0);
                 }).AsTool().Solid(0.3f, 0.2f);
             Add("umbrella", "props", 0.9f, "Open umbrella", "rain,weather,shade,walk", "parasol,brolly",
                 mb =>

@@ -80,7 +80,7 @@ float4 _ImRoomCenters[15];
 float4 _ImRoomHalves[15];
 float4 _ImRoomLights[30];
 float4 _ImRoomLightColor;
-half3 ImInteriorLight(half3 albedo, float3 normalWS, float3 worldPosition)
+half3 ImInteriorBase(half3 albedo, float3 normalWS, float3 worldPosition)
 {
     if (_ImRoomCount == 0) return ImLight(albedo, normalWS);
     float3 p = mul(_ImInteriorInverse, float4(worldPosition, 1)).xyz;
@@ -105,6 +105,26 @@ half3 ImInteriorLight(half3 albedo, float3 normalWS, float3 worldPosition)
         }
     }
     return ImLight(albedo, normalWS);
+}
+
+float4 _ImHeldLightPositions[4];
+float4 _ImHeldLightDirections[4];
+float4 _ImHeldLightColors[4];
+half3 ImInteriorLight(half3 albedo, float3 normalWS, float3 worldPosition)
+{
+    half3 lit = ImInteriorBase(albedo, normalWS, worldPosition);
+    [unroll] for (int i = 0; i < 4; i++)
+    {
+        float4 source = _ImHeldLightPositions[i];
+        if (source.w <= 0) continue;
+        float3 delta = source.xyz - worldPosition;
+        float d = length(delta);
+        float attenuation = saturate(1 - d / source.w);
+        float3 towards = delta / max(d, 0.001);
+        float cone = _ImHeldLightDirections[i].w < 0 ? 1 : smoothstep(_ImHeldLightDirections[i].w, 0.98, dot(-towards, _ImHeldLightDirections[i].xyz));
+        lit += albedo * _ImHeldLightColors[i].rgb * _ImHeldLightColors[i].w * attenuation * attenuation * cone * max(0.08, dot(normalWS, towards));
+    }
+    return lit;
 }
 
 // 0 = no fog, 1 = fully the fog colour.
