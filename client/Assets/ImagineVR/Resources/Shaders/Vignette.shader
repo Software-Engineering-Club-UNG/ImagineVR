@@ -6,6 +6,7 @@ Shader "ImagineVR/Vignette"
     Properties
     {
         _Amount ("Amount", Range(0,1)) = 0
+        _Fade ("Safety fade", Range(0,1)) = 0
         _Inner ("Inner edge (tan of angle)", Float) = 1
         _Feather ("Feather", Float) = 0.35
     }
@@ -32,6 +33,7 @@ Shader "ImagineVR/Vignette"
 
             CBUFFER_START(UnityPerMaterial)
                 float _Amount;
+                float _Fade;
                 float _Inner;
                 float _Feather;
             CBUFFER_END
@@ -63,7 +65,7 @@ Shader "ImagineVR/Vignette"
             half4 frag(Varyings i) : SV_Target
             {
                 float r = length(i.view.xy) / max(0.0001, -i.view.z);
-                half a = smoothstep(_Inner, _Inner + _Feather, r) * _Amount;
+                half a = max(_Fade, smoothstep(_Inner, _Inner + _Feather, r) * _Amount);
                 return half4(0.0, 0.0, 0.0, a);
             }
             ENDHLSL

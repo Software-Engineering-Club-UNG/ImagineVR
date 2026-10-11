@@ -19,7 +19,7 @@ namespace ImagineVR
         {
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
             "spawn", "scatter", "give", "ride", "player", "modify", "remove", "ambience",
-            "make", "when",
+            "make", "when", "structure", "door",
         };
 
         public bool IsStream => StreamOps.Contains(Op);

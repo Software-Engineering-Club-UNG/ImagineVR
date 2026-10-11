@@ -110,6 +110,7 @@ async def turn(
     x_catalog_version: str | None = Header(default=None),
     x_user_pose: str | None = Header(default=None),
     x_user_state: str | None = Header(default=None),
+    x_client_capabilities: str | None = Header(default=None),
 ):
     check_token(x_app_token)
     if not x_session_id:
@@ -154,7 +155,8 @@ async def turn(
     async def stream():
         statements = run_turn(
             session, state.catalog, state.system_prompt, text=text, audio=audio, base_url=base_url,
-            frame=to_frame(x_user_pose), user_state=" ".join((x_user_state or "").split())[:300],
+            frame=to_frame(x_user_pose), user_state=" ".join((x_user_state or "").split())[:1800],
+            capabilities=(x_client_capabilities or "")[:200],
         )
         pending = None
         try:

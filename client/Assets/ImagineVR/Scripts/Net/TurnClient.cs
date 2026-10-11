@@ -73,6 +73,7 @@ namespace ImagineVR
 
         void Headers(UnityWebRequest request, string session = null)
         {
+            request.SetRequestHeader("X-Client-Capabilities", "structures-v1");
             request.SetRequestHeader("X-App-Token", Settings.AppToken);
             request.SetRequestHeader("X-Session-Id", session ?? SessionId);
             if (!string.IsNullOrEmpty(CatalogVersion)) request.SetRequestHeader("X-Catalog-Version", CatalogVersion);

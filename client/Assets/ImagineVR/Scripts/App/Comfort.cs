@@ -12,6 +12,15 @@ namespace ImagineVR
         Material _material;
         MeshRenderer _renderer;
         float _level;
+        float _fade;
+        float flashUntil, safety;
+        public void Fade(float amount) { _fade = Mathf.Clamp01(amount); }
+        public void Flash()
+        {
+            flashUntil = Time.unscaledTime + 0.2f; safety = 1;
+            // Cover the relocation frame itself, regardless of MonoBehaviour update order.
+            _renderer.enabled = true; _material.SetFloat("_Fade", 1);
+        }
 
         public static Comfort Create(Transform head)
         {
@@ -37,11 +46,13 @@ namespace ImagineVR
         {
             target = Mathf.Clamp01(target);
             _level = Mathf.MoveTowards(_level, target, dt * (target > _level ? 3f : 1.5f));
-            bool show = _level > 0.01f;
+            safety = Mathf.MoveTowards(safety, Mathf.Max(_fade, Time.unscaledTime < flashUntil ? 1 : 0), dt * 4);
+            bool show = _level > 0.01f || safety > 0;
             if (_renderer.enabled != show) _renderer.enabled = show;
             if (!show) return;
             _material.SetFloat(AmountId, Mathf.Clamp01(_level * 2.5f));
             _material.SetFloat(InnerId, Mathf.Lerp(1.15f, 0.5f, _level));
+            _material.SetFloat("_Fade", safety);
         }
     }
 }

@@ -301,7 +301,7 @@ namespace ImagineVR
                     break;
             }
 
-            float ground = _world.Terrain.HeightAt(p.x, p.z);
+            float ground = _world.SurfaceHeight(p.x, p.z);
             float water = _world.Terrain.WaterY;
             if (!float.IsNaN(water)) ground = Mathf.Max(ground, water - _height * 0.4f);   // wades, but does not walk the sea bed
             p.y = ground + _lift;

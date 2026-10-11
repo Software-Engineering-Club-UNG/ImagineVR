@@ -8,8 +8,8 @@ namespace ImagineVR
     /// The whole rig moves, with any vehicle drawn around it. The right thumbstick (or W A S D on the
     /// desktop) is forward, back and turning. Things that fly cruise above the ground.
     ///
-    /// On foot in the headset the user walks where they are looking and turns in steps, which is
-    /// the gentlest way to turn; clicking the thumbstick switches to smooth turning. Whenever the
+    /// On foot the left stick walks/strafes relative to the head and the right stick snaps 45 degrees.
+    /// Riding keeps its existing right-stick steering. Whenever the
     /// user is being moved the edge of their view darkens a little (see <see cref="Comfort"/>).
     /// </summary>
     public sealed class Vehicle : MonoBehaviour
@@ -37,8 +37,10 @@ namespace ImagineVR
         Vector3 _visualHome;
         float _roll, _tilt, _turnRate, _lastSpeed, _stepped, _gait, _beat, _dustDue, _legs, _fourLegs;
         bool _snapArmed = true;
+        CharacterController walker;
+        float falling;
 
-        /// <summary>Turn in 30 degree steps on foot (the comfortable default in a headset) rather than smoothly.</summary>
+        /// <summary>Legacy riding setting; walking always uses 45-degree snap turning.</summary>
         public bool SnapTurn = true;
 
         /// <summary>Stick input from code rather than a hand: x steers, y is throttle. For demos and checks.</summary>
@@ -53,6 +55,9 @@ namespace ImagineVR
         public void Init(Rig rig, World world, Terminal terminal)
         {
             _rig = rig;
+            walker = rig.gameObject.AddComponent<CharacterController>();
+            walker.radius = 0.3f; walker.height = 1.6f; walker.center = Vector3.up * 0.8f;
+            walker.skinWidth = 0.03f; walker.stepOffset = 0.15f; walker.slopeLimit = 50; walker.enabled = false;
             _world = world;
             _terminal = terminal;
             _comfort = Comfort.Create(rig.Head);
@@ -86,6 +91,7 @@ namespace ImagineVR
 
         void Mount(AssetDef def, Color tint, float speed)
         {
+            walker.enabled = false;
             Dismount();
             _def = def;
             Bounds b = def.Bounds;
@@ -135,6 +141,7 @@ namespace ImagineVR
             _def = null;
             _route = null;
             _speed = 0f;
+            _altitude = _railHeight = 0;
         }
 
         /// <summary>
@@ -145,6 +152,7 @@ namespace ImagineVR
         /// </summary>
         public void Home()
         {
+            if (walker != null) walker.enabled = false;
             Transform rig = _rig.transform, head = _rig.Head;
             Vector3 was = rig.position;
             float wasYaw = rig.eulerAngles.y;
@@ -211,6 +219,7 @@ namespace ImagineVR
         void Update()
         {
             if (_rig == null) return;
+            if (!Riding) { Walk(); return; }
             Transform rig = _rig.transform;
             Vector3 p = rig.position;
             Vector3 before = p;
@@ -334,6 +343,89 @@ namespace ImagineVR
             if (dt > 0f) Liven(dt, snapped ? 0f : turn / dt, xr);
         }
 
+        public static float Snap(float horizontal, ref bool armed)
+        {
+            if (Mathf.Abs(horizontal) < 0.35f) armed = true;
+            if (!armed || Mathf.Abs(horizontal) <= 0.7f) return 0;
+            armed = false; return Mathf.Sign(horizontal) * 45;
+        }
+
+        public static Vector3 WalkDirection(Vector3 forward, Vector2 input)
+        {
+            forward.y = 0;
+            if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
+            forward.Normalize(); input = Vector2.ClampMagnitude(input, 1);
+            return forward * input.y + Vector3.Cross(Vector3.up, forward) * input.x;
+        }
+
+        public void PlaceAt(Vector3 feet, float yaw)
+        {
+            if (walker != null) walker.enabled = false;
+            Dismount();
+            _comfort.Flash();
+            Transform rig = _rig.transform;
+            Vector3 old = rig.position;
+            float turn = Mathf.DeltaAngle(rig.eulerAngles.y, yaw);
+            rig.RotateAround(_rig.Head.position, Vector3.up, turn);
+            Vector3 head = _rig.Head.position;
+            rig.position += new Vector3(feet.x - head.x, feet.y - rig.position.y, feet.z - head.z);
+            _height = rig.position.y; falling = 0; _speed = 0;
+            _terminal?.Carry(rig.position - old, turn, feet);
+            _world.Props.Carry(old, rig.position, Quaternion.Euler(0, turn, 0));
+            Physics.SyncTransforms();
+        }
+
+        void Walk()
+        {
+            Transform rig = _rig.transform;
+            float dt = Time.deltaTime;
+            Vector3 before = rig.position;
+            Vector3 pivot = new Vector3(_rig.Head.position.x, rig.position.y, _rig.Head.position.z);
+            float turn = _rig.XrActive ? Snap(_rig.TurnStick.x, ref _snapArmed) : 0;
+            walker.enabled = false;
+            if (turn != 0) rig.RotateAround(pivot, Vector3.up, turn);
+            Vector3 turned = rig.position;
+            Vector2 input = _rig.XrActive ? _rig.MoveStick : Vector2.zero;
+            if (!_rig.XrActive && Keyboard.current != null && !ImagineApp.Typing)
+            {
+                var kb = Keyboard.current;
+                input.x = (kb.dKey.isPressed || kb.rightArrowKey.isPressed ? 1 : 0) - (kb.aKey.isPressed || kb.leftArrowKey.isPressed ? 1 : 0);
+                input.y = (kb.wKey.isPressed || kb.upArrowKey.isPressed ? 1 : 0) - (kb.sKey.isPressed || kb.downArrowKey.isPressed ? 1 : 0);
+            }
+            input = Vector2.ClampMagnitude(input + Autopilot, 1);
+            if (input.magnitude < 0.15f || _world.IsDark) input = Vector2.zero;
+            Vector3 forward = _rig.Head.forward; forward.y = 0;
+            if (forward.sqrMagnitude < 0.01f) forward = rig.forward;
+            forward.Normalize();
+            Vector3 movement = WalkDirection(forward, input) * WalkSpeed * Mathf.Clamp(_size, 0.25f, 6) * dt;
+            Vector3 localHead = rig.InverseTransformPoint(_rig.Head.position);
+            walker.height = Mathf.Clamp(localHead.y, 0.6f, 3f * Mathf.Max(1, _size));
+            walker.radius = Mathf.Min(0.3f * Mathf.Clamp(_size, 0.25f, 6), walker.height / 2 - 0.02f);
+            walker.center = new Vector3(localHead.x, walker.height / 2 + 0.01f, localHead.z);
+            walker.stepOffset = Mathf.Min(0.15f, walker.height / 3);
+            walker.enabled = true;
+            float ground = _world.SurfaceHeight(_rig.Head.position.x, _rig.Head.position.z);
+            float water = _world.Terrain.WaterY;
+            if (!float.IsNaN(water)) ground = Mathf.Max(ground, water);
+            falling = rig.position.y <= ground + 0.08f ? -0.5f : Mathf.Max(falling - 9.81f * dt, -20);
+            if (rig.position.y < ground - 0.05f) movement.y = ground - rig.position.y;
+            else movement.y = falling * dt;
+            Physics.SyncTransforms();
+            walker.Move(movement);
+            // Terrain is also an analytic surface when no terrain collider has finished generating.
+            ground = _world.SurfaceHeight(_rig.Head.position.x, _rig.Head.position.z);
+            if (!float.IsNaN(water)) ground = Mathf.Max(ground, water);
+            if (rig.position.y < ground) { rig.position += Vector3.up * (ground - rig.position.y); falling = 0; }
+            Vector3 headNow = _rig.Head.position;
+            Vector2 edge = new Vector2(headNow.x, headNow.z);
+            if (edge.magnitude > World.Radius - 8) { Vector2 safe = edge.normalized * (World.Radius - 8); rig.position += new Vector3(safe.x - headNow.x, 0, safe.y - headNow.z); }
+            _height = rig.position.y;
+            _speed = dt > 0 ? new Vector2(rig.position.x - turned.x, rig.position.z - turned.z).magnitude / dt : 0;
+            if (_terminal != null && (rig.position != before || turn != 0)) _terminal.Carry(rig.position - turned, turn, pivot + rig.position - turned);
+            _comfort.Fade(_world.Structures.HeadBlocked(_rig.Head.position) ? 1 : 0);
+            if (dt > 0) Liven(dt, 0, _rig.XrActive);
+        }
+
         /// <summary>Everything that tells the user they are moving, other than the world going past.</summary>
         void Liven(float dt, float turnRate, bool xr)
         {
@@ -347,7 +439,7 @@ namespace ImagineVR
             bool rails = Riding && _route != null;
             bool flying = Riding && _def.FliesRidden;
             bool machine = Riding && _def.Category == "vehicles";
-            bool grounded = _altitude < 0.5f && _railHeight < 0.5f && _world.Terrain.HasGround;
+            bool grounded = _altitude < 0.5f && _railHeight < 0.5f && (_world.Terrain.HasGround || _world.Structures.Contains(_rig.Head.position));
 
             // comfort: the faster the user is carried or turned, the narrower their view
             float narrow = 0f;

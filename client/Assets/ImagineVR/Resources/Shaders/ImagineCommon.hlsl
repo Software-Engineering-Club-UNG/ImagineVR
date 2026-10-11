@@ -71,6 +71,42 @@ half3 ImLight(half3 albedo, float3 normalWS)
     return albedo * (ambient + _ImSunColor.rgb * ndl);
 }
 
+// One bounded interior: room membership excludes outdoor sun and prevents cross-wall light leaks.
+int _ImRoomCount;
+float4x4 _ImInteriorInverse;
+float4 _ImInteriorCenter;
+float4 _ImInteriorHalf;
+float4 _ImRoomCenters[15];
+float4 _ImRoomHalves[15];
+float4 _ImRoomLights[30];
+float4 _ImRoomLightColor;
+half3 ImInteriorLight(half3 albedo, float3 normalWS, float3 worldPosition)
+{
+    if (_ImRoomCount == 0) return ImLight(albedo, normalWS);
+    float3 p = mul(_ImInteriorInverse, float4(worldPosition, 1)).xyz;
+    // Outdoor scenery takes one cheap bounds check, not a loop over every room.
+    if (any(abs(p - _ImInteriorCenter.xyz) > _ImInteriorHalf.xyz)) return ImLight(albedo, normalWS);
+    float3 n = normalize(mul((float3x3)_ImInteriorInverse, normalWS));
+    [loop] for (int i = 0; i < _ImRoomCount; i++)
+    {
+        if (all(abs(p - _ImRoomCenters[i].xyz) <= _ImRoomHalves[i].xyz))
+        {
+            half3 illumination = _ImRoomCenters[i].www;
+            [unroll] for (int j = 0; j < 2; j++)
+            {
+                float4 lamp = _ImRoomLights[i * 2 + j];
+                float3 delta = lamp.xyz - p;
+                float d = length(delta);
+                float attenuation = saturate(1 - d / lamp.w);
+                float flicker = lerp(1, 0.9 + 0.1 * sin(_Time.y * 8 + i * 7 + j), _ImRoomLightColor.w);
+                illumination += _ImRoomLightColor.rgb * attenuation * attenuation * max(0.12, dot(n, delta / max(d, 0.001))) * flicker * 2;
+            }
+            return albedo * illumination;
+        }
+    }
+    return ImLight(albedo, normalWS);
+}
+
 // 0 = no fog, 1 = fully the fog colour.
 half ImFog(float3 positionWS, float3 cameraWS)
 {

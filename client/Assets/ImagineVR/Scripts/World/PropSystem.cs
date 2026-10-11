@@ -227,7 +227,7 @@ namespace ImagineVR
         {
             string id = s.Str("id") ?? NextId("spawn");
             Remove(id);
-            float ground = _world.Terrain.HeightAt(position.x, position.z);
+            float ground = _world.SurfaceHeight(position.x, position.z);
             Vector3 p = new Vector3(position.x, ground + position.y + 0.05f, position.z);
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
             Create(def, id, p, rotation, scale, tint);

@@ -20,8 +20,10 @@ namespace ImagineVR
     ///   recentre terminal  X (left)                    R
     ///   reset everything   hold X for two seconds      hold R (or F12 at once)
     ///   tuck terminal away Y (left)                    C
-    ///   move               right thumbstick            W A S D
-    ///   step / smooth turn click right thumbstick      T
+    ///   walk / strafe      left thumbstick             W A S D
+    ///   turn 45 degrees    right thumbstick
+    ///   open nearby door   point + free-hand trigger   F (look at door)
+    ///   steer when riding  right thumbstick            W A S D
     ///   look                                           hold right mouse button
     /// </summary>
     public sealed class Rig : MonoBehaviour
@@ -48,7 +50,7 @@ namespace ImagineVR
         public event System.Action<Prop, bool> Flailed;
         internal void OnFlailed(Prop prop, bool right) { Flailed?.Invoke(prop, right); }
 
-        InputAction _talk, _alt, _menu, _fold, _gripL, _gripR, _triggerL, _triggerR, _stickR, _stickClick;
+        InputAction _talk, _alt, _menu, _fold, _gripL, _gripR, _triggerL, _triggerR, _stickL, _stickR, _stickClick;
         InputAction _posL, _rotL, _posR, _rotR, _look, _lookHold;
         TrackedPoseDriver _headDriver;
         float _yaw, _pitch;
@@ -66,6 +68,8 @@ namespace ImagineVR
         public bool MenuHeld => !Blocked && _menu.IsPressed();
         public bool FoldPressed => !Blocked && _fold.WasPressedThisFrame();
         public Vector2 Stick => _stickR.ReadValue<Vector2>();
+        public Vector2 MoveStick => Blocked ? Vector2.zero : _stickL.ReadValue<Vector2>();
+        public Vector2 TurnStick => Blocked ? Vector2.zero : _stickR.ReadValue<Vector2>();
         public bool StickClicked => !Blocked && _stickClick.WasPressedThisFrame();
 
         public float Grip(bool right) => Blocked ? 0f : (right ? _gripR : _gripL).ReadValue<float>();
@@ -114,6 +118,8 @@ namespace ImagineVR
             _triggerL = Axis("TriggerL", "<XRController>{LeftHand}/trigger", "<Keyboard>/z");
             _stickR = new InputAction("StickR", InputActionType.Value, "<XRController>{RightHand}/thumbstick", expectedControlType: "Vector2");
             _stickR.Enable();
+            _stickL = new InputAction("StickL", InputActionType.Value, "<XRController>{LeftHand}/thumbstick", expectedControlType: "Vector2");
+            _stickL.Enable();
             _stickClick = Button("StickClick", "<XRController>{RightHand}/thumbstickClicked", "<Keyboard>/t");
             _posL = Pose("PosL", "<XRController>{LeftHand}/devicePosition", "Vector3");
             _rotL = Pose("RotL", "<XRController>{LeftHand}/deviceRotation", "Quaternion");
@@ -386,6 +392,8 @@ namespace ImagineVR
 
             if (_held == null)
             {
+                if (_rig.XrActive && World.Instance != null && World.Instance.Structures.TryInteract(transform, trig && !_triggerDown))
+                { _triggerDown = trig; return; }
                 if (trig && !_triggerDown) TryGrab(true);
                 if (_held == null) Reach();
             }
