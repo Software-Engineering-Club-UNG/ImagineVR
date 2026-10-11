@@ -286,7 +286,7 @@ namespace ImagineVR
 
             if (s.Flag("physics") && _world.Props != null && (def.Prop || def.Primitive))
             {
-                _world.Props.SpawnPhysics(s, def, pos, rot, scale);
+                _world.Props.SpawnPhysics(s, def, Copies(s, pos, rot), scale);
                 return null;
             }
 

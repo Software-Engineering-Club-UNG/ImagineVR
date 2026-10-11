@@ -117,6 +117,73 @@ namespace ImagineVR.Tests
             Assert.IsNotNull(Library.Asset("sheep"));
         }
 
+        /// <summary>
+        /// Every made gun's muzzle is the very end of its barrel, so a shot used to begin inside the
+        /// gun's own body: it counted as a hit on the gun and was gone before it had moved. In the
+        /// 22:46 and 23:02 sessions a glock, an AK and a fire staff were each rebuilt again and again
+        /// for it, which could not help.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator AShotLeavesTheGunThatFiredIt()
+        {
+            LogAssert.ignoreFailingMessages = true;
+            Play(Crossbow);
+            AssetDef def = Library.FindAsset("crossbow");
+            Play("{\"op\":\"give\",\"asset\":\"crossbow\"}");
+            Prop gun = _world.Props.All.Single(p => p.Def == def);
+            for (int i = 0; i < 5; i++) yield return new WaitForFixedUpdate();   // it turns to hang level as it waits
+
+            Vector3 muzzle = gun.transform.TransformPoint(def.Muzzle), aim = gun.transform.up;
+            _world.Props.Fire(muzzle, aim, Color.white, def, gun);
+            Prop shot = _world.Props.All.Single(p => p.GroupId == "shot");
+            Assert.Less(Vector3.Distance(shot.GetComponent<Collider>().bounds.center, muzzle), 0.01f, "the ball starts with its middle on the muzzle");
+            for (int i = 0; i < 10; i++) yield return new WaitForFixedUpdate();
+            Assert.IsTrue(shot != null, "the gun's own body must not stop its shot");
+            Assert.Greater(Vector3.Dot(shot.transform.position - muzzle, aim), 1f, "and it has flown on down the barrel's line");
+            Object.Destroy(shot.gameObject);
+            yield return null;
+
+            // fired with nothing said about where it came from, the same shot dies on the gun: that was the bug
+            _world.Props.Fire(muzzle, aim, Color.white, def);
+            Prop lost = _world.Props.All.Single(p => p != null && p.GroupId == "shot");
+            for (int i = 0; i < 10; i++) yield return new WaitForFixedUpdate();
+            Assert.IsTrue(lost == null, "(if this one lives, the gun was never in its way and the test above proves nothing)");
+        }
+
+        /// <summary>A row of loose things is a row: `repeat` used to be dropped for anything with physics, so four pins came out as one.</summary>
+        [Test]
+        public void ARowOfLooseThingsIsAllThere()
+        {
+            Play("{\"op\":\"spawn\",\"id\":\"back_row\",\"asset\":\"bowling_pin\",\"at\":[-0.45,0,10],\"repeat\":4,\"step\":[0.3,0,0],\"physics\":true}");
+            Prop[] pins = _world.Props.All.Where(p => p.GroupId == "back_row").ToArray();
+            Assert.AreEqual(4, pins.Length);
+            Assert.AreEqual(0.9f, pins.Max(p => p.transform.position.x) - pins.Min(p => p.transform.position.x), 0.01f);
+            Play("{\"op\":\"remove\",\"id\":\"back_row\"}");
+            Assert.AreEqual(0, _world.Props.All.Count(p => p != null && p.GroupId == "back_row"));
+        }
+
+        /// <summary>
+        /// The terminal keeps its last 300 lines. Once it was full, the next thing said threw (the new
+        /// line was looked up at a place the list no longer reached) and the request was never played:
+        /// to the user, the app had stopped listening. It took about fourteen minutes to get there.
+        /// </summary>
+        [Test]
+        public void TheTerminalTakesPromptsHoweverMuchHasBeenPrinted()
+        {
+            var go = new GameObject("TestTerminal");
+            try
+            {
+                Terminal terminal = go.AddComponent<Terminal>();
+                terminal.Build(null, _head.transform);
+                for (int i = 0; i < 320; i++) terminal.Note("line " + i);
+                object handle = null;
+                Assert.DoesNotThrow(() => handle = terminal.Prompt("..."));
+                Assert.IsNotNull(handle);
+                Assert.DoesNotThrow(() => terminal.FillPrompt(handle, "put me in a bowling alley"));
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
         [Test]
         public void AMakeWithNothingUsableStillMakesSomething()
         {

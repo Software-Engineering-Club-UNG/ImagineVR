@@ -223,14 +223,17 @@ namespace ImagineVR
 
         string NextId(string kind) => kind + "_p" + (++_auto);
 
-        public void SpawnPhysics(Statement s, AssetDef def, Vector3 position, Quaternion rotation, Vector3 scale)
+        /// <summary>One loose thing, or a run of them when the statement says `repeat`: a row of pins, a stack of crates.</summary>
+        public void SpawnPhysics(Statement s, AssetDef def, List<Pose> copies, Vector3 scale)
         {
             string id = s.Str("id") ?? NextId("spawn");
             Remove(id);
-            float ground = _world.Terrain.HeightAt(position.x, position.z);
-            Vector3 p = new Vector3(position.x, ground + position.y + 0.05f, position.z);
             Color tint = s.TryColor("tint", out Color c) ? c : Color.white;
-            Create(def, id, p, rotation, scale, tint);
+            foreach (Pose copy in copies)
+            {
+                float ground = _world.Terrain.HeightAt(copy.position.x, copy.position.z);
+                Create(def, id, new Vector3(copy.position.x, ground + copy.position.y + 0.05f, copy.position.z), copy.rotation, scale, tint);
+            }
         }
 
         /// <summary>A physics prop made by a kit. It is removed with the kit.</summary>
@@ -584,8 +587,13 @@ namespace ImagineVR
             trail.emitting = false;
         }
 
-        /// <summary>Glowing balls fired from a toy gun. They bounce and knock things over; each gun fires them its own way.</summary>
-        public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null)
+        /// <summary>
+        /// Glowing balls fired from a toy gun. They bounce and knock things over; each gun fires them its own way.
+        /// A shot starts with its middle on the muzzle and passes through the gun it came from (`from`):
+        /// a made gun's muzzle is the very end of its barrel, so every shot began inside the gun's
+        /// own body, counted as a hit on it and was gone before it had moved.
+        /// </summary>
+        public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null, Prop from = null)
         {
             AssetDef def = Library.Asset("energy_ball") ?? Library.Asset("sphere");
             int pellets = gun != null ? Mathf.Max(1, gun.Pellets) : 1;
@@ -595,7 +603,12 @@ namespace ImagineVR
             {
                 Vector3 aim = direction;
                 if (gun != null && gun.Spread > 0f) aim = Quaternion.Euler(Random.Range(-gun.Spread, gun.Spread), Random.Range(-gun.Spread, gun.Spread), 0f) * aim;
-                Prop shot = Create(def, "shot", position + aim * (0.02f * i), Quaternion.identity, Vector3.one * size, color);
+                Prop shot = Create(def, "shot", position + aim * (0.02f * i) - def.Bounds.center * size, Quaternion.identity, Vector3.one * size, color);
+                if (from != null)
+                {
+                    Collider own = shot.GetComponent<Collider>();
+                    foreach (Collider c in from.GetComponentsInChildren<Collider>()) Physics.IgnoreCollision(own, c);
+                }
                 shot.Body.useGravity = true;
                 shot.Body.linearVelocity = aim * speed;
                 Object.Destroy(shot.gameObject, life);

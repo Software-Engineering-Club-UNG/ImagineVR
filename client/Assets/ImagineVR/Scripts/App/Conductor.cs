@@ -39,6 +39,8 @@ namespace ImagineVR
 
         /// <summary>A turn finished. True when it changed the world.</summary>
         public event System.Action<bool> TurnEnded;
+        /// <summary>The reply has something to read or watch: a plan, a tool call, words. Not raised for talk that was not meant for us.</summary>
+        public event System.Action Showing;
 
         /// <summary>Stops everything in hand: nothing queued or half played is carried on with.</summary>
         public void Abort()
@@ -138,12 +140,15 @@ namespace ImagineVR
                     Terminal.SetState(s.Str("state") == "building" ? TerminalState.Building : TerminalState.Thinking);
                     return;
                 case "note":
+                    Showing?.Invoke();
                     Terminal.Note(s.Str("text", ""));
                     return;
                 case "think":
+                    Showing?.Invoke();
                     Terminal.Think(s.Str("text", ""));
                     return;
                 case "error":
+                    Showing?.Invoke();
                     _problem = true;
                     Terminal.Error(s.Str("message", "Something went wrong."));
                     Terminal.SetState(TerminalState.Problem, "Something went wrong. Try again.");
@@ -161,6 +166,7 @@ namespace ImagineVR
                     TurnEnded?.Invoke(_worldStatements > 0 && !_problem);
                     return;
                 case "say":
+                    Showing?.Invoke();
                     Terminal.Say(s.Str("text", ""));
                     if (s.Has("audio")) StartCoroutine(Speak(s.Str("audio")));
                     return;
@@ -169,6 +175,7 @@ namespace ImagineVR
 
             if (Terminal.State != TerminalState.Listening && Terminal.State != TerminalState.Building) Terminal.SetState(TerminalState.Building);
             bool firstLight = s.Op == "sky" && World.IsDark && _firstLight;
+            Showing?.Invoke();
             Terminal.Tool(s);
             World.Apply(s);
             _worldStatements++;
