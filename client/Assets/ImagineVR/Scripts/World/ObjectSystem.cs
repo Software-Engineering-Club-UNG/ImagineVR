@@ -648,7 +648,7 @@ namespace ImagineVR
                     float d = cell.magnitude;
                     if (d + span * 0.5f > 108f || d < rMin || d > rMax || d < World.SafeRadius + span * 0.5f) continue;
                     if ((area == "front" && cell.z < 0f) || (area == "behind" && cell.z > 0f) || (area == "left" && cell.x > 0f) || (area == "right" && cell.x < 0f)) continue;
-                    if (area == "edges" && d < 60f) continue;
+                    if (area == "edges" && rMax >= 108f && d < 60f) continue;   // far off, unless a reach of its own was given
                     cells.Add(cell);
                 }
             cells.Sort((p, q) => p.sqrMagnitude.CompareTo(q.sqrMagnitude));

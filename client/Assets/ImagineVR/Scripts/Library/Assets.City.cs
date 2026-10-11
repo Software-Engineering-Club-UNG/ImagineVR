@@ -276,7 +276,7 @@ namespace ImagineVR
                 });
 
             // ---- the street itself
-            Add("road", "city", 0.05f, "Stretch of road 8 m wide and 12 m long, with kerbs and a dashed centre line. Lay a street with `repeat` and `step` [0,0,12]", "street,city,asphalt,lane,highway,avenue", "street,road section,highway,avenue,lane",
+            Add("road", "city", 0.05f, "Stretch of road, already 8 m wide and 12 m long with kerbs and a centre line: never scale it, lay a street with `repeat` and `step` [0,0,12]", "street,city,asphalt,lane,highway,avenue", "street,road section,highway,avenue,lane",
                 mb =>
                 {
                     mb.Col(Pal.Hex("#2E3034")).Box(V(0, 0.02f, 0), V(8f, 0.04f, 12f));
