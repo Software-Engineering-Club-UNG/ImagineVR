@@ -31,6 +31,11 @@ namespace ImagineVR
         public List<object> ActiveContacts => _contacts.Cast<object>().ToList();
         readonly List<Mesh> _owned=new List<Mesh>();
         readonly Dictionary<string,Vector3> _positions=new Dictionary<string,Vector3>(), _rotations=new Dictionary<string,Vector3>(), _scales=new Dictionary<string,Vector3>();
+        // the size built into each part's mesh: its transform is scaled only by how far its recipe scale has moved from that
+        readonly Dictionary<string,Vector3> _built=new Dictionary<string,Vector3>();
+        static Vector3 Over(Vector3 a,Vector3 b) => new Vector3(a.x/b.x,a.y/b.y,a.z/b.z);
+        static bool IsTwin(string part,Dictionary<string,Transform> parts,HashSet<string> named) => !named.Contains(part) && part.EndsWith(BlueprintSystem.Twin,StringComparison.Ordinal) && parts.ContainsKey(part.Substring(0,part.Length-BlueprintSystem.Twin.Length));
+        readonly HashSet<string> _twins=new HashSet<string>();
         readonly Dictionary<string,bool> _visible=new Dictionary<string,bool>();
         readonly Dictionary<string,float> _animationStart=new Dictionary<string,float>(), _lastShot=new Dictionary<string,float>();
         readonly HashSet<string> _animations=new HashSet<string>(), _emitters=new HashSet<string>(), _contacts=new HashSet<string>();
@@ -49,9 +54,15 @@ namespace ImagineVR
             foreach(var mesh in _batched) if(mesh!=null) Object.Destroy(mesh); _batched.Clear();
             World=world; System=system; Recipe=BlueprintData.Clone(recipe); Parts=parts; Visual=visual; IsOverride=instanceOverride;
             AttackEpoch++;
-            _positions.Clear(); _rotations.Clear(); _scales.Clear(); _visible.Clear(); _animations.Clear(); _animationStart.Clear(); _lastShot.Clear(); _lastContact.Clear(); _sensorParts.Clear(); Sockets.Clear();
-            foreach(var p in BlueprintData.List(recipe,"parts"))
-            { string id=(string)p["id"]; _positions[id]=parts[id].localPosition; _rotations[id]=parts[id].localEulerAngles; _scales[id]=parts[id].localScale; _visible[id]=BlueprintData.Wrap(p).Flag("visible",true); }
+            _positions.Clear(); _rotations.Clear(); _scales.Clear(); _built.Clear(); _twins.Clear(); _visible.Clear(); _animations.Clear(); _animationStart.Clear(); _lastShot.Clear(); _lastContact.Clear(); _sensorParts.Clear(); Sockets.Clear();
+            var records=BlueprintData.List(recipe,"parts").ToDictionary(p=>(string)p["id"]); var named=new HashSet<string>(records.Keys);
+            foreach(var pair in parts)
+            {
+                string id=pair.Key; bool twin=IsTwin(id,parts,named); if(twin) _twins.Add(id);
+                var p=records[twin?id.Substring(0,id.Length-BlueprintSystem.Twin.Length):id];
+                _positions[id]=pair.Value.localPosition; _rotations[id]=pair.Value.localEulerAngles; _scales[id]=BlueprintData.Vec(p,"scale",Vector3.one);
+                _built[id]=(string)p["shape"]=="asset"?Vector3.one:_scales[id]; _visible[id]=BlueprintData.Wrap(p).Flag("visible",true);
+            }
             Bounds bounds=new Bounds(Vector3.zero,Vector3.one*.05f); bool first=true;
             foreach(var r in visual.GetComponentsInChildren<MeshRenderer>(true)) { Bounds b=r.GetComponent<MeshFilter>().sharedMesh.bounds; var matrix=transform.worldToLocalMatrix*r.transform.localToWorldMatrix; foreach(int x in new[]{-1,1}) foreach(int y in new[]{-1,1}) foreach(int z in new[]{-1,1}) { var point=matrix.MultiplyPoint3x4(b.center+Vector3.Scale(b.extents,new Vector3(x,y,z))); if(first) { bounds=new Bounds(point,Vector3.zero); first=false; } else bounds.Encapsulate(point); } }
             Bounds=bounds;
@@ -109,7 +120,7 @@ namespace ImagineVR
             RestoreParts(); Rebatch(); World.Rules.Emit("state_enter",Entity,eventName:name);
         }
         void RestoreParts()
-        { foreach(var p in Parts) { p.Value.localPosition=_positions[p.Key]; p.Value.localRotation=Quaternion.Euler(_rotations[p.Key]); p.Value.localScale=_scales[p.Key]; } }
+        { foreach(var p in Parts) { p.Value.localPosition=_positions[p.Key]; p.Value.localRotation=Quaternion.Euler(_rotations[p.Key]); p.Value.localScale=Over(_scales[p.Key],_built[p.Key]); } }
         public void Action(Statement a)
         {
             try
@@ -121,7 +132,7 @@ namespace ImagineVR
                     case "animation_play":
                         var def=_animationDefs.Find(x=>(string)x["name"]==a.Str("name")); if(def==null) throw new InvalidOperationException("Animation not found");
                         if(a.Flag("enabled",true)) { _animations.Add(a.Str("name")); _animationStart[a.Str("name")]=Time.time; }
-                        else { _animations.Remove(a.Str("name")); string p=(string)def["part"]; ApplyProperty(Parts[p],(string)def["property"],Vector3.zero,p); }
+                        else { _animations.Remove(a.Str("name")); Pose((string)def["part"],(string)def["property"],Vector3.zero,false); }
                         Rebatch(); break;
                     case "part_transform":
                         string part=a.Str("part"); if(!Parts.ContainsKey(part)) throw new InvalidOperationException("Part not found");
@@ -134,7 +145,7 @@ namespace ImagineVR
                         if(a.TryVec3("rotation",out Vector3 rotation)) _rotations[part]=rotation;
                         if(a.TryVec3("scale",out Vector3 scale)) _scales[part]=scale;
                         if(a.Has("visible")) _visible[part]=a.Flag("visible");
-                        Parts[part].localPosition=_positions[part]; Parts[part].localRotation=Quaternion.Euler(_rotations[part]); Parts[part].localScale=_scales[part];
+                        Parts[part].localPosition=_positions[part]; Parts[part].localRotation=Quaternion.Euler(_rotations[part]); Parts[part].localScale=Over(_scales[part],_built[part]);
                         SetCollision(CollisionsEnabled); Rebatch(); break;
                     case "emit_projectile": Fire(a.Str("name")); break;
                 }
@@ -203,11 +214,23 @@ namespace ImagineVR
                     float lo=BlueprintData.Wrap(left).Num("time"),hi=BlueprintData.Wrap(right).Num("time"); value=Vector3.Lerp(BlueprintData.Vec(left,"value",Vector3.zero),BlueprintData.Vec(right,"value",Vector3.zero),hi>lo?(time-lo)/(hi-lo):0);
                 }
                 else { var amplitude=BlueprintData.Vec(data,"amplitude",Vector3.zero); value=a.Str("mode")=="spin"?amplitude*time:amplitude*Mathf.Sin(time*a.Num("frequency",1)*Mathf.PI*2+a.Num("phase")*Mathf.Deg2Rad); }
-                ApplyProperty(Parts[part],a.Str("property"),value,part);
+                Pose(part,a.Str("property"),value,a.Flag("alternate"));
             }
         }
+        /// <summary>
+        /// Moves a part by `value` from its rest pose, and its twin with it, as in a mirror: wings beat
+        /// together. `alternate` puts the twin half a cycle behind, which is how legs walk.
+        /// </summary>
+        void Pose(string part,string property,Vector3 value,bool alternate)
+        {
+            ApplyProperty(Parts[part],property,value,part);
+            string twin=part+BlueprintSystem.Twin; if(!_twins.Contains(twin) || _animationDefs.Any(d=>(string)d["part"]==twin && (string)d["property"]==property)) return;
+            if(alternate) value=-value;
+            if(property=="rotation") value=new Vector3(value.x,-value.y,-value.z); else if(property=="position") value.x=-value.x; else if(alternate) value=-value;
+            ApplyProperty(Parts[twin],property,value,twin);
+        }
         void ApplyProperty(Transform t,string property,Vector3 value,string part)
-        { if(property=="rotation") t.localRotation=Quaternion.Euler(_rotations[part]+value); else if(property=="position") t.localPosition=_positions[part]+value; else t.localScale=Vector3.Max(_scales[part]+value,Vector3.one*.01f); }
+        { if(property=="rotation") t.localRotation=Quaternion.Euler(_rotations[part]+value); else if(property=="position") t.localPosition=_positions[part]+value; else t.localScale=Over(Vector3.Max(_scales[part]+value,Vector3.one*.002f),_built[part]); }
         void Move(float dt)
         {
             if(!Moving) return; Statement m=BlueprintData.Wrap(_movement); Vector3 p=transform.position,heading=Vector3.zero; Vector3? target=TargetPoint(_movement);
@@ -243,6 +266,7 @@ namespace ImagineVR
             foreach(var mesh in _batched) if(mesh!=null) Object.Destroy(mesh); _batched.Clear();
             foreach(Transform old in Visual) if(old.name=="CombinedStatic") { old.GetComponent<Renderer>().enabled=false; Object.Destroy(old.gameObject); }
             var dynamic=new HashSet<string>(_animationDefs.Where(a=>_animations.Contains((string)a["name"])).Select(a=>(string)a["part"]));
+            foreach(string moving in dynamic.ToArray()) dynamic.Add(moving+BlueprintSystem.Twin);
             bool Dynamic(Transform t) => dynamic.Contains(t.name) || t.parent!=Visual && t.parent!=null && Dynamic(t.parent);
             var staticParts=new List<Transform>();
             foreach(var part in Parts) { var r=part.Value.GetComponent<MeshRenderer>(); r.enabled=PartVisible(part.Key); if(!Dynamic(part.Value) && r.enabled) staticParts.Add(part.Value); }
@@ -266,25 +290,46 @@ namespace ImagineVR
     {
         World _world; BlueprintActor _owner; RuleEntity _source; Statement _data; Vector3 _velocity; float _expires; bool _hit; int _epoch;
         public void Init(World world,BlueprintActor owner,Dictionary<string,object> data,Vector3 direction)
-        { _world=world; _owner=owner; _source=owner.Entity; _epoch=owner.AttackEpoch; _data=BlueprintData.Wrap(data); _velocity=direction*_data.Num("speed",12); _expires=Time.time+_data.Num("lifetime",4); }
+        { _world=world; _owner=owner; _source=owner.Entity; _epoch=owner.AttackEpoch; _data=BlueprintData.Wrap(data); _velocity=direction*_data.Num("speed",12); _expires=Time.time+_data.Num("lifetime",4); var prop=owner.GetComponent<Prop>(); _held=prop!=null && (prop.Held || prop.Given); }
+        bool _held;
+        /// <summary>Invisible regions (goals, sensors, the user's own body while they hold the gun) do not stop a shot.</summary>
+        bool Passes(Collider c)
+        {
+            if(c.transform.IsChildOf(transform) || _owner!=null && c.transform.IsChildOf(_owner.transform)) return true;
+            if(c.GetComponentInParent<PlayerHitRegion>()!=null) return _held;
+            if(c.GetComponentInParent<Grabber>()!=null || c.GetComponentInParent<Rig>()!=null) return _held;
+            return c.isTrigger && c.GetComponentInParent<RuleBody>()==null && c.GetComponentInParent<Creature>()==null;
+        }
         void FixedUpdate()
         {
             if(Time.time>=_expires || _source==null || !_source.Alive || _source.Health==0 || _owner==null || _owner.AttackEpoch!=_epoch) { Object.Destroy(gameObject); return; }
             Vector3 from=transform.position; _velocity+=Physics.gravity*_data.Num("gravity",0)*Time.fixedDeltaTime; Vector3 to=from+_velocity*Time.fixedDeltaTime;
             var hits=Physics.SphereCastAll(from,.1f,(to-from).normalized,(to-from).magnitude,~0,QueryTriggerInteraction.Collide).OrderBy(h=>h.distance);
-            foreach(var h in hits) if(!h.collider.transform.IsChildOf(transform) && (_owner==null || !h.collider.transform.IsChildOf(_owner.transform))) { Impact(h.collider,h.point); break; }
+            foreach(var h in hits) if(!Passes(h.collider)) { Impact(h.collider,h.point.sqrMagnitude>0?h.point:from); break; }
             if(!_hit) GetComponent<Rigidbody>().MovePosition(to);
         }
         void OnTriggerEnter(Collider other) { Impact(other,transform.position); }
         void Impact(Collider other,Vector3 point)
         {
             if(_owner==null || _owner.AttackEpoch!=_epoch || _source==null || !_source.Alive || _source.Health==0) { Object.Destroy(gameObject); return; }
-            if(_hit || other.transform.IsChildOf(transform) || _owner!=null && other.transform.IsChildOf(_owner.transform)) return;
+            if(_hit || Passes(other)) return;
             _hit=true; RuleEntity target=other.GetComponentInParent<RuleBody>()?.Entity;
             bool replaced=target!=null && _world.Rules.Emit("hit",target,_source,"projectile",_velocity.magnitude);
-            if(!replaced) { if(other.GetComponentInParent<PlayerHitRegion>()!=null) _world.Blueprints.DamagePlayer(_data.Num("damage")); else if(target!=null) _world.Rules.Damage(target,_data.Num("damage"),_source); }
+            // What the user fires from their own hand counts unless told otherwise; what a creature fires only hurts if it was given damage.
+            float damage=_data.Num("damage",_held?25:0);
+            if(!replaced)
+            {
+                Creature creature=other.GetComponentInParent<Creature>();
+                if(other.GetComponentInParent<PlayerHitRegion>()!=null) _world.Blueprints.DamagePlayer(_data.Num("damage"));
+                else if(target!=null && (target.Health>=0 || target.Durability>=0)) _world.Rules.Damage(target,damage,_source);
+                else if(creature!=null && (_held || damage>0)) creature.Knock(_velocity);   // anything alive falls to a shot, as it does to the toy blaster
+                Rigidbody struck=other.attachedRigidbody;
+                if(struck!=null && !struck.isKinematic) struck.AddForceAtPosition(_velocity.normalized*Mathf.Min(_velocity.magnitude,20)*.12f,point,ForceMode.Impulse);
+            }
             _world.Rules.Emit("projectile_impact",_source,target,"projectile",_velocity.magnitude,eventName:_data.Str("name"));
             if(_data.Has("impact")) _world.Rules.ParticleBurst(Statement.Make("particles","preset",_data.Str("impact"),"color",_data.Str("color","#FF8822")),point);
+            else { Color c=_data.TryColor("color",out Color tint)?tint:new Color(1f,.8f,.45f); Fx.Burst(point,c,Color.white,8,2f,.03f,.25f,.6f,true); }
+            Sfx.Play("tap",point,.35f,1.3f);
             Object.Destroy(gameObject);
         }
     }

@@ -107,7 +107,8 @@ namespace ImagineVR
             var pair = selector.First(); string value = pair.Value as string;
             switch (pair.Key)
             {
-                case "instance": return e.Id == value;
+                // the model knows a thing by the id it gave it; the engine's own id is accepted too
+                case "instance": return e.Id == value || e.GroupId == value;
                 case "asset": return e.Asset == value;
                 case "group": return e.GroupId == value || e.GroupId.StartsWith(value + ".", StringComparison.Ordinal);
                 case "tag": return e.Tags.Contains(value);
@@ -126,6 +127,7 @@ namespace ImagineVR
                 }
             foreach (Group group in _world.Objects.Groups)
             {
+                if (group.Id.StartsWith(World.Cover, StringComparison.Ordinal)) continue;   // grass and stones are scenery, not things rules act on
                 for (int i = 0; i < group.Items.Count; i++)
                 {
                     RuleEntity existing = placements.TryGetValue(group, out Dictionary<int, RuleEntity> byIndex) && byIndex.TryGetValue(i, out RuleEntity entry) ? entry : null;
@@ -330,10 +332,31 @@ namespace ImagineVR
             {
                 float old = e.Health; e.Health = Mathf.Max(0, old - amount); Emit("damage", e, source);
                 Emit("health_below", e, source, previous: old, current: e.Health);
-                if (old > 0 && e.Health == 0) replaced |= Emit("death", e, source);
+                if (old > 0 && e.Health == 0)
+                {
+                    bool written = Emit("death", e, source);
+                    replaced |= written;
+                    if (!written) Fall(e, source);
+                }
             }
             if (e.Durability >= 0) { float old = e.Durability; e.Durability = Mathf.Max(0, old - amount); if (old > 0 && e.Durability == 0) replaced |= Emit("break", e, source); }
             return replaced;
+        }
+        /// <summary>
+        /// Something ran out of health and no rule says what happens then. It still has to be seen to
+        /// die: a creature falls over as any shot creature does, and a made thing bursts and is gone.
+        /// </summary>
+        void Fall(RuleEntity e, RuleEntity source)
+        {
+            if (e.Object == null) return;
+            Vector3 away = source != null ? e.Position - source.Position : Vector3.zero;
+            Creature creature = e.Object.GetComponent<Creature>();
+            if (creature != null) { creature.Knock(away); return; }
+            if (e.Object.GetComponent<BlueprintActor>() == null) return;
+            Vector3 at = e.Position + Vector3.up * .4f;
+            Fx.Burst(at, new Color(1f, .85f, .5f), Color.white, 26, 3f, .07f, .7f, .8f, false);
+            Sfx.Play("pop", at, .8f, .8f);
+            Remove(e);
         }
         void Detach(RuleEntity e)
         {

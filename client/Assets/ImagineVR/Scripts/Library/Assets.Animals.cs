@@ -115,12 +115,37 @@ namespace ImagineVR
                     mb.Col(Pal.Pink).Sphere(h.Pos + V(0, -0.08f, 0.22f), V(0.14f, 0.1f, 0.08f), 0);
                     mb.Col(Pal.Cream).Rod(h.Pos + V(0.14f, 0.16f, 0), h.Pos + V(0.26f, 0.32f, 0.02f), 0.035f, 0.01f, 4).Rod(h.Pos + V(-0.14f, 0.16f, 0), h.Pos + V(-0.26f, 0.32f, 0.02f), 0.035f, 0.01f, 4);
                 });
-            Add("sheep", "animals", 1.0f, "Woolly white sheep", "animal,farm,field,wool,flock", "lamb,ewe,ram",
+            Add("sheep", "animals", 1.0f, "Woolly sheep: a thick cream fleece, dark face and legs", "animal,farm,field,wool,flock,pasture", "lamb,ewe,ram",
                 mb =>
                 {
-                    Head h = Quadruped(mb, 0.5f, 0.3f, 0.3f, 0.45f, 0.04f, 0.2f, 20f, 0.3f, 0.2f, 0f, Pal.Hex("#3A3632"), Pal.Hex("#2A2622"));
-                    mb.Shade(0.08f).Col(Pal.Cream).Blob(V(0, 0.72f, -0.05f), V(0.38f, 0.36f, 0.56f), 0.2f, 4, 1);
-                    Ears(mb, h, 0.1f, Pal.Hex("#3A3632"), false);
+                    Color face = Pal.Hex("#3B3531"), leg = Pal.Hex("#2B2623"), wool = Pal.Hex("#F6EEDC"), woolLow = Pal.Hex("#D9CCB0");
+                    // four dark legs, each ending in a hoof
+                    foreach (float sx in new[] { -1f, 1f })
+                        foreach (float sz in new[] { -1f, 1f })
+                        {
+                            Vector3 foot = V(sx * 0.15f, 0f, sz * 0.27f + 0.02f);
+                            mb.Shade(0.04f).Col(leg).Rod(foot + V(0, 0.44f, 0), foot + V(0, 0.05f, 0), 0.045f, 0.03f, 6);
+                            mb.Col(Pal.Hex("#151312")).Cyl(foot, 0.04f, 0.033f, 0.055f, 6);
+                        }
+                    // the fleece: one big lumpy mass, with more piled on the back, flanks, chest and rump
+                    mb.Shade(0.07f).Grad(woolLow, wool, 0.4f, 0.95f);
+                    mb.Blob(V(0, 0.67f, 0f), V(0.28f, 0.26f, 0.45f), 0.1f, 4, 2);
+                    mb.Blob(V(0, 0.84f, -0.2f), V(0.2f, 0.15f, 0.22f), 0.2f, 7, 1).Blob(V(0, 0.86f, 0.1f), V(0.2f, 0.15f, 0.2f), 0.2f, 9, 1);
+                    mb.Blob(V(0.19f, 0.64f, 0.02f), V(0.13f, 0.18f, 0.3f), 0.2f, 11, 1).Blob(V(-0.19f, 0.64f, 0.02f), V(0.13f, 0.18f, 0.3f), 0.2f, 12, 1);
+                    mb.Blob(V(0, 0.62f, -0.4f), V(0.19f, 0.18f, 0.12f), 0.2f, 13, 1).Blob(V(0, 0.66f, 0.38f), V(0.2f, 0.21f, 0.14f), 0.2f, 15, 1);
+                    mb.Blob(V(0, 0.7f, -0.52f), V(0.055f, 0.08f, 0.05f), 0.2f, 3, 0);
+                    // the head reaches out of the wool: a long dark face, ears held out sideways
+                    mb.Shade(0.04f).Col(face);
+                    mb.Rod(V(0, 0.76f, 0.4f), V(0, 0.83f, 0.56f), 0.1f, 0.08f, 7);
+                    mb.Sphere(V(0, 0.85f, 0.6f), V(0.09f, 0.1f, 0.13f), 1).Sphere(V(0, 0.79f, 0.71f), V(0.062f, 0.06f, 0.085f), 1);
+                    foreach (float sx in new[] { -1f, 1f })
+                    {
+                        mb.Col(face).Push(V(sx * 0.1f, 0.89f, 0.54f), V(0, 0, sx * -24f)).Sphere(V(sx * 0.06f, 0, 0), V(0.075f, 0.022f, 0.04f), 0).Pop();
+                        mb.Col(Pal.Hex("#0E0D0C")).Sphere(V(sx * 0.078f, 0.875f, 0.645f), 0.017f, 0);
+                        mb.Col(Pal.White).Sphere(V(sx * 0.086f, 0.882f, 0.654f), 0.006f, 0);
+                    }
+                    mb.Col(Pal.Hex("#191615")).Sphere(V(0, 0.785f, 0.79f), V(0.032f, 0.022f, 0.014f), 0);
+                    mb.Shade(0.07f).Col(wool).Blob(V(0, 0.95f, 0.53f), V(0.11f, 0.07f, 0.1f), 0.25f, 5, 1);
                 });
             Add("pig", "animals", 0.8f, "Pink pig", "animal,farm,mud", "hog,piglet,swine,boar",
                 mb =>

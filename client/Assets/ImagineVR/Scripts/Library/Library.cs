@@ -120,6 +120,31 @@ namespace ImagineVR
             return this;
         }
         public AssetDef Does(string behavior, float pitch = 1f) { Behavior = behavior; Pitch = pitch; return this; }
+
+        // ---- things that shoot
+        public Vector3 Muzzle;                  // where a shot leaves, in the model's own space
+        public bool HasMuzzle;
+        public string ShotSound = "zap";
+        public float FireEvery = 0.15f;         // seconds between shots
+        public bool Automatic;                  // keeps firing while the trigger is held
+        public float ShotSpeed = 20f, ShotSize = 1f, ShotLife = 6f, Spread;
+        public int Pellets = 1;
+        public bool ShotColored;
+        public Color ShotColor;
+
+        /// <summary>
+        /// A gun, modelled barrel-forward with its grip at the origin (see Library.GunSpace).
+        /// `muzzle` is given in that same space: x right, y up, z along the barrel.
+        /// </summary>
+        public AssetDef Gun(Vector3 muzzle, string sound, float every, bool automatic = false, float speed = 20f, float size = 1f, int pellets = 1, float spread = 0f)
+        {
+            Muzzle = new Vector3(muzzle.x, muzzle.z, -muzzle.y); HasMuzzle = true;
+            ShotSound = sound; FireEvery = every; Automatic = automatic; ShotSpeed = speed; ShotSize = size; Pellets = pellets; Spread = spread;
+            ShotLife = automatic ? 2.5f : 5f;
+            Behavior = "blaster";
+            return this;
+        }
+        public AssetDef Shoots(Color color) { ShotColored = true; ShotColor = color; return this; }
         public AssetDef Floats() { OnWater = true; return this; }
         public AssetDef Flies() { Airborne = true; return this; }
         public AssetDef Wings() { Winged = true; return this; }

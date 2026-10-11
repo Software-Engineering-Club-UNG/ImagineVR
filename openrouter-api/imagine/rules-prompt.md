@@ -16,8 +16,11 @@ Do not invent fields. Consult RULE CAPABILITIES for exact action fields and limi
 Targets: self/source, one selector object, world, player. Choose targets explicitly
 for world and player actions. Player effects require local permission and may be refused.
 Colors are #RRGGBB. set_health/set_breakable enables bounded health/durability; death
-and break do not automatically remove. Add effects/removal/respawn explicitly.
+and break do not automatically remove a catalog thing: add effects/removal/respawn
+explicitly. (A blueprint thing with no death rule bursts and is gone; a creature falls.)
 No loops, scripts, URLs, arbitrary expressions, downloaded assets or reflection.
+The `sound` action plays one of: gunshot, zap, boom, pop, thud, tap, bell, drum, chime,
+sparkle, confetti, whoosh, groan. Any other name is silence, so never invent one.
 
 To make sheep explode into confetti when shot:
 {"op":"rule","id":"sheep.hit","selector":{"asset":"sheep"},"event":"hit","filters":{"source_kind":"projectile"},"mode":"replace","actions":[{"action":"particles","preset":"confetti","target":"self"},{"action":"remove","target":"self"}]}
@@ -32,4 +35,4 @@ scene positions; the server transforms them into world space once when installin
 Rule heights are absolute world heights (unlike terrain-relative spawn heights).
 Offsets/impulses are direction vectors relative to the user's heading. Saved rules
 and CLIENT RUNTIME positions are re-expressed in the current user frame. They do not
-move just because the user moves. Use instance IDs from CLIENT RUNTIME for live targets.
+move just because the user moves. Use instance IDs from CLIENT RUNTIME for live targets; the id you gave a thing also works as its instance.

@@ -437,6 +437,134 @@ namespace ImagineVR
             return Lathe(baseCenter, profile, sides);
         }
 
+        /// <summary>
+        /// A box whose edges are cut off by `bevel` metres, and whose top may be narrower or wider
+        /// than its base (`taperX`, `taperZ`: 1 is straight, 0 comes to a ridge). Made things have
+        /// worn edges; a box with none reads as a placeholder.
+        /// </summary>
+        public MeshBuilder BevelBox(Vector3 center, Vector3 size, float bevel, float taperX = 1f, float taperZ = 1f)
+        {
+            Vector3 h = size * 0.5f;
+            float narrow = Mathf.Min(1f, Mathf.Min(Mathf.Max(taperX, 0.02f), Mathf.Max(taperZ, 0.02f)));
+            float b = Mathf.Clamp(bevel, 0f, Mathf.Min(h.x * narrow, h.y, h.z * narrow) * 0.98f);
+            // every corner has three points, one on each face that meets there
+            var onX = new Vector3[8]; var onY = new Vector3[8]; var onZ = new Vector3[8];
+            for (int i = 0; i < 8; i++)
+            {
+                float sx = (i & 1) != 0 ? 1f : -1f, sy = (i & 2) != 0 ? 1f : -1f, sz = (i & 4) != 0 ? 1f : -1f;
+                float tx = sy > 0f ? Mathf.Max(taperX, 0.02f) : 1f, tz = sy > 0f ? Mathf.Max(taperZ, 0.02f) : 1f;
+                Vector3 c = center + new Vector3(sx * h.x * tx, sy * h.y, sz * h.z * tz);
+                onX[i] = c - new Vector3(0f, sy * b, sz * b);
+                onY[i] = c - new Vector3(sx * b, 0f, sz * b);
+                onZ[i] = c - new Vector3(sx * b, sy * b, 0f);
+            }
+            Vector3[][] on = { onX, onY, onZ };
+            int[] bit = { 1, 2, 4 };
+            for (int axis = 0; axis < 3; axis++)
+            {
+                int u = bit[(axis + 1) % 3], v = bit[(axis + 2) % 3];
+                foreach (int side in new[] { 0, bit[axis] })
+                {
+                    Vector3 outside = Vector3.zero;
+                    outside[axis] = side != 0 ? 1f : -1f;
+                    Quad(on[axis][side], on[axis][side | u], on[axis][side | u | v], on[axis][side | v], outside);
+                }
+            }
+            if (b <= 0.00001f) return this;
+            for (int axis = 0; axis < 3; axis++)
+            {
+                // the four edges that run along this axis, each a strip between its two faces
+                int f1 = (axis + 1) % 3, f2 = (axis + 2) % 3;
+                for (int k = 0; k < 4; k++)
+                {
+                    int c0 = ((k & 1) != 0 ? bit[f1] : 0) | ((k & 2) != 0 ? bit[f2] : 0), c1 = c0 | bit[axis];
+                    Vector3 outside = Vector3.zero;
+                    outside[f1] = (k & 1) != 0 ? 1f : -1f;
+                    outside[f2] = (k & 2) != 0 ? 1f : -1f;
+                    Quad(on[f1][c0], on[f1][c1], on[f2][c1], on[f2][c0], outside);
+                }
+            }
+            for (int i = 0; i < 8; i++)
+                Tri(onX[i], onY[i], onZ[i], new Vector3((i & 1) != 0 ? 1f : -1f, (i & 2) != 0 ? 1f : -1f, (i & 4) != 0 ? 1f : -1f));
+            return this;
+        }
+
+        /// <summary>Half a ball, flat side down on `baseCenter`: helmets, shells, caps, igloos, mounds.</summary>
+        public MeshBuilder Dome(Vector3 baseCenter, float radius, float height, int sides = 10, int rings = 4)
+        {
+            var profile = new List<Vector2> { new Vector2(0f, 0f) };
+            for (int k = 0; k <= rings; k++)
+            {
+                float a = k / (float)rings * Mathf.PI * 0.5f;
+                profile.Add(new Vector2(k == rings ? 0f : Mathf.Cos(a) * radius, Mathf.Sin(a) * height));
+            }
+            return Lathe(baseCenter, profile, sides);
+        }
+
+        /// <summary>
+        /// A silhouette cut out of a board. `outline` is the side view, (forward, up) pairs going
+        /// round the shape once; the board is `thickness` across, centred on x = 0. It need not be
+        /// convex: a rifle stock, a fish, a key, a fin, a crescent.
+        /// </summary>
+        public MeshBuilder Slab(IList<Vector2> outline, float thickness)
+        {
+            int n = outline.Count;
+            if (n < 3) return this;
+            float area = 0f;
+            for (int i = 0; i < n; i++) { Vector2 a = outline[i], b = outline[(i + 1) % n]; area += a.x * b.y - b.x * a.y; }
+            var pts = new List<Vector2>(outline);
+            if (area < 0f) pts.Reverse();   // counter-clockwise from here on
+            float hx = thickness * 0.5f;
+            Vector3 At(Vector2 p, float x) => new Vector3(x, p.y, p.x);
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 a = pts[i], b = pts[(i + 1) % n], d = b - a;
+                Quad(At(a, -hx), At(b, -hx), At(b, hx), At(a, hx), new Vector3(0f, -d.x, d.y));
+            }
+            List<int> tris = Triangulate(pts);
+            for (int i = 0; i < tris.Count; i += 3)
+            {
+                Vector2 a = pts[tris[i]], b = pts[tris[i + 1]], c = pts[tris[i + 2]];
+                Tri(At(a, hx), At(b, hx), At(c, hx), Vector3.right);
+                Tri(At(a, -hx), At(b, -hx), At(c, -hx), Vector3.left);
+            }
+            return this;
+        }
+
+        /// <summary>Ear clipping for a small counter-clockwise outline. Whatever it cannot cut is fanned, so it always returns.</summary>
+        static List<int> Triangulate(List<Vector2> p)
+        {
+            var left = new List<int>(p.Count);
+            for (int i = 0; i < p.Count; i++) left.Add(i);
+            var tris = new List<int>((p.Count - 2) * 3);
+            float Cross(Vector2 a, Vector2 b, Vector2 c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+            int guard = 0;
+            while (left.Count > 3 && guard++ < 400)
+            {
+                bool cut = false;
+                for (int i = 0; i < left.Count && !cut; i++)
+                {
+                    int ia = left[(i + left.Count - 1) % left.Count], ib = left[i], ic = left[(i + 1) % left.Count];
+                    Vector2 a = p[ia], b = p[ib], c = p[ic];
+                    if (Cross(a, b, c) <= 1e-9f) continue;   // a corner that turns inward is not an ear
+                    bool holds = false;
+                    foreach (int k in left)
+                    {
+                        if (k == ia || k == ib || k == ic) continue;
+                        Vector2 q = p[k];
+                        if (Cross(a, b, q) >= 0f && Cross(b, c, q) >= 0f && Cross(c, a, q) >= 0f) { holds = true; break; }
+                    }
+                    if (holds) continue;
+                    tris.Add(ia); tris.Add(ib); tris.Add(ic);
+                    left.RemoveAt(i);
+                    cut = true;
+                }
+                if (!cut) break;
+            }
+            for (int i = 1; i + 1 < left.Count; i++) { tris.Add(left[0]); tris.Add(left[i]); tris.Add(left[i + 1]); }
+            return tris;
+        }
+
         /// <summary>A tube following a path of points: arches, vines, handles, rails.</summary>
         public MeshBuilder Tube(IList<Vector3> path, float radius, int sides = 5)
         {

@@ -560,7 +560,7 @@ def _compact(stmt: dict, frame: list | None = None) -> str:
 
 
 class Validator:
-    def __init__(self, catalog: Catalog, frame: list | None = None, hold_unknown: bool = False, allow_rules: bool = True, allow_blueprints: bool = False):
+    def __init__(self, catalog: Catalog, frame: list | None = None, hold_unknown: bool = False, allow_rules: bool = True, allow_blueprints: bool = False, rich_blueprints: bool = True):
         self.catalog = catalog
         # where the user stands; placed statements are stamped with it so the headset builds
         # them around the user and not around the middle of the world
@@ -571,6 +571,12 @@ class Validator:
         self.missing: list[dict] = []
         self.allow_rules = allow_rules
         self.allow_blueprints = allow_blueprints
+        # false for an app built before the richer parts (bevels, lathes, slabs, mirrors): it is sent plainer recipes
+        self.rich_blueprints = rich_blueprints
+        # a blueprint the model named after something in the library is kept under another id; what it then spawns by the old name means the new thing
+        self.renamed: dict[str, str] = {}
+        # why each blueprint refused this turn was refused, for asking the model to write it again
+        self.refused: list[str] = []
 
     def check(self, raw: dict, world: WorldState) -> list[dict]:
         """Validate one model statement. Returns the statements to send (notes first)."""
@@ -588,30 +594,42 @@ class Validator:
         op = str(raw.get("op", "")).lower()
         if op in ('blueprint','blueprint_remove','blueprint_edit'):
             if not self.allow_blueprints: return [_note('This client does not support runtime blueprints; update the Unity app.')]
-            from .blueprints import validate_blueprint
+            from .blueprints import validate_blueprint, repair_blueprint, plain_blueprint
             from .rules import RuleError,strict,identifier,selector
+
+            def mended(recipe):
+                """The recipe as the headset will be sent it: repaired, held to the contract, in world coordinates."""
+                fixed=repair_blueprint(recipe,self.catalog,world.blueprints)
+                if not self.rich_blueprints: fixed=plain_blueprint(fixed)
+                return validate_blueprint(_blueprint_coordinates(validate_blueprint(fixed,self.catalog),self.frame),self.catalog)
             try:
                 if op=='blueprint':
-                    out=validate_blueprint(_blueprint_coordinates(validate_blueprint(raw,self.catalog),self.frame),self.catalog)
+                    out=mended(raw)
+                    if self.catalog.has('asset',out['id']):
+                        # "rifle" is in the library, and this is the model's own rifle: both can exist
+                        fresh=out['id']+'_made'; self.renamed[out['id']]=fresh; out['id']=fresh
                     if out['id'] not in world.blueprints and len(world.blueprints)>=64: raise RuleError('blueprint limit')
-                    if self.catalog.has('asset',out['id']): raise RuleError('blueprint ID conflicts with baked asset')
                     out['revision']=world.blueprints.get(out['id'],{}).get('revision',0)+1
                     registry=dict(world.blueprints); registry[out['id']]=out
                     if len(json.dumps(registry))>256000: raise RuleError('registry byte budget')
-                    for e in out.get('capabilities',{}).get('emitters',[]):
-                        if not self.catalog.has('asset',e['asset']) and e['asset'] not in registry: raise RuleError('unknown projectile asset; define it first')
                 elif op=='blueprint_edit':
-                    strict(raw,('op','selector','blueprint'),('op','selector','blueprint')); selector(raw['selector'])
-                    # the recipe inside an edit is a blueprint whether or not the model repeats the op on it
-                    if isinstance(raw['blueprint'],dict): raw={**raw,'blueprint':{'op':'blueprint',**raw['blueprint']}}
-                    out=copy.deepcopy(raw); out['blueprint']=validate_blueprint(_blueprint_coordinates(validate_blueprint(raw['blueprint'],self.catalog),self.frame),self.catalog)
-                    for e in out['blueprint'].get('capabilities',{}).get('emitters',[]):
-                        if not self.catalog.has('asset',e['asset']) and e['asset'] not in world.blueprints: raise RuleError('unknown projectile asset')
+                    recipe=raw.get('blueprint') if isinstance(raw.get('blueprint'),dict) else raw if isinstance(raw.get('parts'),list) else None
+                    if recipe is None: raise RuleError('an edit needs the whole recipe under "blueprint"')
+                    # which copies: the selector, or failing that the id the thing was given or spawned with
+                    chosen=raw.get('selector')
+                    if not isinstance(chosen,dict) or len(chosen)!=1:
+                        target=raw.get('instance') or raw.get('target') or raw.get('id')
+                        chosen={'instance':target} if isinstance(target,str) and target!=recipe.get('id') else {'asset':self.renamed.get(recipe.get('id'),recipe.get('id'))}
+                    selector(chosen)
+                    recipe={k:v for k,v in recipe.items() if k not in ('selector','instance','target')}
+                    recipe['id']=self.renamed.get(recipe.get('id'),recipe.get('id'))
+                    out={'op':'blueprint_edit','selector':chosen,'blueprint':mended(recipe)}
                 else:
                     strict(raw,('op','id'),('op','id')); identifier(raw['id']); out=dict(raw)
                 world.apply(out); return [out]
             except RuleError as exc:
                 log.warning('blueprint rejected (%s): %.2000s', exc, json.dumps(raw, separators=(',', ':')))
+                self.refused.append(f"{raw.get('id') or (raw.get('blueprint') or {}).get('id') or 'blueprint'}: {exc}")
                 return [_note(f'Blueprint rejected: {exc}; existing objects unchanged.')]
         if op in ('rule', 'rule_remove'):
             if not self.allow_rules:
@@ -688,6 +706,8 @@ class Validator:
             name = raw.get(field)
             if isinstance(name, str) and name.strip():
                 wanted = to_id(name) or ""
+                if op in ('spawn', 'give') and self.allow_blueprints:
+                    wanted = self.renamed.get(wanted, wanted)
                 # `give` accepts any asset: the headset shrinks non-holdables to hand size
                 if op=='scatter' and wanted in world.blueprints:
                     return [_note('Generated blueprints use individual spawn commands, not scatter.')]

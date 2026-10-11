@@ -121,7 +121,7 @@ namespace ImagineVR
                     EnsureLight();
                     TerrainType type = s.Has("type") ? Library.Resolve(Library.TerrainTypes, s.Str("type")) : null;
                     if (type != null && type.Shape == TerrainShape.None) Terrain.Clear(s.T(2f));
-                    else Terrain.Apply(s);
+                    else { Terrain.Apply(s); DressGround(); }
                     break;
                 case "weather": Weather.Apply(s); break;
                 case "physics": Props.SetGravity(s.Num("gravity", 1f)); break;
@@ -140,6 +140,66 @@ namespace ImagineVR
                 case "blueprint": case "blueprint_remove": case "blueprint_edit": Blueprints.Apply(s); break;
             }
             Rules.SyncEntities();
+        }
+
+        /// <summary>Ids of what grows on the ground by itself. Not the model's: it never sees, counts or removes them.</summary>
+        public const string Cover = "ground.";
+
+        /// <summary>
+        /// Bare ground looks unfinished, and the model cannot be relied on to cover it: asked for a
+        /// pasture in the 20:45 session it scattered thirty tufts over half a hectare. So ground that
+        /// would have something growing or lying on it gets it, thick underfoot and thinning away,
+        /// whatever else is built. Level ground is left clear: that is what people build on.
+        /// </summary>
+        void DressGround()
+        {
+            foreach (string id in new[] { "near", "far", "extra", "stones" }) Objects.Remove(Cover + id, 0.4f);
+            if (Terrain.Shape == TerrainShape.None || Terrain.Shape == TerrainShape.Flat) return;
+            void Lay(string id, string asset, int count, float from, float to, string tint = null, float small = 0.7f, float big = 1.3f, int clusters = 0)
+            {
+                Statement cover = Statement.Make("scatter", "id", Cover + id, "asset", asset, "count", (double)count, "area", "around", "t", 2.5,
+                    "radius", new List<object> { (double)from, (double)to }, "scale", new List<object> { (double)small, (double)big }, "seed", 7.0);
+                if (tint != null) cover.Fields["tint"] = tint;
+                if (clusters > 0) cover.Fields["clusters"] = (double)clusters;
+                Objects.Scatter(cover);
+            }
+            switch (Terrain.MaterialId)
+            {
+                case "grass":
+                    Lay("near", "tall_grass", 170, 1.5f, 16f); Lay("far", "tall_grass", 150, 16f, 55f, null, 0.9f, 1.6f);
+                    Lay("extra", "flower_patch", 40, 3f, 45f, null, 0.7f, 1.2f, 9); Lay("stones", "rock", 14, 5f, 55f, null, 0.2f, 0.5f);
+                    break;
+                case "dry_grass":
+                    Lay("near", "tall_grass", 150, 1.5f, 16f, "#D2C078"); Lay("far", "tall_grass", 130, 16f, 55f, "#C8B468", 0.9f, 1.6f);
+                    Lay("stones", "rock", 22, 4f, 55f, "#B0A080", 0.2f, 0.6f);
+                    break;
+                case "forest_floor":
+                    Lay("near", "fern", 110, 2f, 18f); Lay("far", "fern", 110, 18f, 55f, null, 0.9f, 1.5f);
+                    Lay("extra", "mushroom", 36, 2f, 30f, null, 0.6f, 1.1f, 8); Lay("stones", "rock", 18, 5f, 50f, "#6A7060", 0.25f, 0.7f);
+                    break;
+                case "swamp":
+                    Lay("near", "tall_grass", 130, 2f, 18f, "#6A7A3A", 0.9f, 1.5f); Lay("far", "tall_grass", 110, 18f, 55f, "#5A6A34", 1f, 1.8f);
+                    Lay("extra", "mushroom", 24, 2f, 28f, null, 0.6f, 1.1f, 6);
+                    break;
+                case "sand":
+                    Lay("stones", "rock", 26, 3f, 55f, "#D8C8A0", 0.15f, 0.45f); Lay("extra", "seashell", 22, 2f, 28f, null, 0.8f, 1.4f);
+                    break;
+                case "snow":
+                    Lay("stones", "rock", 22, 4f, 55f, "#C6CED8", 0.25f, 0.8f); Lay("extra", "ice_crystal", 12, 5f, 40f, null, 0.4f, 0.9f, 4);
+                    break;
+                case "dirt": case "rock":
+                    Lay("near", "rock", 60, 2f, 20f, null, 0.12f, 0.4f); Lay("stones", "rock", 50, 20f, 60f, null, 0.3f, 1f); Lay("extra", "tall_grass", 50, 3f, 45f, "#8A9060", 0.6f, 1f, 10);
+                    break;
+                case "mars":
+                    Lay("near", "rock", 60, 2f, 20f, "#A85A40", 0.12f, 0.4f); Lay("stones", "rock", 50, 20f, 60f, "#9A4E38", 0.3f, 1.1f);
+                    break;
+                case "moon":
+                    Lay("near", "rock", 60, 2f, 20f, "#9A9AA0", 0.1f, 0.35f); Lay("stones", "rock", 50, 20f, 60f, "#8A8A90", 0.3f, 1.1f);
+                    break;
+                case "lava_rock":
+                    Lay("near", "rock", 60, 2f, 20f, "#3A2E30", 0.15f, 0.45f); Lay("stones", "rock", 50, 20f, 60f, "#2E2426", 0.4f, 1.3f);
+                    break;
+            }
         }
 
         static bool Builds(string op)

@@ -194,43 +194,112 @@ namespace ImagineVR
                 }
             }
         }
+        /// <summary>Appended to a part's id to name the copy that `mirror` makes of it on the other side.</summary>
+        public const string Twin="_m";
         void BuildPart(Build j,Dictionary<string,object> part)
         {
-            Statement p=BlueprintData.Wrap(part); var go=new GameObject(p.Str("id"));
-            go.transform.SetParent(p.Has("parent")?j.Parts[p.Str("parent")]:j.Visual.transform,false);
-            go.transform.localPosition=BlueprintData.Vec(part,"position",Vector3.zero); go.transform.localRotation=Quaternion.Euler(BlueprintData.Vec(part,"rotation",Vector3.zero)); go.transform.localScale=BlueprintData.Vec(part,"scale",Vector3.one);
-            Mesh mesh=Mesh(part,out bool owned); if(owned) j.Meshes.Add(mesh);
+            Statement p=BlueprintData.Wrap(part); string id=p.Str("id");
+            Transform parent=p.Has("parent")?j.Parts[p.Str("parent")]:j.Visual.transform;
+            AddPart(j,part,id,parent,false);
+            // A part has a twin when it asks for one, or when what it hangs from has one: mirror a leg and its hoof comes too.
+            Transform twinParent=p.Has("parent") && j.Parts.TryGetValue(p.Str("parent")+Twin,out Transform other)?other:null;
+            if((p.Has("mirror") || twinParent!=null) && !j.Parts.ContainsKey(id+Twin) && !j.Remaining.Any(r=>(string)r["id"]==id+Twin))
+                AddPart(j,part,id+Twin,twinParent ?? parent,true);
+        }
+        void AddPart(Build j,Dictionary<string,object> part,string id,Transform parent,bool mirrored)
+        {
+            Statement p=BlueprintData.Wrap(part); var go=new GameObject(id); go.transform.SetParent(parent,false);
+            Vector3 position=BlueprintData.Vec(part,"position",Vector3.zero), rotation=BlueprintData.Vec(part,"rotation",Vector3.zero);
+            if(mirrored) { position.x=-position.x; rotation=new Vector3(rotation.x,-rotation.y,-rotation.z); }
+            go.transform.localPosition=position; go.transform.localRotation=Quaternion.Euler(rotation);
+            // A part's size is built into its mesh, so it never stretches the parts that hang from it. A baked asset keeps its own mesh and is scaled instead.
+            go.transform.localScale=p.Str("shape")=="asset"?BlueprintData.Vec(part,"scale",Vector3.one):Vector3.one;
+            Mesh mesh=Mesh(part,mirrored,out bool owned); if(owned) j.Meshes.Add(mesh);
             j.Triangles+=(int)mesh.GetIndexCount(0)/3; if(mesh.subMeshCount>1) j.Triangles+=(int)mesh.GetIndexCount(1)/3;
-            BlueprintContract.Require(j.Triangles<=8000,"Triangle budget exceeded");
+            BlueprintContract.Require(j.Triangles<=BlueprintContract.MaxTriangles,"Triangle budget exceeded");
             go.AddComponent<MeshFilter>().sharedMesh=mesh; var r=go.AddComponent<MeshRenderer>();
             r.sharedMaterials=mesh.subMeshCount>1?new[]{_world.Objects.LitMaterial,_world.Objects.GlowMaterial}:new[]{_world.Objects.LitMaterial}; r.enabled=p.Flag("visible",true); r.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;
             if(p.Has("collider")) AddCollider(go,p.Str("collider"),mesh.bounds);
-            j.Parts.Add(p.Str("id"),go.transform);
+            j.Parts.Add(id,go.transform);
         }
         static void AddCollider(GameObject go,string kind,Bounds b)
-        { if(kind=="sphere") { var c=go.AddComponent<SphereCollider>(); c.center=b.center; c.radius=b.extents.magnitude; } else if(kind=="capsule") { var c=go.AddComponent<CapsuleCollider>(); c.center=b.center; c.height=Mathf.Max(b.size.y,.05f); c.radius=Mathf.Min(c.height*.5f,Mathf.Max(b.extents.x,b.extents.z)); } else { var c=go.AddComponent<BoxCollider>(); c.center=b.center; c.size=Vector3.Max(b.size,Vector3.one*.02f); } }
-        static Mesh Mesh(Dictionary<string,object> part,out bool owned)
+        { if(kind=="sphere") { var c=go.AddComponent<SphereCollider>(); c.center=b.center; c.radius=Mathf.Max(b.extents.x,Mathf.Max(b.extents.y,b.extents.z)); } else if(kind=="capsule") { var c=go.AddComponent<CapsuleCollider>(); c.center=b.center; c.height=Mathf.Max(b.size.y,.05f); c.radius=Mathf.Min(c.height*.5f,Mathf.Max(b.extents.x,b.extents.z)); } else { var c=go.AddComponent<BoxCollider>(); c.center=b.center; c.size=Vector3.Max(b.size,Vector3.one*.02f); } }
+        static List<Vector3> Points(Dictionary<string,object> part,string key) => ((List<object>)part[key]).Select(v=>BlueprintData.Vec(new Dictionary<string,object>{{"v",v}},"v",Vector3.zero)).ToList();
+        static List<Vector2> Pairs(Dictionary<string,object> part,string key) => ((List<object>)part[key]).Select(v=>{ var l=(List<object>)v; return new Vector2((float)(double)l[0],(float)(double)l[1]); }).ToList();
+        static void Taper(Dictionary<string,object> part,out float x,out float z)
+        {
+            x=z=1; if(!part.TryGetValue("taper",out object t)) return;
+            if(t is double n) x=z=(float)n; else if(t is List<object> l && l.Count==2 && l[0] is double a && l[1] is double b) { x=(float)a; z=(float)b; }
+            x=Mathf.Clamp(x,0,3); z=Mathf.Clamp(z,0,3);
+        }
+        /// <summary>
+        /// The mesh of one part, at its real size, centred on its pivot (a dome, a lathe and a slab
+        /// stand on theirs). `mirrored` builds the reflection, for the twin on the other side.
+        /// </summary>
+        static Mesh Mesh(Dictionary<string,object> part,bool mirrored,out bool owned)
         {
             Statement p=BlueprintData.Wrap(part); owned=p.Str("shape")!="asset";
             if(!owned) return Library.Asset(p.Str("asset")).Mesh;
-            var mb=new MeshBuilder(); mb.Col(p.TryColor("color",out Color color)?color:Color.white).Emit(p.Num("emission"));
-            switch(p.Str("shape"))
+            Vector3 s=BlueprintData.Vec(part,"scale",Vector3.one); string shape=p.Str("shape");
+            var mb=new MeshBuilder(); mb.Shade(.045f).Emit(p.Num("emission"));
+            Color color=p.TryColor("color",out Color given)?given:Color.white;
+            if(p.TryColor("color_top",out Color top))
             {
-                case "cube": case "plank": mb.Box(Vector3.zero,Vector3.one); break;
-                case "sphere": mb.Sphere(Vector3.zero,.5f); break;
-                case "cylinder": mb.Cyl(Vector3.down*.5f,.5f,.5f,1); break;
-                case "cone": mb.Cone(Vector3.down*.5f,.5f,1); break;
-                case "capsule": mb.Capsule(Vector3.down*.5f,.25f,1); break;
-                case "pyramid": mb.Pyramid(Vector3.down*.5f,1,1); break;
-                case "torus": mb.Torus(Vector3.zero,.35f,.15f); break;
-                case "disc": mb.Disc(Vector3.zero,.5f,12,true); break;
-                case "wedge": mb.Wedge(Vector3.down*.5f,Vector3.one); break;
-                case "tube": mb.Tube(((List<object>)part["points"]).Select(v=>BlueprintData.Vec(new Dictionary<string,object>{{"v",v}},"v",Vector3.zero)).ToList(),p.Num("radius",.1f),6); break;
-                case "surface":
-                    var verts=((List<object>)part["vertices"]).Select(v=>BlueprintData.Vec(new Dictionary<string,object>{{"v",v}},"v",Vector3.zero)).ToArray(); var indices=(List<object>)part["triangles"];
-                    for(int i=0;i<indices.Count;i+=3) mb.TriTwoSided(verts[(int)(double)indices[i]],verts[(int)(double)indices[i+1]],verts[(int)(double)indices[i+2]]); break;
+                float y0=-s.y*.5f,y1=s.y*.5f;
+                if(shape=="dome") { y0=0; y1=s.y; }
+                else if(shape=="lathe") { var h=Pairs(part,"profile").Select(v=>v.y*s.y).ToList(); y0=h.Min(); y1=h.Max(); }
+                else if(shape=="slab") { var h=Pairs(part,"outline").Select(v=>v.y*s.y).ToList(); y0=h.Min(); y1=h.Max(); }
+                else if(shape=="tube") { var h=Points(part,"points").Select(v=>v.y*s.y).ToList(); y0=h.Min(); y1=h.Max(); }
+                else if(shape=="surface") { var h=Points(part,"vertices").Select(v=>v.y*s.y).ToList(); y0=h.Min(); y1=h.Max(); }
+                mb.Grad(color,top,y0,y1);
+            }
+            else mb.Col(color);
+            // `repeat` lays copies along `step`, which is measured in the parent's space like `position`
+            int copies=Mathf.Clamp(p.Int("repeat",1),1,12); Vector3 step=BlueprintData.Vec(part,"step",Vector3.zero), turn=BlueprintData.Vec(part,"rotation",Vector3.zero);
+            if(mirrored) { step.x=-step.x; turn=new Vector3(turn.x,-turn.y,-turn.z); }
+            step=Quaternion.Inverse(Quaternion.Euler(turn))*step;
+            // a limb hangs from its position and a post stands on it; shapes that already stand on theirs are left alone
+            bool centred=shape!="dome" && shape!="lathe" && shape!="slab" && shape!="tube" && shape!="surface";
+            Vector3 anchor=!centred?Vector3.zero:p.Str("anchor")=="top"?Vector3.down*s.y*.5f:p.Str("anchor")=="bottom"?Vector3.up*s.y*.5f:Vector3.zero;
+            for(int k=0;k<copies;k++)
+            {
+                mb.Push(step*k+anchor,Vector3.zero,mirrored?new Vector3(-1,1,1):Vector3.one);
+                Shape(mb,p,part,shape,s);
+                mb.Pop();
             }
             return mb.Build(p.Str("id"));
+        }
+        static void Shape(MeshBuilder mb,Statement p,Dictionary<string,object> part,string shape,Vector3 s)
+        {
+            int sides=Mathf.Clamp(p.Int("sides",12),3,24); Taper(part,out float tx,out float tz);
+            float least=Mathf.Min(s.x,Mathf.Min(s.y,s.z));
+            switch(shape)
+            {
+                case "cube": case "plank":
+                    // edges are worn a little unless told otherwise: a box with knife edges reads as a placeholder
+                    mb.BevelBox(Vector3.zero,s,p.Has("bevel")?Mathf.Clamp01(p.Num("bevel"))*.5f*least:Mathf.Min(.1f*least,.03f),tx,tz); break;
+                case "sphere": mb.Sphere(Vector3.zero,s*.5f,Mathf.Max(s.x,Mathf.Max(s.y,s.z))>.5f?2:1); break;
+                case "blob": mb.Blob(Vector3.zero,s*.5f,Mathf.Clamp(p.Num("rough",.25f),0,.6f),p.Int("seed",1),1); break;
+                case "cylinder": mb.Push(Vector3.zero,Vector3.zero,new Vector3(s.x,1,s.z)).Cyl(Vector3.down*s.y*.5f,.5f,.5f*tx,s.y,sides).Pop(); break;
+                case "cone": mb.Push(Vector3.zero,Vector3.zero,new Vector3(s.x,1,s.z)).Cone(Vector3.down*s.y*.5f,.5f,s.y,sides).Pop(); break;
+                case "capsule":
+                    float height=Mathf.Max(s.y,s.x);
+                    mb.Push(Vector3.zero,Vector3.zero,new Vector3(1,1,s.z/s.x)).Capsule(Vector3.down*height*.5f,s.x*.5f,height,Mathf.Max(sides,8)).Pop(); break;
+                case "pyramid": mb.Push(Vector3.zero,Vector3.zero,s).Pyramid(Vector3.down*.5f,1,1).Pop(); break;
+                case "torus":
+                    float tube=Mathf.Clamp(p.Num("radius",.15f),.02f,.45f);
+                    mb.Push(Vector3.zero,Vector3.zero,s).Torus(Vector3.zero,.5f-tube,tube,Mathf.Max(sides,12),6).Pop(); break;
+                case "disc": mb.Push(Vector3.zero,Vector3.zero,s).Disc(Vector3.zero,.5f,sides,true).Pop(); break;
+                case "wedge": mb.Push(Vector3.zero,Vector3.zero,s).Wedge(Vector3.down*.5f,Vector3.one).Pop(); break;
+                case "dome": mb.Push(Vector3.zero,Vector3.zero,new Vector3(s.x,1,s.z)).Dome(Vector3.zero,.5f,s.y,sides).Pop(); break;
+                case "lathe": mb.Push(Vector3.zero,Vector3.zero,s).Lathe(Vector3.zero,Pairs(part,"profile"),sides).Pop(); break;
+                case "slab": mb.Push(Vector3.zero,Vector3.zero,s).Slab(Pairs(part,"outline"),p.Num("thickness",.05f)).Pop(); break;
+                case "tube": mb.Push(Vector3.zero,Vector3.zero,s).Tube(Points(part,"points"),p.Num("radius",.1f),Mathf.Clamp(p.Int("sides",6),3,12)).Pop(); break;
+                case "surface":
+                    var verts=Points(part,"vertices"); var indices=(List<object>)part["triangles"]; mb.Push(Vector3.zero,Vector3.zero,s);
+                    for(int i=0;i<indices.Count;i+=3) mb.TriTwoSided(verts[(int)(double)indices[i]],verts[(int)(double)indices[i+1]],verts[(int)(double)indices[i+2]]);
+                    mb.Pop(); break;
+            }
         }
         void Complete(Build j)
         {
@@ -240,7 +309,7 @@ namespace ImagineVR
             GameObject root=j.Edit!=null?j.Edit.gameObject:j.Root;
             if(j.Edit!=null)
             {
-                Prop prop=root.GetComponent<Prop>(); if(prop!=null && prop.Held) prop.Holder.ForceRelease();
+                // an edit to something in the hand leaves it there: asked to make their gun louder, the user must not find it on the floor
                 foreach(var contact in root.GetComponentsInChildren<BlueprintContact>()) Object.Destroy(contact.gameObject);
                 var old=j.Edit.Visual; j.Visual.transform.SetParent(root.transform,false); Object.Destroy(old.gameObject); Object.Destroy(j.Root); j.Root=null;
             }
@@ -268,7 +337,7 @@ namespace ImagineVR
         }
         public void Emit(BlueprintActor actor,Dictionary<string,object> emitter)
         {
-            _shots.RemoveAll(s=>s==null); if(_shots.Count>=32) { _world.Rules.Fail("Projectile budget exceeded"); return; }
+            _shots.RemoveAll(s=>s==null); if(_shots.Count>=MaxShots) return;   // a held trigger simply waits for room
             Statement e=BlueprintData.Wrap(emitter); if(!actor.Sockets.TryGetValue(e.Str("socket"),out Transform socket)) return;
             string asset=e.Str("asset"); var go=new GameObject("BlueprintProjectile"); go.transform.SetParent(_world.transform,false); go.transform.position=socket.position;
             // Cache bounded small visual recipes, without recursively attaching actor capabilities.
@@ -290,7 +359,15 @@ namespace ImagineVR
             var body=go.AddComponent<Rigidbody>(); body.useGravity=false; body.isKinematic=true;
             Vector3 direction=socket.forward; Vector3? target=actor.TargetPoint(emitter,"forward"); if(target.HasValue) direction=(target.Value-socket.position).normalized;
             var shot=go.AddComponent<BlueprintProjectile>(); shot.Init(_world,actor,emitter,direction); _shots.Add(go);
+            // A shot is heard and seen leaving: with neither, a gun that works feels like one that does not.
+            string sound=e.Str("sound",asset=="energy_ball"?"zap":"gunshot");
+            if(sound!="none") Sfx.Play(sound,socket.position,.75f,.92f+UnityEngine.Random.value*.16f);
+            Color flash=e.TryColor("color",out Color flashTint)?flashTint:new Color(1f,.82f,.4f);
+            if(_flashes.Count(f=>f!=null)<6) _flashes.Add(Fx.Burst(socket.position+direction*.04f,flash,Color.white,7,2.2f,.035f,.09f,0,true));
+            _flashes.RemoveAll(f=>f==null);
         }
+        public const int MaxShots=40;
+        readonly List<ParticleSystem> _flashes=new List<ParticleSystem>();
         void BuildProjectileVisual(GameObject go,Dictionary<string,object> recipe)
         {
             // Emission is bounded: small recipes only; larger recipes use a visible approximation.
@@ -300,8 +377,8 @@ namespace ImagineVR
             while(parts.Count>0)
             {
                 var p=parts.First(x=>!x.ContainsKey("parent")||byName.ContainsKey((string)x["parent"])); var child=new GameObject((string)p["id"]); child.transform.SetParent(p.ContainsKey("parent")?byName[(string)p["parent"]]:go.transform,false);
-                child.transform.localPosition=BlueprintData.Vec(p,"position",Vector3.zero); child.transform.localRotation=Quaternion.Euler(BlueprintData.Vec(p,"rotation",Vector3.zero)); child.transform.localScale=BlueprintData.Vec(p,"scale",Vector3.one);
-                var mesh=Mesh(p,out bool own); if(own) owned.Meshes.Add(mesh); child.AddComponent<MeshFilter>().sharedMesh=mesh; child.AddComponent<MeshRenderer>().sharedMaterials=mesh.subMeshCount>1?new[]{_world.Objects.LitMaterial,_world.Objects.GlowMaterial}:new[]{_world.Objects.LitMaterial};
+                child.transform.localPosition=BlueprintData.Vec(p,"position",Vector3.zero); child.transform.localRotation=Quaternion.Euler(BlueprintData.Vec(p,"rotation",Vector3.zero)); child.transform.localScale=(string)p["shape"]=="asset"?BlueprintData.Vec(p,"scale",Vector3.one):Vector3.one;
+                var mesh=Mesh(p,false,out bool own); if(own) owned.Meshes.Add(mesh); child.AddComponent<MeshFilter>().sharedMesh=mesh; child.AddComponent<MeshRenderer>().sharedMaterials=mesh.subMeshCount>1?new[]{_world.Objects.LitMaterial,_world.Objects.GlowMaterial}:new[]{_world.Objects.LitMaterial};
                 byName[(string)p["id"]]=child.transform; parts.Remove(p);
             }
         }

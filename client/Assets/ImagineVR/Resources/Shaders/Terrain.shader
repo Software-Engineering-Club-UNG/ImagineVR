@@ -12,6 +12,7 @@ Shader "ImagineVR/Terrain"
         _GridColor ("Grid colour", Color) = (0,1,1,1)
         _GridAmount ("Grid amount", Range(0,1)) = 0
         _GridSize ("Grid cell (m)", Float) = 4
+        _Detail ("Ground detail (0 = a clean sheet of colour)", Range(0,1)) = 0.2
     }
     SubShader
     {
@@ -40,6 +41,7 @@ Shader "ImagineVR/Terrain"
                 float _RevealMode;
                 float _GridAmount;
                 float _GridSize;
+                float _Detail;
             CBUFFER_END
 
             struct Attributes
@@ -85,6 +87,22 @@ Shader "ImagineVR/Terrain"
                 clip(lerp(edge, -edge, step(0.5, _RevealMode)));
 
                 half3 col = i.color.rgb;
+
+                // The mesh has a vertex every two metres, so on its own the ground is one smooth sheet
+                // of colour: it looks unfinished exactly where the user stands. Break it up at the
+                // scale of a footstep, a stride and a field, each fading out before it could shimmer.
+                float2 g0 = i.ground.xy;
+                float away = length(g0 - _WorldSpaceCameraPos.xz);
+                float nearBy = saturate(1.0 - away / 26.0), mid = saturate(1.0 - away / 90.0);
+                float fine = ImNoise(g0 * 5.3) - 0.5;
+                float tread = ImNoise(g0 * 1.15 + 31.7) - 0.5;
+                float field = ImNoise(g0 * 0.17 + 7.3) - 0.5;
+                // flecks: the odd stone, tuft or scuff, a little darker or lighter than what is around it
+                float fleck = smoothstep(0.80, 0.93, ImNoise(g0 * 9.0 + 91.0)) - smoothstep(0.80, 0.93, ImNoise(g0 * 7.0 + 13.0));
+                float detail = (fine * 0.55 * nearBy + tread * 0.75 * mid + field * 0.9 + fleck * 0.5 * nearBy) * _Detail;
+                col *= 1.0 + detail;
+                // the hollows run a touch cooler and the swells warmer, as ground does
+                col = lerp(col, col * half3(1.05, 1.0, 0.9), saturate(field * 2.0 + 0.5) * _Detail * 1.2);
 
                 // Optional glowing grid lines.
                 float2 cell = i.ground.xy / _GridSize;

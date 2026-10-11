@@ -74,7 +74,7 @@ namespace ImagineVR
         {
             request.SetRequestHeader("X-App-Token", Settings.AppToken);
             request.SetRequestHeader("X-Session-Id", session ?? SessionId);
-            request.SetRequestHeader("X-Client-Capabilities", RuleEngine.Capability+","+BlueprintContract.Capability);
+            request.SetRequestHeader("X-Client-Capabilities", RuleEngine.Capability+","+BlueprintContract.Capability+","+BlueprintContract.RichCapability);
             if (!string.IsNullOrEmpty(CatalogVersion)) request.SetRequestHeader("X-Catalog-Version", CatalogVersion);
         }
 

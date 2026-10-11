@@ -46,7 +46,7 @@ def test_registry_atomic_and_legacy():
     validator=Validator(cat,allow_blueprints=True)
     assert validator.check(recipe(),world)[-1]['op']=='blueprint'
     previous=copy.deepcopy(world.blueprints)
-    bad=recipe(); bad['parts'][0]['shape']='eval'
+    bad=recipe(); bad['parts']=[]   # nothing to build: the one thing that cannot be mended
     assert validator.check(bad,world)[-1]['op']=='note'
     assert world.blueprints==previous
     assert validator.check({'op':'give','asset':'new_tool','id':'tool'},world)[-1]['asset']=='new_tool'
@@ -168,11 +168,18 @@ def test_edit_accepts_a_nested_recipe_without_its_op(monkeypatch):
     assert out[-1]=={'op':'done','outcome':'world_changed'}
 
 
+def test_an_edit_that_names_its_target_by_id_is_understood(monkeypatch):
+    out=_turn(monkeypatch,[{'op':'blueprint_edit','id':'tool','blueprint':recipe()},{'op':'say','text':"I've turned the grip."}])
+    edit=[s for s in out if s['op']=='blueprint_edit']
+    assert len(edit)==1 and edit[0]['selector']=={'instance':'tool'}
+    assert out[-1]=={'op':'done','outcome':'world_changed'}
+
+
 def test_a_rejected_change_is_not_reported_as_done(monkeypatch):
     from imagine import turn
-    out=_turn(monkeypatch,[{'op':'blueprint_edit','id':'tool','blueprint':recipe()},{'op':'say','text':"I've turned the grip."},{'op':'say','text':'Hold it out again.'}])
+    out=_turn(monkeypatch,[{'op':'blueprint_edit','selector':{'instance':'tool'},'blueprint':{'id':'new_tool','parts':[]}},{'op':'say','text':"I've turned the grip."},{'op':'say','text':'Hold it out again.'}])
     notes=[s['text'] for s in out if s['op']=='note']
-    assert any('rejected' in n and 'unknown id' in n and 'missing selector' in n for n in notes)
+    assert any('rejected' in n for n in notes)
     assert [s['text'] for s in out if s['op']=='say']==[turn.REFUSED]
     assert out[-1]=={'op':'done','outcome':'failed'}
 
@@ -185,8 +192,117 @@ def test_a_rejection_beside_a_real_change_keeps_the_reply(monkeypatch):
 
 def test_the_prompt_example_of_a_trigger_fired_tool_is_valid():
     text=(ROOT/'openrouter-api/imagine/blueprints-prompt.md').read_text(encoding='utf-8')
-    gun=json.loads(next(line for line in text.splitlines() if line.startswith('{"op":"blueprint","id":"ray_gun"')))
+    gun=json.loads(next(line for line in text.splitlines() if line.startswith('{"op":"blueprint","id":"flare_pistol"')))
     v=Validator(Catalog.load(ROOT/'shared/catalog.json'),allow_rules=True,allow_blueprints=True); w=WorldState()
     assert v.check(gun,w)[0]['op']=='blueprint'
     emitter=gun['capabilities']['emitters'][0]
     assert emitter['enabled'] is True and 'autofire' not in emitter
+
+
+# ---- the 20:45 headset session: an AK-47 refused twice over one number, and delivered as a white box
+
+def _checked(raw, rich=True):
+    v=Validator(Catalog.load(ROOT/'shared/catalog.json'),allow_rules=True,allow_blueprints=True,rich_blueprints=rich); w=WorldState()
+    return v.check(raw,w),v,w
+
+
+def ak47():
+    return {'op':'blueprint','id':'ak47','description':'AK-47 rifle','parts':[
+        {'id':'receiver','shape':'box','position':[0,0,0],'scale':[.06,.09,.32],'color':'grey','collider':'box'},
+        {'id':'barrel','shape':'cylinder','position':[0,.01,.36],'rotation':[90,0,0],'scale':[.025,.4,.025],'color':'#1E1E1E'},
+        {'id':'stock','shape':'slab','outline':[[-.1,.05],[-.1,0],[-.38,-.03],[-.38,.05]],'thickness':.04,'color':'#7A5230'},
+        {'id':'sight','shape':'cube','position':[0,.08,.5],'scale':.012,'weird':True}],
+        'capabilities':{'grabbable':True,'grip':{'position':[0,-.05,-.05]},'emitters':[
+            {'name':'shot','socket':'muzzle','asset':'bullet','target':'forward','speed':60,'cooldown':.1,'damage':5000,'enabled':True,'sound':'gunshot'}]}}
+
+
+def test_a_recipe_with_numbers_out_of_range_is_mended_not_refused():
+    out,_,world=_checked(ak47())
+    assert [s['op'] for s in out]==['blueprint']
+    made=out[0]; emitter=made['capabilities']['emitters'][0]
+    assert emitter['speed']==40 and emitter['damage']==1000 and emitter['cooldown']==.1   # a machine gun's pace is allowed
+    assert emitter['asset']=='energy_ball', 'a projectile that does not exist becomes one that does'
+    assert emitter['socket'] in {s['name'] for s in made['sockets']}, 'a muzzle nobody defined is put at the far end'
+    parts={p['id']:p for p in made['parts']}
+    assert parts['receiver']['shape']=='cube' and parts['receiver']['color']=='#8B8D98'
+    assert parts['sight']['scale']==[.012,.012,.012] and 'weird' not in parts['sight']
+    assert parts[made['sockets'][0]['part']]['position'][2]>.5
+    assert 'ak47' in world.blueprints
+
+
+def test_a_held_gun_written_without_an_emitter_still_shoots():
+    raw=ak47(); raw['capabilities'].pop('emitters')
+    made=_checked(raw)[0][0]
+    emitter=made['capabilities']['emitters'][0]
+    assert emitter['enabled'] is True and emitter['target']=='forward' and 'autofire' not in emitter
+    # but nothing is armed that was not plainly meant to be
+    tool=recipe(); assert 'emitters' not in _checked(tool)[0][0].get('capabilities',{})
+
+
+def test_a_blueprint_named_after_a_library_asset_is_kept_under_another_id():
+    raw=ak47(); raw['id']='rifle'
+    out,v,world=_checked(raw)
+    assert out[0]['op']=='blueprint' and out[0]['id']=='rifle_made'
+    given=v.check({'op':'give','asset':'rifle','id':'my_rifle'},world)
+    assert given[-1]['asset']=='rifle_made'
+
+
+def test_an_older_app_is_sent_a_recipe_in_the_words_it_knows():
+    made=_checked(ak47(),rich=False)[0][0]
+    stock=next(p for p in made['parts'] if p['id']=='stock')
+    assert stock['shape']=='cube' and 'outline' not in stock and stock['scale']==[.04,.08,.28]
+    emitter=made['capabilities']['emitters'][0]
+    assert emitter['cooldown']==.25 and 'sound' not in emitter
+
+
+def test_the_new_part_vocabulary_is_valid():
+    raw={'op':'blueprint','id':'vase_bird','parts':[
+        {'id':'vase','shape':'lathe','profile':[[.1,0],[.2,.2],[.05,.5],[0,.5]],'sides':12,'color':'#336699','color_top':'#88BBEE'},
+        {'id':'leg','shape':'cylinder','anchor':'top','position':[.1,.5,0],'scale':[.05,.5,.05],'taper':1.5,'mirror':'x'},
+        {'id':'toe','shape':'dome','parent':'leg','position':[0,-.5,.03],'scale':[.08,.03,.1]},
+        {'id':'fleece','shape':'blob','rough':.3,'seed':4},
+        {'id':'rivets','shape':'sphere','scale':[.02,.02,.02],'repeat':6,'step':[0,.05,0]},
+        {'id':'guard','shape':'torus','radius':.06,'bevel':.5}],
+        'animations':[{'name':'walk','part':'leg','mode':'oscillate','property':'rotation','amplitude':[20,0,0],'alternate':True}]}
+    made=_checked(raw)[0][0]
+    assert [p['shape'] for p in made['parts']]==['lathe','cylinder','dome','blob','sphere','torus']
+    assert made['animations'][0]['alternate'] is True and made['parts'][1]['mirror']=='x'
+
+
+def test_every_blueprint_in_the_prompt_is_valid_as_written():
+    text=(ROOT/'openrouter-api/imagine/blueprints-prompt.md').read_text(encoding='utf-8')
+    recipes=[json.loads(line) for line in text.splitlines() if line.startswith('{"op":"blueprint"')]
+    assert len(recipes)>=2
+    for raw in recipes:
+        made=_checked(raw)[0][0]
+        assert made['op']=='blueprint' and len(made['parts'])==len(raw['parts']), raw['id']
+        for a,b in zip(raw['parts'],made['parts']): assert {k:v for k,v in b.items()}=={k:v for k,v in a.items()}, (raw['id'],a['id'])
+        assert made.get('animations',[])==raw.get('animations',[]) and made.get('capabilities')==raw.get('capabilities')
+        assert len(raw['parts'])>=14, 'the examples must show the depth they ask for'
+
+
+def test_each_app_is_told_one_way_to_make_what_the_library_lacks():
+    from imagine.main import for_client
+    text=(ROOT/'openrouter-api/imagine/prompt.md').read_text(encoding='utf-8')
+    new,old=for_client(text,True),for_client(text,False)
+    assert '<!--' not in new and '<!--' not in old
+    assert 'Sculpting from shapes' in old and 'Sculpting from shapes' not in new
+    assert 'batman.legs' in old and 'batman.legs' not in new
+    assert 'Making what the catalog lacks' in new and 'When they are not happy with it' in new
+
+
+def test_what_cannot_be_built_falls_back_to_the_nearest_library_asset_not_a_white_box(monkeypatch):
+    import asyncio
+    from imagine import config,llm,turn
+    from imagine.session import Session
+    monkeypatch.setattr(config,'OFFLINE',False); calls=[]
+    async def model(prompt,content,model=None):
+        calls.append(content)
+        if len(calls)==1: yield json.dumps({'op':'give','asset':'laser_rifle','id':'gun'})
+        else: yield json.dumps({'op':'blueprint','id':'laser_rifle','parts':[]})
+    monkeypatch.setattr(llm,'stream_lines',model)
+    async def collect():
+        return [s async for s in turn._run_turn(Session('bp-test'),Catalog.load(ROOT/'shared/catalog.json'),'runtime-blueprints-v1',text='give me a laser rifle',allow_rules=True,allow_blueprints=True)]
+    out=asyncio.run(collect())
+    give=[s for s in out if s['op']=='give']
+    assert len(give)==1 and not give[0].get('stand_in') and give[0]['asset'] in ('rifle','blaster')

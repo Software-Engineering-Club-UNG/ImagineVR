@@ -148,10 +148,24 @@ namespace ImagineVR
             return roots.Count;
         }
 
+        /// <summary>
+        /// How high the tallest thing standing on the ground reaches, in metres above it. Something
+        /// that flies has to clear this to be "over" a place and not in among it.
+        /// </summary>
+        public float Skyline()
+        {
+            float top = 0f;
+            foreach (Group g in _order)
+                foreach (Placement p in g.Items)
+                    if (p.Mesh != null && p.Grounded) top = Mathf.Max(top, p.Position.y + p.Mesh.bounds.max.y * p.Scale.y);
+            return top;
+        }
+
         public int ScatterTotal()
         {
             int n = 0;
-            foreach (Group g in _order) if (g.Kind == "scatter") n += g.Items.Count;
+            // what grows on the ground by itself is not charged to what the user may ask for
+            foreach (Group g in _order) if (g.Kind == "scatter" && !g.Id.StartsWith(World.Cover, System.StringComparison.Ordinal)) n += g.Items.Count;
             return n;
         }
 
@@ -352,7 +366,7 @@ namespace ImagineVR
         {
             string name = s.Str("asset", "cube");
             AssetDef def = Library.FindAsset(name);
-            _world.Placed(s, name, def, def == null, s.Frame().position, null);
+            if (!s.Str("id", "").StartsWith(World.Cover, System.StringComparison.Ordinal)) _world.Placed(s, name, def, def == null, s.Frame().position, null);
             if (def == null) def = Library.Asset("cube");
             int count = Mathf.Clamp(s.Int("count", 12), 1, MaxScatterCount);
 

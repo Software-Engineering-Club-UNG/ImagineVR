@@ -14,7 +14,8 @@ namespace ImagineVR
     /// </summary>
     public sealed class Vehicle : MonoBehaviour
     {
-        const float Cruise = 12f;   // metres above the ground, for things that fly
+        const float Cruise = 12f;   // metres above the ground, for things that fly, when nothing stands taller
+        float _cruise = Cruise, _skylineAt;
         const float WalkSpeed = 3f;
 
         Rig _rig;
@@ -78,6 +79,9 @@ namespace ImagineVR
             _size = Mathf.Clamp(scale, 0.05f, 20f);
             _rig.transform.GetChild(0).localScale = Vector3.one * _size;
             _rig.Cam.nearClipPlane = Mathf.Clamp(0.05f * _size, 0.004f, 0.5f);
+            // their eyes have just moved a long way up or down: the terminal comes to where they now are
+            // (made a giant in the 20:45 session, the user found it somewhere below their knees)
+            if (_terminal != null) _terminal.Recenter(false);
         }
 
         void Mount(AssetDef def, Color tint, float speed)
@@ -120,6 +124,7 @@ namespace ImagineVR
             Sfx.Play("whoosh", _rig.transform.position, 0.6f);
             _world.Rules.Broadcast("mount", def.Id);
             Mounted?.Invoke(def.FliesRidden);
+            if (_terminal != null) _terminal.Recenter(false);
         }
 
         /// <summary>Back on foot, standing wherever the ride stopped.</summary>
@@ -313,7 +318,12 @@ namespace ImagineVR
                 float water = _world.Terrain.WaterY;
                 if (!float.IsNaN(water)) target = Mathf.Max(target, water);
             }
-            _altitude = Mathf.MoveTowards(_altitude, Riding && _def.FliesRidden ? Cruise : 0f, 4f * dt);
+            // Flying is over things. Twelve metres clears a wood, but asked to "fly over New York" in the
+            // 20:45 session it put the user in the street between the towers, looking up at them. So the
+            // cruising height rises with what stands there, checked now and then: above the rooftops, with
+            // the tallest towers still reaching up past the user, and not so high the streets are lost in haze.
+            if (Time.time >= _skylineAt) { _skylineAt = Time.time + 1.5f; _cruise = Mathf.Clamp(_world.Objects.Skyline() * 0.6f + 8f, Cruise, 60f); }
+            _altitude = Mathf.MoveTowards(_altitude, Riding && _def.FliesRidden ? _cruise : 0f, Mathf.Max(4f, _cruise / 8f) * dt);
             if (_route == null) _railHeight = Mathf.MoveTowards(_railHeight, 0f, 6f * dt);
             target += _altitude + _railHeight + (Riding ? _seat : 0f);
             _lastYaw = rig.eulerAngles.y;

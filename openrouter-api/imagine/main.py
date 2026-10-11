@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
@@ -82,6 +83,21 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="ImagineVR", lifespan=lifespan)
 
 
+# An app that understands the richer blueprint parts says so; one built before them is sent plainer recipes.
+RICH_BLUEPRINTS = 'runtime-blueprints-v2'
+_ONLY = re.compile(r'<!--(blueprints|shapes-only)-->\n?(.*?)<!--/\1-->\n?', re.S)
+
+
+def for_client(prompt: str, blueprints: bool) -> str:
+    """
+    The instructions as this app should hear them. Passages marked `blueprints` are for an app
+    that can build things from recipes, and `shapes-only` for one that cannot: each app is told
+    one way of making what the library lacks, never two that contradict each other.
+    """
+    keep = 'blueprints' if blueprints else 'shapes-only'
+    return _ONLY.sub(lambda m: m.group(2) if m.group(1) == keep else '', prompt)
+
+
 def check_token(token: str | None) -> None:
     if config.APP_TOKEN and token != config.APP_TOKEN:
         raise HTTPException(status_code=401, detail="bad app token")
@@ -101,7 +117,7 @@ async def health():
         "model": "offline" if config.OFFLINE else config.MODEL,
         "stt": f"local:{config.STT_MODEL}" if config.STT == "local" else config.STT,
         "tts": tts.enabled(),
-        "capabilities": [CAPABILITY, BLUEPRINT_CAPABILITY, USER_STATE],
+        "capabilities": [CAPABILITY, BLUEPRINT_CAPABILITY, RICH_BLUEPRINTS, USER_STATE],
     }
 
 
@@ -157,7 +173,8 @@ async def turn(
     async def stream():
         allow_rules = CAPABILITY in (x_client_capabilities or '').split(',')
         allow_blueprints = allow_rules and BLUEPRINT_CAPABILITY in (x_client_capabilities or '').split(',')
-        prompt = state.system_prompt
+        rich_blueprints = allow_blueprints and RICH_BLUEPRINTS in (x_client_capabilities or '').split(',')
+        prompt = for_client(state.system_prompt, allow_blueprints)
         if allow_rules:
             prompt += '\n\n' + (config.PROMPT_PATH.parent / 'rules-prompt.md').read_text(encoding='utf-8')
             prompt += '\nRULE CAPABILITIES:\n' + json.dumps(CAPABILITIES, separators=(',', ':'))
@@ -166,7 +183,7 @@ async def turn(
             prompt += '\nBLUEPRINT CAPABILITIES:\n' + json.dumps(BLUEPRINT_CONTRACT,separators=(',',':'))
         statements = run_turn(
             session, state.catalog, prompt, text=text, audio=audio, base_url=base_url,
-            frame=to_frame(x_user_pose), allow_rules=allow_rules, allow_blueprints=allow_blueprints,
+            frame=to_frame(x_user_pose), allow_rules=allow_rules, allow_blueprints=allow_blueprints, rich_blueprints=rich_blueprints,
         )
         pending = None
         try:

@@ -52,8 +52,30 @@ namespace ImagineVR
             src.Play();
         }
 
+        /// <summary>
+        /// What a sound asked for by another name comes out as. The model writes the word for what
+        /// it hears in its head ("gunshot", "laser", "explosion"), and silence is the worst answer.
+        /// </summary>
+        static string Known(string name)
+        {
+            switch ((name ?? "").ToLowerInvariant().Replace(' ', '_').Replace('-', '_'))
+            {
+                case "shot": case "bang": case "gun": case "rifle": case "pistol": case "fire": case "gunfire": case "shoot": case "bullet": return "gunshot";
+                case "laser": case "blaster": case "ray": case "pew": case "beam": return "zap";
+                case "explosion": case "explode": case "blast": case "cannon": case "shotgun": case "bomb": return "boom";
+                case "hit": case "impact": case "punch": case "knock": return "thud";
+                case "magic": case "twinkle": case "shimmer": return "sparkle";
+                case "swing": case "swoosh": case "wind": return "whoosh";
+                case "ding": case "ring": return "bell";
+                case "click": return "tap";
+                case "cheer": case "party": return "confetti";
+                default: return name;
+            }
+        }
+
         public static AudioClip Get(string name)
         {
+            name = Known(name);
             if (Clips.TryGetValue(name, out AudioClip clip)) return clip;
             clip = Resources.Load<AudioClip>("Sfx/" + name);
             if (clip == null)
@@ -172,6 +194,12 @@ namespace ImagineVR
                     b = Buffer(0.32f); Noise(b, 0, 0.04f, 0.5f, 5, 0.8f, 31);
                     Tone(b, 0, 0.26f, 2400, 180, 0.3f, 4, 0.001f); Tone(b, 0, 0.22f, 3600, 300, 0.1f, 5, 0.001f);
                     Tone(b, 0, 0.18f, 150, 50, 0.45f, 5, 0.001f); return b;
+                case "gunshot":   // a rifle: a hard crack, the bark under it, and a short tail
+                    b = Buffer(0.34f); Noise(b, 0, 0.03f, 0.95f, 3, 0.95f, 53); Noise(b, 0.004f, 0.16f, 0.6f, 6, 0.35f, 59);
+                    Noise(b, 0.02f, 0.3f, 0.22f, 5, 0.08f, 61); Tone(b, 0, 0.12f, 190, 60, 0.55f, 6, 0.001f); return b;
+                case "boom":      // something going up: a thump you feel, then the rumble rolling away
+                    b = Buffer(1.1f); Noise(b, 0, 0.06f, 0.9f, 3, 0.7f, 67); Noise(b, 0.01f, 1.0f, 0.55f, 4, 0.05f, 71);
+                    Tone(b, 0, 0.7f, 90, 32, 0.7f, 4, 0.002f); Tone(b, 0, 0.35f, 150, 50, 0.3f, 5, 0.002f); return b;
                 case "groan":     // a zombie somewhere nearby: a low voice that wavers and breaks
                     b = Buffer(1.3f); Voice(b, 0, 1.3f, 104, 70, 0.3f, 6.5f, 0.06f, 0.25f);
                     Voice(b, 0.05f, 1.2f, 157, 104, 0.14f, 7.5f, 0.08f, 0.25f); Voice(b, 0.1f, 1.0f, 312, 205, 0.05f, 9f, 0.1f, 0.3f);
