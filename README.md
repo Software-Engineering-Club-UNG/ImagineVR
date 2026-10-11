@@ -106,10 +106,10 @@ told about (the headset keeps it; the model just starts from "empty" for that se
 ## Client
 
 Open `client/` in Unity 6000.3.26f1, open `Assets/ImagineVR/Scenes/Main`, press Play.
-Desktop: **Enter** types, **Space** speaks, right mouse looks, **WASD** moves, **E** grabs,
+Desktop: **Enter** types, **Space** speaks, right mouse looks, **WASD** moves, hold **E / Q** to grab with the right / left hand; release to drop or throw,
 click uses, **C** folds the terminal, **F12** starts over. Headset: hold **A** to speak,
 **Y** folds the terminal, **X** recentres it, hold **X** two seconds to start over, grip
-grabs, trigger uses, left stick moves/strafes, and right stick turns 45 degrees both on foot and while riding. Point an empty hand at a nearby door and press trigger to open it (desktop: look and press F). See [explorable interiors](INTERIORS.md).
+must stay squeezed to hold any item; release drops or throws it. Trigger uses held items, left stick moves/strafes, and right stick turns 45 degrees both on foot and while riding. Touch and trigger alone do not grab. Point an empty hand at a nearby door and press trigger to open it (desktop: look and press F). See [explorable interiors](INTERIORS.md).
 
 The [held-item expansion](HELD_ITEMS.md) adds 100 built-in item recipes with native trigger/throw behaviors, plus upgrades to existing fishing rods, boomerangs, discs and portable lights.
 

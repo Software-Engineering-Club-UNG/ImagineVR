@@ -140,9 +140,7 @@ namespace ImagineVR
         const float TalkLife = 45f, HandText = 0.2f, TerminalText = 0.34f;
         const int TeachTakes = 3, TeachUses = 2, TeachFolds = 2, TeachRides = 3;
 
-        Callout _talk, _fold, _use, _ride, _drop;
-        int _drops;
-        const int TeachDrops = 4;
+        Callout _talk, _fold, _use, _ride;
         readonly Dictionary<Prop, Callout> _take = new Dictionary<Prop, Callout>();
         bool _talkOwed;
         float _talkAt;
@@ -152,8 +150,7 @@ namespace ImagineVR
         {
             World.Given += OnGiven;
             Rig.Grabbed += OnGrabbed;
-            Rig.Flailed += OnFlailed;
-            Rig.Released += (prop, right) => { if (_drop != null) { _drop.Dismiss(); _drop = null; } };
+            Rig.Released += (prop, right) => { if (_use != null) { _use.Dismiss(); _use = null; } };
             if (World.Vehicle != null) World.Vehicle.Mounted += OnMounted;
         }
 
@@ -163,9 +160,8 @@ namespace ImagineVR
             foreach (Callout c in new[] { _talk, _fold, _use, _ride }) if (c != null) c.Dismiss();
             foreach (Callout c in _take.Values) if (c != null) c.Dismiss();
             _take.Clear();
-            if (_drop != null) _drop.Dismiss();
-            _talk = _fold = _use = _ride = _drop = null;
-            _takes = _uses = _folds = _rides = _drops = 0;
+            _talk = _fold = _use = _ride = null;
+            _takes = _uses = _folds = _rides = 0;
             _talkOwed = true;
             _talkAt = Time.time + 2f;   // after the welcome has typed itself out
         }
@@ -230,21 +226,9 @@ namespace ImagineVR
         void OnGiven(Prop prop)
         {
             if (_takes >= TeachTakes || prop == null || ImagineApp.Quiet) return;
-            string text = Xr ? "touch it to take it" : "press <b>E</b> to take it";
+            string text = Xr ? "hold the <b>grip</b> to take it · release to drop or throw" : "hold <b>E / Q</b> to take it · release to drop or throw";
             _take[prop] = Callout.Show(prop.transform, Vector3.zero, -0.13f, text, HandText, 0f);
             SessionLog.Write("hint", "what", "take", "asset", prop.Def.Id);
-        }
-
-        /// <summary>Shaking a tool does not drop it, so someone shaking one is told what does.</summary>
-        void OnFlailed(Prop prop, bool right)
-        {
-            if (_drops >= TeachDrops || ImagineApp.Quiet) return;
-            _drops++;
-            if (_use != null) { _use.Dismiss(); _use = null; }
-            if (_drop != null) _drop.Dismiss();
-            string text = Xr ? "to drop it, <b>squeeze and hold the grip</b> for a second" : "hold <b>E</b> to drop it";
-            _drop = Callout.Show(right ? Rig.RightHand : Rig.LeftHand, Vector3.zero, 0.14f, text, HandText, 6f);
-            SessionLog.Write("hint", "what", "drop", "asset", prop.Def.Id);
         }
 
         void OnGrabbed(Prop prop, bool right)
@@ -260,8 +244,9 @@ namespace ImagineVR
             _uses++;
             if (_use != null) _use.Dismiss();
             string text;
-            if (prop.Def.Tool) text = Xr ? "<b>trigger</b> uses it  ·  <b>grip</b>: swing and let go to throw, hold still to put down" : "<b>click</b> uses it  ·  hold <b>E</b> to let go";
-            else text = Xr ? "squeeze the <b>grip</b>, then let go to throw" : "hold <b>E</b>, then let go to throw";
+            string key = right ? "E" : "Q";
+            if (prop.Def.Tool) text = Xr ? "keep <b>grip</b> held · <b>trigger</b> uses · release grip to drop or throw" : "keep <b>" + key + "</b> held · click uses · release " + key + " to drop or throw";
+            else text = Xr ? "keep <b>grip</b> held · release to drop or throw" : "keep <b>" + key + "</b> held · release to drop or throw";
             _use = Callout.Show(right ? Rig.RightHand : Rig.LeftHand, Vector3.zero, 0.13f, text, HandText, 7f);
             SessionLog.Write("hint", "what", "use", "asset", prop.Def.Id);
         }

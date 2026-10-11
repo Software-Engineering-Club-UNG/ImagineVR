@@ -13,8 +13,8 @@ namespace ImagineVR
     ///
     /// Controls:            headset                     desktop
     ///   talk               hold A (right)              hold Space
-    ///   take               touch it, or grip           E (right hand), Q (left hand)
-    ///   let go of a tool   hold the grip squeezed      hold E / Q
+    ///   take / hold        hold grip                   hold E (right), Q (left)
+    ///   drop / throw       release grip                release E / Q
     ///   use held thing     trigger                     left mouse button
     ///   next colour / demo B (right)                   B
     ///   recentre terminal  X (left)                    R
@@ -48,9 +48,6 @@ namespace ImagineVR
         public event System.Action<Prop, bool> Grabbed, Released;
         internal void OnGrabbed(Prop prop, bool right) { Grabbed?.Invoke(prop, right); }
         internal void OnReleased(Prop prop, bool right) { Released?.Invoke(prop, right); }
-        /// <summary>A held tool is being shaken about, as by someone who wants to be rid of it.</summary>
-        public event System.Action<Prop, bool> Flailed;
-        internal void OnFlailed(Prop prop, bool right) { Flailed?.Invoke(prop, right); }
 
         InputAction _talk, _alt, _menu, _fold, _gripL, _gripR, _triggerL, _triggerR, _stickL, _stickR, _stickClick;
         InputAction _posL, _rotL, _posR, _rotR, _aimL, _aimR, _look, _lookHold;
@@ -319,12 +316,9 @@ namespace ImagineVR
     /// One hand's ability to pick things up. Grip grabs what the hand is touching, or failing
     /// that, what it is pointing at (which then flies to the hand). Trigger uses the held thing.
     ///
-    /// Something the user asked for and was given is easier still, because a newcomer does not
-    /// know what a grip button is: touching it, or pulling the trigger at it, takes it, and it
-    /// then stays in the hand on its own. A tool is let go of by holding the grip squeezed for a
-    /// moment: a quick squeeze does nothing, because that is what a hand does by reflex around
-    /// something it has just been given, and in testing it threw the blaster away again and again.
-    /// Anything else is then held by the grip in the usual way, and thrown by letting go.
+    /// Every item is held only while the grip stays squeezed. Release immediately puts it down
+    /// or throws it with the shared hand-physics calculation. Touch only previews a pickup;
+    /// given items wait nearby until the user explicitly presses grip.
     /// </summary>
     public sealed class Grabber : MonoBehaviour
     {
@@ -332,10 +326,8 @@ namespace ImagineVR
         bool _right;
         Prop _held, _near;
         bool _gripDown, _triggerDown;
-        bool _latched;        // stays in the hand without the grip being held
-        float _gripSince = -1f;   // when the squeeze that will let a tool go began; negative when there is none
         bool _using, _replaceUse;
-        bool _waitTrigger;    // the trigger pull that took it must not also fire it
+        bool _waitTrigger;    // a trigger already pressed at pickup must be released before use
         Vector3 _lastPos, _velocity, _angular;
         Quaternion _lastRot = Quaternion.identity;
         Vector3 _gripOffset;
@@ -349,22 +341,8 @@ namespace ImagineVR
         float _lastShot;
         static readonly Collider[] Hits = new Collider[16];
 
-        /// <summary>How long the grip is held squeezed before a tool is let go of.</summary>
-        public const float LetGoHold = 0.7f;
         /// <summary>A hand moving at least this fast when it lets go is throwing; slower, it is putting the thing down.</summary>
         public const float ThrowSpeed = 1.2f;
-        /// <summary>
-        /// A squeeze that begins this soon after taking a tool is the hand closing round it, not a
-        /// wish to drop it. In the 20:45 session the blaster was taken by touch, gripped 70 ms later
-        /// as anyone grips a thing they have just been handed, and half a second on it was gone.
-        /// </summary>
-        public const float GraspGrace = 1.5f;
-        float _grabbedAt;
-        // shaking a tool about is what people do when they want rid of it and do not know how
-        readonly float[] _swings = new float[5];
-        int _swing;
-        Vector3 _swingDir;
-        float _flailedAt = -100f;
 
         public Prop Held => _held;
         public Vector3 Velocity => _velocity;
@@ -423,41 +401,20 @@ namespace ImagineVR
             if (grip && !_gripDown)
             {
                 SessionLog.Write("press", "button", _right ? "grip_right" : "grip_left", "holding", _held != null ? _held.Def.Id : null);
-                if (_held == null) TryGrab(false);
-                else if (_latched && _held.Def.Tool) { if (Time.time - _grabbedAt > GraspGrace) _gripSince = Time.time; }   // let go of by a swing, or by holding the squeeze
-                else _latched = false;   // now held by the grip: letting go throws it
+                if (_held == null) TryGrab();
             }
-            else if (!grip && _gripDown)
-            {
-                // A tool that sits in the hand is thrown the way anything is: squeeze, swing, let go.
-                // Let go of with the hand still, the squeeze was only a squeeze and the tool stays.
-                bool swung = _gripSince >= 0f && ThrowVelocity().magnitude >= ThrowSpeed;
-                if (_gripSince >= 0f && _held != null && !swung)
-                    SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "kept (a quick squeeze does not let go)", "asset", _held.Def.Id);
-                _gripSince = -1f;
-                if (_held != null && (!_latched || swung)) Release(true);
-            }
-            if (_gripSince >= 0f)
-            {
-                float squeezed = Time.time - _gripSince;
-                // both grips squeezed together is the start of a chord (with X or Y: the local permissions), not a wish to drop
-                if (_held == null || _rig.Grip(!_right) > 0.55f) _gripSince = -1f;
-                // held squeezed with the hand still, it is put down; a hand winding up for a throw is waited for
-                else if (squeezed >= LetGoHold && _velocity.magnitude < 0.6f) Release(true);
-                else if (Time.frameCount % 5 == 0) _rig.Haptic(_right, 0.15f + 0.5f * Mathf.Min(squeezed / LetGoHold, 1f), 0.03f);   // felt building up
-            }
+            // Grip owns the hold, for tools and ordinary props alike. Releasing never needs a timer or swing.
+            if (!grip && _held != null) Release(true);
             _gripDown = grip;
 
             if (_held == null)
             {
                 if (_rig.XrActive && World.Instance != null && World.Instance.Structures.TryInteract(transform, trig && !_triggerDown))
                 { _triggerDown = trig; return; }
-                if (trig && !_triggerDown) TryGrab(true);
                 // pointing an empty hand at something to ride and pulling the trigger gets in or on it
                 if (_held == null && trig && !_triggerDown && World.Instance != null && World.Instance.TryBoard(transform)) { _triggerDown = trig; return; }
                 if (_held == null) Reach();
             }
-            if (_held != null) Flail();
             if (!trig) _waitTrigger = false;
             if (_held != null && !_waitTrigger) Use(trig, trigger);
             if (_held != null && !trig) EndUse(_held);
@@ -471,29 +428,8 @@ namespace ImagineVR
             }
         }
 
-        /// <summary>
-        /// Five hard changes of direction inside two seconds, with a tool that is used by its trigger
-        /// (a sword or a bat is swung on purpose): the user is trying to shake it off.
-        /// </summary>
-        void Flail()
-        {
-            if (!_latched || !_held.Def.Tool || _gripSince >= 0f) return;
-            bool fired = !string.IsNullOrEmpty(_held.Def.Behavior);
-            if (!fired || _velocity.magnitude < 1.6f) return;
-            Vector3 dir = _velocity.normalized;
-            if (_swingDir != Vector3.zero && Vector3.Dot(dir, _swingDir) > -0.4f) return;
-            _swingDir = dir;
-            _swings[_swing++ % _swings.Length] = Time.time;
-            float oldest = Time.time;
-            foreach (float at in _swings) oldest = Mathf.Min(oldest, at);
-            if (_swing < _swings.Length || Time.time - oldest > 2f || Time.time - _flailedAt < 12f) return;
-            _flailedAt = Time.time;
-            SessionLog.Write("flail", "hand", _right ? "right" : "left", "asset", _held.Def.Id);
-            _rig.OnFlailed(_held, _right);
-        }
-
         /// <summary>What the hand is touching and could pick up, nearest first; null when nothing.</summary>
-        Prop Touching(float radius, bool waitingOnly)
+        Prop Touching(float radius)
         {
             Prop best = null;
             float bestScore = float.MaxValue;
@@ -501,52 +437,34 @@ namespace ImagineVR
             for (int i = 0; i < n; i++)
             {
                 Prop p = Hits[i].GetComponentInParent<Prop>();
-                if (p == null || p.Held || (waitingOnly && !p.Floating)) continue;
+                if (p == null || p.Held) continue;
                 float d = Vector3.Distance(p.transform.position, transform.position);
                 if (d < bestScore) { best = p; bestScore = d; }
             }
             return best;
         }
 
-        /// <summary>
-        /// Grip takes anything in reach or pointed at. The trigger takes only something that is
-        /// waiting to be taken (so it never grabs by accident), and that pull does not also fire it.
-        /// </summary>
-        void TryGrab(bool byTrigger)
+        /// <summary>A fresh grip press takes the nearest reachable prop, or the one pointed at.</summary>
+        void TryGrab()
         {
-            Prop best = Touching(0.16f, byTrigger);
-            if (best == null && Physics.SphereCast(transform.position, 0.14f, transform.forward, out RaycastHit hit, byTrigger ? 2.5f : 9f))
+            Prop best = Touching(0.16f);
+            if (best == null && Physics.SphereCast(transform.position, 0.14f, transform.forward, out RaycastHit hit, 9f))
             {
                 Prop p = hit.collider.GetComponentInParent<Prop>();
-                if (p != null && !p.Held && (!byTrigger || p.Floating)) best = p;
+                if (p != null && !p.Held) best = p;
             }
             if (best == null)
             {
-                if (!byTrigger) SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "nothing in reach");
+                SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "nothing in reach");
                 return;
             }
-            Grab(best, byTrigger ? "trigger" : "grip");
-            _latched = byTrigger || best.Def.Tool;   // a tool stays in the hand; the grip is squeezed again to put it down
-            _waitTrigger = byTrigger;
+            Grab(best, "grip");
         }
 
-        /// <summary>
-        /// An empty hand near things: something waiting to be taken jumps into the hand that
-        /// touches it, and anything else in reach answers with a small tick and swells a little,
-        /// so the user can feel and see what a squeeze of the grip would pick up.
-        /// </summary>
+        /// <summary>Touch previews a pickup, but never takes an item without a grip press.</summary>
         void Reach()
         {
-            Prop waiting = Touching(0.11f, true);
-            if (waiting != null)
-            {
-                Near(null);
-                Grab(waiting, "touch");
-                _latched = true;
-                _waitTrigger = _triggerDown;
-                return;
-            }
-            Near(Touching(0.16f, false));
+            Near(Touching(0.16f));
         }
 
         void Near(Prop prop)
@@ -593,10 +511,7 @@ namespace ImagineVR
                 _gripRotation = Quaternion.Inverse(transform.rotation) * prop.transform.rotation;
             }
             _fly = 0f;
-            _grabbedAt = Time.time;
-            _swing = 0;
-            _swingDir = Vector3.zero;
-            _latched = false;
+            _waitTrigger = _rig.Trigger(_right) > 0.4f;
             _rig.ShowHand(_right, false);
             _rig.Haptic(_right, 0.5f, 0.05f);
             Sfx.Play("grab", transform.position, 0.6f);
@@ -608,8 +523,7 @@ namespace ImagineVR
         {
             Prop prop = _held;
             _held = null;
-            _latched = false;
-            _gripSince = -1f;
+            _waitTrigger = false;
             EndUse(prop);
             if (prop == null) return;
             prop.LetGoAt = Time.time;
@@ -654,7 +568,7 @@ namespace ImagineVR
         void FixedUpdate()
         {
             if (_held == null) return;
-            if (_held.Body == null) { _held = null; _latched = false; _rig.ShowHand(_right, true); return; }
+            if (_held.Body == null) { _held = null; _rig.ShowHand(_right, true); return; }
             _fly = Mathf.MoveTowards(_fly, 1f, Time.fixedDeltaTime / 0.14f);
             Vector3 target = Vector3.Lerp(_held.Body.position, TargetPosition, Mathf.Lerp(0.25f, 1f, _fly));
             _held.Body.MovePosition(target);

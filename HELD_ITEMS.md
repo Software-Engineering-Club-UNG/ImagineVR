@@ -4,6 +4,8 @@
 
 ## Controls and behavior
 
+Hold grip to grab and keep holding any item; release grip to immediately drop or throw. Desktop: hold E (right hand) or Q (left), then release. Touch only highlights; trigger uses an item while grip stays held. Items supplied by `give` wait floating until a grip press. A trigger held during pickup must be released before it can use the item.
+
 | Family | Operation |
 |---|---|
 | Firearms | Trigger fires; automatic weapons repeat while held. Distinct barrel lengths, grip details, stock/scope/drum arrangements, cadence, pellets, spread and projectile effects. No magazine/reload system. |

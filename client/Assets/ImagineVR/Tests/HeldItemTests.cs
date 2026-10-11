@@ -3,6 +3,8 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.TestTools;
 
 namespace ImagineVR.Tests
@@ -12,6 +14,8 @@ namespace ImagineVR.Tests
         GameObject root, head, hand;
         World world;
         GameObject releaseRig;
+        Gamepad controls;
+        InputAction gripInput, triggerInput;
         [SetUp] public void Setup()
         {
             Time.captureDeltaTime = 1f / 72;
@@ -22,6 +26,10 @@ namespace ImagineVR.Tests
         [TearDown] public void Cleanup()
         {
             Time.captureDeltaTime = 0;
+            gripInput?.Dispose(); triggerInput?.Dispose();
+            gripInput = triggerInput = null;
+            if (controls != null) InputSystem.RemoveDevice(controls);
+            controls = null;
             if (releaseRig != null) Object.DestroyImmediate(releaseRig);
             Object.DestroyImmediate(root); Object.DestroyImmediate(head); Object.DestroyImmediate(hand);
             foreach (ParticleSystem p in Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None)) Object.DestroyImmediate(p.gameObject);
@@ -62,6 +70,126 @@ namespace ImagineVR.Tests
         static void ReleaseFromHand(Grabber grabber)
         {
             typeof(Grabber).GetMethod("Release", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(grabber, new object[] { true });
+        }
+
+        Grabber PrepareGripControls(bool right, Prop prop)
+        {
+            releaseRig = new GameObject("GripControlRig");
+            Rig rig = releaseRig.AddComponent<Rig>(); rig.Build(); rig.enabled = false;
+            rig.LeftGrabber.enabled = rig.RightGrabber.enabled = false;
+            controls = InputSystem.AddDevice<Gamepad>();
+            gripInput = new InputAction("TestGrip", InputActionType.Value, "<Gamepad>/leftTrigger");
+            triggerInput = new InputAction("TestTrigger", InputActionType.Value, "<Gamepad>/rightTrigger");
+            gripInput.Enable(); triggerInput.Enable();
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(Rig).GetField(right ? "_gripR" : "_gripL", flags).SetValue(rig, gripInput);
+            typeof(Rig).GetField(right ? "_triggerR" : "_triggerL", flags).SetValue(rig, triggerInput);
+            Grabber grabber = right ? rig.RightGrabber : rig.LeftGrabber;
+            prop.Body.interpolation = RigidbodyInterpolation.None;
+            prop.transform.position = grabber.transform.position - prop.transform.TransformVector(prop.Def.Bounds.center);
+            prop.Body.position = prop.transform.position;
+            Physics.SyncTransforms();
+            return grabber;
+        }
+
+        void InputStep(Grabber grabber, bool grip, bool trigger = false)
+        {
+            // NUnit can execute from an editor update; explicitly write the PlayMode state buffer.
+            InputState.Change(controls.leftTrigger, grip ? 1f : 0f, InputUpdateType.Dynamic);
+            InputState.Change(controls.rightTrigger, trigger ? 1f : 0f, InputUpdateType.Dynamic);
+            Assert.AreEqual(grip ? 1f : 0f, controls.leftTrigger.ReadValue(), "Test device state must change");
+            Assert.AreEqual(grip ? 1f : 0f, gripInput.ReadValue<float>(), "Test grip input must reach the action");
+            Assert.AreEqual(trigger ? 1f : 0f, triggerInput.ReadValue<float>(), "Test trigger input must reach the action");
+            typeof(Grabber).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(grabber, null);
+        }
+
+        [TestCase(false, "sword")]
+        [TestCase(true, "sword")]
+        [TestCase(false, "soda_can")]
+        [TestCase(true, "soda_can")]
+        public void GripHoldsUntilReleasedAndNeverAutomaticallyRegrabs(bool right, string asset)
+        {
+            Prop prop = Give(asset); Grabber grabber = PrepareGripControls(right, prop);
+            InputStep(grabber, false); Assert.IsNull(grabber.Held); Assert.IsTrue(prop.Floating);
+            InputStep(grabber, true); Assert.AreSame(prop, grabber.Held);
+            for (int i = 0; i < 100; i++) { InputStep(grabber, true); Assert.AreSame(prop, grabber.Held); }
+            InputStep(grabber, false);
+            Assert.IsNull(grabber.Held); Assert.IsFalse(prop.Floating); Assert.IsFalse(prop.Body.isKinematic);
+            Assert.IsFalse(prop.Thrown);
+            InputStep(grabber, false); Assert.IsNull(grabber.Held);
+            prop.LetGoAt = Time.time - 6; world.Props.Tick(0.01f); Assert.IsFalse(prop.Floating);
+            InputStep(grabber, true); Assert.AreSame(prop, grabber.Held);
+            grabber.ForceRelease(); InputStep(grabber, true); Assert.IsNull(grabber.Held);
+            InputStep(grabber, false); InputStep(grabber, true); Assert.AreSame(prop, grabber.Held);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TouchAndTriggerDoNotGrabGivenItems(bool right)
+        {
+            Prop prop = Give("compact_pistol"); Grabber grabber = PrepareGripControls(right, prop);
+            InputStep(grabber, false); Assert.IsNull(grabber.Held);
+            InputStep(grabber, false, true); Assert.IsNull(grabber.Held); Assert.IsTrue(prop.Floating);
+            Assert.IsFalse(world.Props.All.Any(p => p != null && p.GroupId == "shot"));
+        }
+
+        [UnityTest] public IEnumerator TriggerHeldDuringPickupMustBeReleasedBeforeUse()
+        {
+            Prop prop = Give("compact_pistol"); Grabber grabber = PrepareGripControls(true, prop);
+            InputStep(grabber, false, true);
+            InputStep(grabber, true, true); Assert.AreSame(prop, grabber.Held);
+            yield return new WaitForSeconds(0.5f);
+            InputStep(grabber, true, true);
+            Assert.IsFalse(world.Props.All.Any(p => p != null && p.GroupId == "shot"));
+            InputStep(grabber, true, false); InputStep(grabber, true, true);
+            Assert.IsTrue(world.Props.All.Any(p => p != null && p.GroupId == "shot"));
+            InputStep(grabber, false, true); Assert.IsNull(grabber.Held);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void GripReleaseStartsGrenadeFuseButForceReleaseDoesNot(bool right)
+        {
+            Prop prop = Give("frag_grenade"); Grabber grabber = PrepareGripControls(right, prop);
+            InputStep(grabber, true); grabber.ForceRelease();
+            Assert.IsFalse(prop.GetComponent<HeldItemRuntime>().Armed);
+            InputStep(grabber, false); InputStep(grabber, true); InputStep(grabber, false);
+            Assert.IsTrue(prop.GetComponent<HeldItemRuntime>().Armed);
+        }
+
+        [TestCase(false, "sport_frisbee")]
+        [TestCase(true, "sport_frisbee")]
+        [TestCase(false, "wooden_boomerang")]
+        [TestCase(true, "wooden_boomerang")]
+        public void GripReleasePreservesPeakThrowAndStartsNativeFlight(bool right, string asset)
+        {
+            Prop prop = Give(asset); Grabber grabber = PrepareGripControls(right, prop);
+            InputStep(grabber, true); Assert.AreSame(prop, grabber.Held);
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var recent = (Vector3[])typeof(Grabber).GetField("_recent", flags).GetValue(grabber);
+            var times = (float[])typeof(Grabber).GetField("_recentAt", flags).GetValue(grabber);
+            for (int i = 0; i < times.Length; i++) times[i] = -100;
+            for (int i = 4; i < 7; i++) { recent[i] = Vector3.forward * (i - 3) * 2; times[i] = Time.time; }
+            InputStep(grabber, false);
+            Assert.IsNull(grabber.Held); Assert.IsTrue(prop.Thrown);
+            Assert.Less((prop.Body.linearVelocity - Vector3.forward * 4.8f).magnitude, 0.001f);
+            Assert.IsTrue(prop.GetComponent<HeldItemRuntime>().Busy);
+            Assert.Greater(prop.Body.angularVelocity.magnitude, 15);
+        }
+
+        [UnityTest] public IEnumerator KeepingGripSqueezedNeverDropsOrArmsGrenade()
+        {
+            Prop prop = Give("frag_grenade"); Grabber grabber = PrepareGripControls(true, prop);
+            InputStep(grabber, true);
+            float until = Time.time + 2;
+            while (Time.time < until)
+            {
+                InputStep(grabber, true); Assert.AreSame(prop, grabber.Held);
+                Assert.IsFalse(prop.GetComponent<HeldItemRuntime>().Armed);
+                yield return null;
+            }
+            InputStep(grabber, false);
+            Assert.IsNull(grabber.Held); Assert.IsTrue(prop.GetComponent<HeldItemRuntime>().Armed);
         }
 
         [TestCase("sword")]
