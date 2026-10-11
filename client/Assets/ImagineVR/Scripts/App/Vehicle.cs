@@ -92,7 +92,10 @@ namespace ImagineVR
             float top = b.max.y;
             // sit inside a vehicle, just under its roof; sit on top of an animal; stand in a balloon's basket
             bool enclosed = def.Category == "vehicles";
-            _seat = top > 6f ? 0.3f : (enclosed ? top - 0.25f : top + 0.45f) - 1.6f;
+            // measured from where their eyes really are: the desktop camera is at 1.6 m, but someone
+            // sitting down in a headset is half a metre lower and used to end up inside the animal
+            float eyes = Mathf.Clamp(_rig.Head.localPosition.y, 0.7f, 2f);
+            _seat = top > 6f ? 0.3f : (enclosed ? top - 0.25f : top + 0.45f) - eyes;
             _top = (def.FliesRidden ? 16f : enclosed ? 11f : 7f) * speed;
             _speed = 0f;
 
