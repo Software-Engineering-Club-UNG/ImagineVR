@@ -1,0 +1,15 @@
+{
+  "capability": "runtime-blueprints-v1",
+  "shapes": ["cube","sphere","cylinder","cone","capsule","pyramid","torus","disc","wedge","plank","tube","surface","asset"],
+  "movement_modes": ["still","wander","follow","chase","flee","orbit","path"],
+  "animation_modes": ["oscillate","spin","keyframes"],
+  "events": ["part_contact","state_enter","state_exit","projectile_impact"],
+  "actions": {
+    "motion_config": {"required":["config"],"optional":[]},
+    "animation_play": {"required":["name"],"optional":["enabled"]},
+    "part_transform": {"required":["part"],"optional":["position","rotation","scale","visible"]},
+    "emit_projectile": {"required":["name"],"optional":[]},
+    "actor_state": {"required":["name"],"optional":[]}
+  },
+  "limits": {"blueprints":64,"parts":64,"depth":8,"triangles":8000,"colliders":16,"animations":16,"sockets":16,"emitters":8,"contacts":8,"states":8,"projectiles":32,"build_ms":2}
+}

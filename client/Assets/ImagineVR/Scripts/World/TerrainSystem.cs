@@ -5,7 +5,46 @@ using UnityEngine;
 
 namespace ImagineVR
 {
-    public enum TerrainShape { None, Flat, Rolling, Hills, Mountains, Dunes, Canyon, Valley, Island, Beach, Lake, Ocean, Craters, Plateau }
+    public enum TerrainShape { None, Flat, Rolling, Hills, Mountains, Dunes, Canyon, Valley, Island, Beach, Lake, Ocean, Craters, Plateau, Wetlands, Archipelago, Cliffs, Mesas }
+
+    /// <summary>
+    /// Things any ground can be given on top of its shape, so that two meadows are not the same
+    /// meadow: water running through it, a trail to follow, rock breaking the surface, steps.
+    /// </summary>
+    [Flags]
+    public enum TerrainFeature { None = 0, River = 1, Pond = 2, Path = 4, Terraces = 8, Outcrops = 16 }
+
+    /// <summary>Everything that decides the form of one piece of ground. Plain values: safe on a worker thread.</summary>
+    public struct TerrainRecipe
+    {
+        public TerrainShape Shape;
+        public float Amp;
+        public int Seed;
+        public TerrainFeature Features;
+        public float Roughness;     // 0 smooth, 1 broken, lumpy ground
+        public float WaterLevel;    // of the shape itself, relative to its zero; NaN when it has none
+
+        public bool Has(TerrainFeature f) => (Features & f) != 0;
+        public bool Watered => !float.IsNaN(WaterLevel) || Has(TerrainFeature.River) || Has(TerrainFeature.Pond);
+
+        /// <summary>Feature names as written in a statement; unknown ones are ignored.</summary>
+        public static TerrainFeature Parse(List<string> names)
+        {
+            TerrainFeature f = TerrainFeature.None;
+            foreach (string name in names)
+            {
+                switch (name)
+                {
+                    case "river": case "stream": case "creek": f |= TerrainFeature.River; break;
+                    case "pond": case "pool": f |= TerrainFeature.Pond; break;
+                    case "path": case "trail": case "track": f |= TerrainFeature.Path; break;
+                    case "terraces": case "terraced": case "steps": f |= TerrainFeature.Terraces; break;
+                    case "outcrops": case "rocks": case "boulders": case "crags": f |= TerrainFeature.Outcrops; break;
+                }
+            }
+            return f;
+        }
+    }
 
     public sealed class TerrainType : Entry
     {
@@ -81,6 +120,10 @@ namespace ImagineVR
             Terrain("ocean", TerrainShape.Ocean, "Open water in every direction, a tiny sandbar underfoot", "sea,water,open water", "open sea,sea,open water", "sand", 0.2f, -0.5f);
             Terrain("craters", TerrainShape.Craters, "Dusty plain pocked with impact craters", "moon,lunar,asteroid,space", "lunar surface,moonscape", "moon", 0.4f);
             Terrain("plateau", TerrainShape.Plateau, "The top of a high mesa with the land far below", "mesa,cliff,summit,overlook,epic", "mesa,cliff top,summit,mountain top", "rock", 0.5f);
+            Terrain("wetlands", TerrainShape.Wetlands, "Low marshy ground riddled with pools and winding channels", "marsh,swamp,bog,bayou,fen,delta", "marsh,marshland,bayou,fen,everglades", "swamp", 0.3f, 0f);
+            Terrain("archipelago", TerrainShape.Archipelago, "A scatter of small islands across a shallow sea, you on the largest", "islands,sea,tropical,lagoon,keys", "islands,island chain,lagoon,keys", "sand", 0.3f, -0.6f);
+            Terrain("cliffs", TerrainShape.Cliffs, "A clifftop meadow that drops sheer to the sea ahead", "coast,cliff,headland,sea,dramatic", "sea cliff,clifftop,headland,cliff edge", "grass", 0.4f, -10f);
+            Terrain("mesas", TerrainShape.Mesas, "A wide desert floor studded with flat-topped buttes", "buttes,badlands,western,monument valley,desert", "buttes,badlands,monument valley,mesa country", "mars", 0.4f);
             Terrain("none", TerrainShape.None, "No ground at all: floating in open space or sky", "void,space,floating,empty", "no ground,nothing,floating", "neon", 0f);
         }
     }
@@ -216,9 +259,125 @@ namespace ImagineVR
                     float below = (Fbm(x / 50f, z / 50f, seed + 9) - 0.5f) * 10f * Smooth(25f, 60f, r);
                     return -drop + below;
                 }
+                case TerrainShape.Wetlands:
+                {
+                    // the user's own tussock is always dry; the low places between the others hold water
+                    float n = (Fbm(x / 20f, z / 20f, seed) - 0.45f) * (2.5f + 5f * amp);
+                    return Mathf.Lerp(0.45f, n, Smooth(2f, 16f, r));
+                }
+                case TerrainShape.Archipelago:
+                {
+                    float home = Smooth(30f, 11f, r + (Fbm(x / 14f, z / 14f, seed) - 0.5f) * 10f);
+                    float others = Smooth(0.54f, 0.64f, Fbm(x / 34f, z / 34f, seed + 3)) * Smooth(26f, 44f, r);
+                    float land = Mathf.Max(home, others);
+                    return land * (1f + Fbm(x / 24f, z / 24f, seed + 4) * (2f + 9f * amp)) - (1f - land) * 3f;
+                }
+                case TerrainShape.Cliffs:
+                {
+                    float edge = 15f + (Fbm(x / 18f, 0.7f, seed) - 0.5f) * 14f + Mathf.Sin(x / 37f + seed) * 5f;
+                    float s = z - edge;   // positive = out over the sea
+                    float top = (Fbm(x / 40f, z / 40f, seed + 2) - 0.5f) * (1.5f + 5f * amp) + Mathf.Max(-s - 20f, 0f) * 0.05f * amp;
+                    float fall = Smooth(-1.5f, 4f, s);
+                    float seabed = -14f - Smooth(0f, 60f, s) * 4f + (Fbm(x / 9f, z / 9f, seed + 5) - 0.5f) * 3f * (1f - Smooth(6f, 14f, s));
+                    return Mathf.Lerp(top, seabed, fall);
+                }
+                case TerrainShape.Mesas:
+                {
+                    float floor = (Fbm(x / 50f, z / 50f, seed) - 0.5f) * 2f;
+                    float v = Fbm(x / 42f, z / 42f, seed + 6, 3);
+                    float butte = Smooth(0.55f, 0.6f, v) * Smooth(16f, 34f, r);
+                    float tall = (9f + 26f * amp) * (0.55f + 0.9f * Noise(x / 85f + 3.1f, z / 85f + 7.7f, seed + 8));
+                    float skirt = Smooth(0.47f, 0.56f, v) * Smooth(16f, 34f, r) * 2.5f;
+                    return floor + skirt + butte * (Mathf.Round(tall / 5f) * 5f);
+                }
                 default:
                     return 0f;
             }
+        }
+
+        /// <summary>How far below the user's feet the water lies when a river or pond is asked of ground that has no water of its own.</summary>
+        public const float FeatureWater = -0.8f;
+
+        /// <summary>The middle of the river, as a distance in front of the middle of the world, at this x.</summary>
+        static float RiverZ(int seed, float x)
+        {
+            return 21f + Mathf.Sin(x / 31f + seed * 1.7f) * 6f + (Fbm(x / 55f, 0.4f, seed + 71) - 0.5f) * 10f;
+        }
+
+        /// <summary>Where the trail runs, as a distance to the side, at this z. It starts under the user.</summary>
+        static float PathX(int seed, float z)
+        {
+            return Mathf.Sin(z / 23f + seed) * 7f * Smooth(0f, 26f, Mathf.Abs(z)) + (Fbm(z / 60f, 2.3f, seed + 81) - Fbm(0f, 2.3f, seed + 81)) * 24f;
+        }
+
+        /// <summary>
+        /// The finished height at a point, measured from the ground under the user, with the
+        /// recipe's features worked in. `water` is the level of the water plane (NaN for none).
+        /// `rock` and `trail` say how much of each shows there, for the colouring.
+        /// </summary>
+        public static float Height(in TerrainRecipe k, float h0, float water, float x, float z, out float rock, out float trail)
+        {
+            rock = trail = 0f;
+            float h = Raw(k.Shape, k.Amp, k.Seed, x, z) - h0;
+            if (k.Shape == TerrainShape.None) return h;
+            float r = Mathf.Sqrt(x * x + z * z);
+
+            if (k.Roughness > 0f)
+            {
+                h += ((Fbm(x / 11f, z / 11f, k.Seed + 41, 3) - 0.5f) * 3.2f + (Noise(x / 3.3f, z / 3.3f, k.Seed + 43) - 0.5f) * 0.7f) * k.Roughness;
+            }
+            if (k.Has(TerrainFeature.Outcrops))
+            {
+                float m = Smooth(0.61f, 0.68f, Fbm(x / 13f, z / 13f, k.Seed + 61, 3)) * Smooth(7f, 16f, r);
+                float crag = 1f - Mathf.Abs(2f * Fbm(x / 5f, z / 5f, k.Seed + 63, 3) - 1f);
+                h += m * (0.5f + crag * 3.2f);
+                rock = m;
+            }
+            if (k.Has(TerrainFeature.Terraces))
+            {
+                const float step = 2.2f;
+                float f = h / step, whole = Mathf.Floor(f), part = f - whole;
+                h = Mathf.Lerp(h, (whole + Smooth(0.35f, 0.65f, part)) * step, Smooth(8f, 20f, r));
+            }
+            if (k.Has(TerrainFeature.Path))
+            {
+                float wide = 1.3f + r * 0.03f;
+                trail = 1f - Smooth(wide, wide + 1.3f, Mathf.Abs(x - PathX(k.Seed, z)));
+                rock *= 1f - trail;
+            }
+            if (!float.IsNaN(water))
+            {
+                // A river or a pond asked of dry ground is the only water there: the rest of the
+                // land is kept above it, or every hollow for a mile would fill and drown the place.
+                if (float.IsNaN(k.WaterLevel))
+                {
+                    float dry = water + 1.4f;
+                    if (h < dry) h = dry - (dry - h) / (1f + (dry - h));
+                }
+                float bed = water - 1.1f;
+                if (k.Has(TerrainFeature.River))
+                {
+                    // across the view in front of the user; along the floor where the shape has one
+                    float d;
+                    if (k.Shape == TerrainShape.Canyon) d = Mathf.Abs(x + Mathf.Sin(z / 25f + k.Seed) * 6f - 5f) + 1.5f;
+                    else if (k.Shape == TerrainShape.Valley) d = Mathf.Abs(x + (Fbm(z / 60f, 0.3f, k.Seed) - 0.5f) * 30f - 9f);
+                    else d = Mathf.Abs(z - RiverZ(k.Seed, x));
+                    float wide = 1.4f + Fbm(x / 20f, z / 20f, k.Seed + 73) * 1.6f;
+                    float cut = 1f - Smooth(wide, wide + 3.5f + Mathf.Max(h - water, 0f) * 0.7f, d);
+                    if (h > bed) h = Mathf.Lerp(h, bed, cut);
+                    trail *= 1f - Smooth(0.2f, 0.7f, cut);
+                }
+                if (k.Has(TerrainFeature.Pond))
+                {
+                    float side = (k.Seed & 1) == 0 ? 1f : -1f;
+                    float px = x - side * 11f, pz = z - 15f;
+                    float d = Mathf.Sqrt(px * px + pz * pz) + (Fbm(x / 7f, z / 7f, k.Seed + 75) - 0.5f) * 4f;
+                    float cut = 1f - Smooth(5f, 10f + Mathf.Max(h - water, 0f) * 0.9f, d);
+                    if (h > bed) h = Mathf.Lerp(h, bed, cut);
+                    trail *= 1f - Smooth(0.2f, 0.7f, cut);
+                }
+            }
+            return h;
         }
 
         /// <summary>World coordinate of grid line i. Cells are small near the user and large far away.</summary>
@@ -241,15 +400,22 @@ namespace ImagineVR
         public int[] Triangles;
         public float WaterY = float.NaN;
         public Color WaterColor;
+        public float Min, Max;      // lowest and highest ground
 
-        public static TerrainData Generate(TerrainShape shape, GroundMaterial mat, float amp, int seed, float waterLevel, bool linear, float safeRadius)
+        /// <param name="patches">A second ground that shows through the first in large blotches, or null.</param>
+        public static TerrainData Generate(TerrainRecipe recipe, GroundMaterial mat, GroundMaterial patches, bool linear, float safeRadius)
         {
             int n = TerrainMath.N;
+            TerrainShape shape = recipe.Shape;
+            int seed = recipe.Seed;
             var data = new TerrainData { Shape = shape, Coords = new float[n], Heights = new float[n * n], WaterColor = mat.Water };
             for (int i = 0; i < n; i++) data.Coords[i] = TerrainMath.Coord(i);
 
-            float h0 = TerrainMath.Raw(shape, amp, seed, 0f, 0f);
-            if (!float.IsNaN(waterLevel)) data.WaterY = waterLevel - h0;
+            float h0 = TerrainMath.Raw(shape, recipe.Amp, seed, 0f, 0f);
+            if (!float.IsNaN(recipe.WaterLevel)) data.WaterY = recipe.WaterLevel - h0;
+            else if (recipe.Watered && shape != TerrainShape.None) data.WaterY = TerrainMath.FeatureWater;
+            var rocks = new float[n * n];
+            var trails = new float[n * n];
             float min = float.MaxValue, max = float.MinValue;
             for (int j = 0; j < n; j++)
             {
@@ -260,8 +426,10 @@ namespace ImagineVR
                     float r = Mathf.Sqrt(x * x + z * z);
                     float t = Mathf.Clamp01((r - safeRadius) / 8f);
                     t = t * t * (3f - 2f * t);
-                    float h = (TerrainMath.Raw(shape, amp, seed, x, z) - h0) * t;
+                    float h = TerrainMath.Height(recipe, h0, data.WaterY, x, z, out float rock, out float trail) * t;
                     data.Heights[j * n + i] = h;
+                    rocks[j * n + i] = rock * t;
+                    trails[j * n + i] = trail;
                     if (h < min) min = h;
                     if (h > max) max = h;
                 }
@@ -287,9 +455,23 @@ namespace ImagineVR
 
                     float hn = (y - min) / span + (TerrainMath.Noise(x / 9f, z / 9f, seed + 17) - 0.5f) * 0.3f;
                     float th = Mathf.Clamp01((hn - 0.35f) / 0.5f);
-                    Color c = Color.Lerp(mat.Low, mat.High, th * th * (3f - 2f * th));
+                    th = th * th * (3f - 2f * th);
+                    Color c = Color.Lerp(mat.Low, mat.High, th);
                     float slope = Mathf.Clamp01((1f - normal.y - 0.12f) / 0.22f);
-                    c = Color.Lerp(c, mat.Steep, slope);
+                    Color steep = mat.Steep;
+                    if (patches != null)
+                    {
+                        // the second ground lies in broad, soft-edged blotches, a little ragged at the rim
+                        float blot = TerrainMath.Fbm(x / 48f, z / 48f, seed + 91, 3) + (TerrainMath.Noise(x / 6f, z / 6f, seed + 93) - 0.5f) * 0.07f;
+                        float mix = Mathf.Clamp01((blot - 0.53f) / 0.07f);
+                        mix = mix * mix * (3f - 2f * mix);
+                        c = Color.Lerp(c, Color.Lerp(patches.Low, patches.High, th), mix);
+                        steep = Color.Lerp(steep, patches.Steep, mix);
+                    }
+                    c = Color.Lerp(c, steep, slope);
+                    c = Color.Lerp(c, Color.Lerp(steep, new Color(0.5f, 0.5f, 0.52f), 0.45f), rocks[k]);   // bare rock is greyer than a worn slope
+                    // a trail is the bare ground showing through, a shade darker for being trodden
+                    c = Color.Lerp(c, mat.Shore * 0.86f, trails[k] * (1f - slope));
                     if (!float.IsNaN(data.WaterY))
                     {
                         float wet = Mathf.Clamp01((y - (data.WaterY - 0.2f)) / 1.1f);
@@ -302,6 +484,8 @@ namespace ImagineVR
                 }
             }
 
+            data.Min = min;
+            data.Max = max;
             data.Triangles = new int[(n - 1) * (n - 1) * 6];
             int ti = 0;
             for (int j = 0; j < n - 1; j++)
@@ -386,6 +570,9 @@ namespace ImagineVR
         string _material;
         float _amp;
         int _seed = 1;
+        TerrainFeature _features;
+        float _roughness;
+        string _patches;
 
         public event Action Changed;   // heights changed: things standing on the ground should re-settle
         public Color EdgeColor = new Color(1f, 0.55f, 0.25f, 1f);
@@ -429,9 +616,9 @@ namespace ImagineVR
             if (s.Has("type"))
             {
                 TerrainType wanted = Library.Resolve(Library.TerrainTypes, s.Str("type"));
-                if (wanted != null && wanted != _type) { type = wanted; rebuild = true; _material = wanted.Material; _amp = wanted.Height; }
+                if (wanted != null && wanted != _type) { type = wanted; rebuild = true; _material = wanted.Material; _amp = wanted.Height; NewGround(s); }
             }
-            if (type == null) { type = Library.TerrainTypes[0]; _material = type.Material; _amp = type.Height; rebuild = true; }
+            if (type == null) { type = Library.TerrainTypes[0]; _material = type.Material; _amp = type.Height; rebuild = true; NewGround(s); }
             if (s.Has("material"))
             {
                 GroundMaterial m = Library.Resolve(Library.GroundMaterials, s.Str("material"));
@@ -439,6 +626,14 @@ namespace ImagineVR
             }
             if (s.Has("height")) { float a = Mathf.Clamp01(s.Num("height")); if (!Mathf.Approximately(a, _amp)) { _amp = a; rebuild = true; } }
             if (s.Has("seed")) { int sd = s.Int("seed"); if (sd != _seed) { _seed = sd; rebuild = true; } }
+            if (s.Has("features")) { TerrainFeature f = TerrainRecipe.Parse(s.StrList("features")); if (f != _features) { _features = f; rebuild = true; } }
+            if (s.Has("roughness")) { float ro = Mathf.Clamp01(s.Num("roughness")); if (!Mathf.Approximately(ro, _roughness)) { _roughness = ro; rebuild = true; } }
+            if (s.Has("patches"))
+            {
+                GroundMaterial m = Library.Resolve(Library.GroundMaterials, s.Str("patches"));
+                string id = m != null && m.Id != _material ? m.Id : null;
+                if (id != _patches) { _patches = id; rebuild = true; }
+            }
             _type = type;
 
             if (!rebuild)
@@ -450,20 +645,42 @@ namespace ImagineVR
             FinishTransition();
             GroundMaterial mat = Library.Resolve(Library.GroundMaterials, _material) ?? Library.GroundMaterials[0];
             bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            GroundMaterial patches = _patches != null ? Library.Resolve(Library.GroundMaterials, _patches) : null;
             TerrainShape shape = type.Shape;
-            float amp = _amp, water = type.WaterLevel, safe = _safeRadius;
-            int seed = _seed;
+            float safe = _safeRadius;
+            var recipe = new TerrainRecipe { Shape = shape, Amp = _amp, Seed = _seed, Features = _features, Roughness = _roughness, WaterLevel = type.WaterLevel };
             _jobStatement = s;
             _jobType = type;
             if (synchronous || shape == TerrainShape.None)
             {
-                _job = Task.FromResult(TerrainData.Generate(shape, mat, amp, seed, water, linear, safe));
+                _job = Task.FromResult(TerrainData.Generate(recipe, mat, patches, linear, safe));
                 Tick(0f);
             }
             else
             {
-                _job = Task.Run(() => TerrainData.Generate(shape, mat, amp, seed, water, linear, safe));
+                _job = Task.Run(() => TerrainData.Generate(recipe, mat, patches, linear, safe));
             }
+        }
+
+        /// <summary>
+        /// A different kind of ground starts from nothing: no features carried over from the last
+        /// place, and a form of its own. Without a `seed` in the statement the same type used to
+        /// come out as the very same hills every time it was asked for.
+        /// </summary>
+        void NewGround(Statement s)
+        {
+            _features = TerrainFeature.None;
+            _roughness = 0f;
+            _patches = null;
+            if (!s.Has("seed")) _seed = 1 + (int)(DateTime.UtcNow.Ticks % 99989);
+        }
+
+        /// <summary>The lowest and highest the ground goes, for placing things by how high they stand.</summary>
+        public void Span(out float min, out float max)
+        {
+            Layer layer = _pending ?? _current;
+            min = layer != null && layer.Data != null ? layer.Data.Min : 0f;
+            max = layer != null && layer.Data != null ? layer.Data.Max : 0f;
         }
 
         /// <summary>Removes the ground, with the ring closing over it.</summary>

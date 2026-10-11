@@ -83,6 +83,7 @@ namespace ImagineVR
         public ColliderShape Shape = ColliderShape.Box;
         public bool OnWater;                    // floats: placed on the water surface where there is water
         public bool Airborne;                   // belongs in the sky: scattered above the ground by default
+        public bool Winged;                     // walks when it roams free, and flies when the user rides it
         public string Behavior = "";            // see Prop.cs
         public float Pitch = 1f;                // for things that make a sound when hit
 
@@ -121,6 +122,9 @@ namespace ImagineVR
         public AssetDef Does(string behavior, float pitch = 1f) { Behavior = behavior; Pitch = pitch; return this; }
         public AssetDef Floats() { OnWater = true; return this; }
         public AssetDef Flies() { Airborne = true; return this; }
+        public AssetDef Wings() { Winged = true; return this; }
+        /// <summary>Carries its rider through the air and not along the ground.</summary>
+        public bool FliesRidden => Airborne || Winged;
     }
 
     /// <summary>The baked library: every asset, preset, terrain type and kit the build contains.</summary>

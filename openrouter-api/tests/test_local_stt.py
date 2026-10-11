@@ -13,7 +13,7 @@ def test_transcription_is_local_and_does_not_require_provider_keys(monkeypatch):
     monkeypatch.setattr(config, 'STT', 'local')
     monkeypatch.setattr(config, 'OPENROUTER_API_KEY', '')
     monkeypatch.setattr(config, 'ELEVENLABS_API_KEY', '')
-    monkeypatch.setattr(stt, '_transcribe_local', lambda _: 'Build a forest')
+    monkeypatch.setattr(stt, '_transcribe_local', lambda _, hint: 'Build a forest')
     assert asyncio.run(stt.transcribe(b'audio')) == 'Build a forest'
 
 
@@ -59,3 +59,35 @@ def test_local_decoder_filters_silence_and_runs_vad(monkeypatch):
     monkeypatch.setattr(stt, 'wav_to_samples', lambda _: np.zeros(16000, dtype=np.float32))
     assert stt._transcribe_local(b'audio') == 'build a maze'
     assert captured['vad_filter'] is True and captured['language'] == 'en'
+
+
+def test_decoder_is_primed_with_what_is_in_the_world(monkeypatch):
+    captured = {}
+    def transcribe(samples, **kwargs):
+        captured.update(kwargs)
+        return [SimpleNamespace(text='make the sheep massive', no_speech_prob=0.1)], None
+    monkeypatch.setattr(stt, '_load_model', lambda: SimpleNamespace(transcribe=transcribe))
+    monkeypatch.setattr(stt, 'wav_to_samples', lambda _: np.zeros(16000, dtype=np.float32))
+    assert stt._transcribe_local(b'audio', 'Here now: sheep, blaster.') == 'make the sheep massive'
+    assert captured['initial_prompt'].endswith('Here now: sheep, blaster.') and captured['beam_size'] == config.STT_BEAM
+
+    from imagine import turn
+    from imagine.catalog import Catalog
+    from imagine.script import Validator
+    from imagine.session import Session
+    session = Session('hint')
+    assert turn.heard_here(session) == ''
+    validator = Validator(Catalog.load(config.CATALOG_PATH))
+    for raw in ({'op': 'scatter', 'id': 'flock', 'asset': 'sheep', 'count': 8}, {'op': 'give', 'id': 'blaster', 'asset': 'blaster'},
+                {'op': 'kit', 'id': 'course', 'kit': 'golf_course'}, {'op': 'ride', 'asset': 'dragon'}):
+        validator.check(raw, session.world)
+    assert turn.heard_here(session) == 'Here now: sheep, blaster, golf course, dragon.'
+
+
+def test_prepared_weights_are_found_by_model_name(tmp_path, monkeypatch):
+    monkeypatch.delenv('IMAGINE_STT_MODEL_PATH', raising=False)
+    assert config.stt_model_path(str(tmp_path), 'small.en') is None
+    (tmp_path / 'whisper-small.en').mkdir()
+    (tmp_path / 'whisper-small.en' / 'model.bin').write_bytes(b'')
+    assert config.stt_model_path(str(tmp_path), 'small.en') == str(tmp_path / 'whisper-small.en')
+    assert config.stt_model_path(None, 'small.en') is None

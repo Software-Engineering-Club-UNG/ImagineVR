@@ -24,7 +24,8 @@ _HALLUCINATIONS = {
 }
 
 # Bias the decoder towards the words people actually say here.
-_PROMPT = "ImagineVR voice command: build a world. Golf course, city, forest, sunset, give me a golf club."
+_PROMPT = ("ImagineVR voice commands: put me in a city at night. Give me a new gun. Put a ray gun in front of my face. "
+           "Make the sheep massive. Put seventeen pigs in front of me. Let me ride a dragon. Fill it with zombies.")
 
 
 def wav_seconds(data: bytes) -> float:
@@ -103,15 +104,15 @@ def warm_up() -> None:
         _load_model()
 
 
-def _transcribe_local(wav: bytes) -> str:
+def _transcribe_local(wav: bytes, hint: str = "") -> str:
     model = _load_model()
     segments, _info = model.transcribe(
         wav_to_samples(wav),
         language="en",
-        beam_size=1,
+        beam_size=config.STT_BEAM,
         vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 400},
-        initial_prompt=_PROMPT,
+        initial_prompt=(_PROMPT + " " + hint).strip(),
         condition_on_previous_text=False,
         without_timestamps=True,
     )
@@ -119,12 +120,16 @@ def _transcribe_local(wav: bytes) -> str:
     return " ".join(p for p in parts if p).strip()
 
 
-async def transcribe(wav: bytes) -> str:
-    """Return what was said, or an empty string when nothing intelligible was heard."""
+async def transcribe(wav: bytes, hint: str = "") -> str:
+    """Return what was said, or an empty string when nothing intelligible was heard.
+
+    `hint` is a sentence naming what the user is likely to talk about (what is in their world):
+    Whisper leans towards words it has just read, so "the cheap" comes out as "the sheep".
+    """
     started = time.perf_counter()
     if config.STT != "local":
         raise RuntimeError("Only local Whisper transcription is supported")
-    text = await asyncio.to_thread(_transcribe_local, wav)
+    text = await asyncio.to_thread(_transcribe_local, wav, hint)
     log.info("transcribed %.1fs of audio in %.2fs", wav_seconds(wav), time.perf_counter() - started)
     if text.lower().strip(" .!?") in _HALLUCINATIONS:
         return ""

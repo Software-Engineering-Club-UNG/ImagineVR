@@ -1,0 +1,1 @@
+{"op":"rule","id":"dragon.hostility","selector":{"group":"dragon"},"event":"interval","filters":{"duration":1},"once":true,"actions":[{"action":"actor_state","name":"friendly"}]}

@@ -85,7 +85,8 @@ headset, server or keys are needed for the built-in demos.
   **X** to recentre it. The first-arrival A-button hint disappears after talking or its
   timeout; hint state is not saved between sessions.
 - Touch a floating given item to take it, or point and pull the trigger. Grip also grabs.
-  Tools stay in your hand; squeeze grip again to drop them. Trigger uses the held tool
+  Tools stay in your hand; hold grip squeezed for half a second to drop them (a quick squeeze
+  does nothing), and a dropped tool floats back to within reach. Trigger uses the held tool
   (the pull used to take it does not also fire it).
 - Hold **X** in the headset or **R** on desktop for **two seconds** to start over. A
   countdown appears before resetting objects, held items, paint, sky, terrain, weather,

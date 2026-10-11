@@ -301,11 +301,45 @@ namespace ImagineVR
             }
             else if (!Enliven(g, def, pos, scale.y, s.Str("behavior")))
             {
-                g.Add(new Placement { Mesh = def.Mesh, Position = pos, Rotation = rot, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
-                if (s.Flag("solid")) Solidify(g, def, pos, rot, scale);
+                foreach (Pose copy in Copies(s, pos, rot))
+                {
+                    g.Add(new Placement { Mesh = def.Mesh, Position = copy.position, Rotation = copy.rotation, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
+                    if (s.Flag("solid")) Solidify(g, def, copy.position, copy.rotation, scale);
+                }
             }
             if (standIn) _world.AddLabel(g, name.Replace('_', ' '), pos, def.Bounds.size.y * scale.y + 0.35f);
             return g;
+        }
+
+        public const int MaxRepeat = 40;
+
+        /// <summary>
+        /// Where one `spawn` stands. Usually a single place, but `repeat` makes a run of copies,
+        /// each a `step` on from the last in the object's own directions (a flight of stairs, a
+        /// colonnade, a row of houses, a stack), and `ring` stands them in a circle of that
+        /// radius, facing its middle (a stone circle, an arena of seats, a ring of torches).
+        /// One statement, one object to the limits, however many copies.
+        /// </summary>
+        static List<Pose> Copies(Statement s, Vector3 pos, Quaternion rot)
+        {
+            var copies = new List<Pose>();
+            int n = Mathf.Clamp(s.Int("repeat", 1), 1, MaxRepeat);
+            float ring = s.Num("ring", 0f);
+            if (n < 2 || (ring <= 0f && !s.Has("step"))) { copies.Add(new Pose(pos, rot)); return copies; }
+            Quaternion facing = s.Frame().rotation;
+            s.TryVec3("step", out Vector3 step);
+            for (int i = 0; i < n; i++)
+            {
+                if (ring > 0f)
+                {
+                    Quaternion around = Quaternion.Euler(0f, i * 360f / n, 0f);
+                    Vector3 spoke = facing * (around * Vector3.forward);
+                    // each one turned to look at the middle, then by whatever turn the statement gave it
+                    copies.Add(new Pose(pos + spoke * ring + Vector3.up * (step.y * i), Quaternion.LookRotation(-spoke) * Quaternion.Inverse(facing) * rot));
+                }
+                else copies.Add(new Pose(pos + rot * (step * i), rot));
+            }
+            return copies;
         }
 
         static string RootOf(string id)
@@ -380,37 +414,135 @@ namespace ImagineVR
 
             float waterY = _world.Terrain.WaterY;
             bool hasWater = !float.IsNaN(waterY);
+
+            // Three ways a scatter stops looking like confetti thrown at a map:
+            //   `along`    it follows a line: a fence, an avenue of trees, lamps down a street
+            //   `clusters` it gathers: groves, herds, a boulder field, clumps of flowers
+            //   `where`    it keeps to the ground that suits it: reeds on the shore, pines up high
+            bool line = s.TryPath("along", out List<Vector3> route);
+            float length = 0f;
+            if (line) for (int k = 1; k < route.Count; k++) length += Flat(route[k] - route[k - 1]).magnitude;
+            line &= length > 0.01f;
+            float spread = s.Has("spread") ? Mathf.Clamp(s.Num("spread"), 0f, 40f) : -1f;
+            bool align = s.Flag("align", line);
+            string where = sky ? "any" : s.Str("where", "any");
+            if (where == "shore" && !hasWater) where = "low";
+            _world.Terrain.Span(out float lowest, out float highest);
+            int tries = where == "any" ? 8 : 30;
+
+            int clusters = line ? 0 : Mathf.Clamp(s.Int("clusters", 0), 0, 24);
+            var centres = new List<Vector3>();
+            float clump = spread >= 0f ? Mathf.Max(spread, 0.5f) : Mathf.Clamp(footprint * 3f + count / Mathf.Max(clusters, 1) * 0.35f, 3f, 14f);
+
+            // one place for the scatter's own shape to offer: somewhere in its area
+            Vector3 Offer(int i)
+            {
+                float angle, radius;
+                if (area == "ring")
+                {
+                    angle = (i + (float)rng.NextDouble() * 0.3f) / count * 360f;
+                    radius = Mathf.Lerp(rMin, rMax, (float)rng.NextDouble());
+                }
+                else
+                {
+                    angle = arcCenter + ((float)rng.NextDouble() * 2f - 1f) * arcHalf;
+                    radius = Mathf.Lerp(rMin, rMax, Mathf.Pow((float)rng.NextDouble(), 0.75f));
+                }
+                float rad = angle * Mathf.Deg2Rad;
+                return Statement.InWorld(frame, new Vector3(Mathf.Sin(rad) * radius, 0f, Mathf.Cos(rad) * radius));
+            }
+
+            for (int c = 0; c < clusters; c++)
+            {
+                Vector3 centre = Vector3.zero;
+                for (int attempt = 0; attempt < tries; attempt++)
+                {
+                    centre = Offer(c);
+                    if (Suits(centre, where, def, hasWater, waterY, lowest, highest, sky)) break;
+                }
+                centres.Add(centre);
+            }
+
             for (int i = 0; i < count; i++)
             {
                 Vector3 pos = Vector3.zero;
-                for (int attempt = 0; attempt < 8; attempt++)
+                float yaw = (float)rng.NextDouble() * 360f, lift = 0f;
+                bool found = false;
+                for (int attempt = 0; attempt < tries && !found; attempt++)
                 {
-                    float angle, radius;
-                    if (area == "ring")
+                    if (line)
                     {
-                        angle = (i + (float)rng.NextDouble() * 0.3f) / count * 360f;
-                        radius = Mathf.Lerp(rMin, rMax, (float)rng.NextDouble());
+                        // evenly spaced down the line, each nudged a little so it is not ruled
+                        float along = (i + 0.5f + (attempt == 0 ? 0f : ((float)rng.NextDouble() - 0.5f))) / count * length;
+                        Vector3 on = OnRoute(route, along, out Vector3 heading);
+                        Vector3 side = new Vector3(heading.z, 0f, -heading.x);
+                        pos = on + side * (((float)rng.NextDouble() * 2f - 1f) * Mathf.Max(spread, 0f));
+                        lift = on.y;
+                        if (align && heading.sqrMagnitude > 0.0001f) yaw = Mathf.Atan2(heading.x, heading.z) * Mathf.Rad2Deg;
                     }
-                    else
+                    else if (clusters > 0)
                     {
-                        angle = arcCenter + ((float)rng.NextDouble() * 2f - 1f) * arcHalf;
-                        radius = Mathf.Lerp(rMin, rMax, Mathf.Pow((float)rng.NextDouble(), 0.75f));
+                        // thick in the middle of the clump, thinning outwards
+                        float turn = (float)rng.NextDouble() * Mathf.PI * 2f, reach = clump * Mathf.Pow((float)rng.NextDouble(), 0.8f);
+                        pos = centres[i % clusters] + new Vector3(Mathf.Sin(turn) * reach, 0f, Mathf.Cos(turn) * reach);
+                        Vector3 fromUser = pos - frame.position;
+                        if (hMin < 0.5f && hMax < 0.5f && Flat(fromUser).magnitude < safe) continue;   // never on top of the user
                     }
-                    float rad = angle * Mathf.Deg2Rad;
-                    pos = Statement.InWorld(frame, new Vector3(Mathf.Sin(rad) * radius, 0f, Mathf.Cos(rad) * radius));
-                    if (!hasWater || sky) break;
-                    bool wet = _world.Terrain.HeightAt(pos.x, pos.z) < waterY + 0.15f;
-                    if (wet == def.OnWater) break;   // floating things want water, everything else wants land
+                    else pos = Offer(i);
+                    found = Suits(pos, where, def, hasWater, waterY, lowest, highest, sky);
                 }
-                pos.y = Mathf.Lerp(hMin, hMax, (float)rng.NextDouble());
+                // with nowhere suitable found, a thing asked to keep to one kind of ground is left out
+                if (!found && where != "any") continue;
+                pos.y = lift + Mathf.Lerp(hMin, hMax, (float)rng.NextDouble());
                 float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
-                float yaw = (float)rng.NextDouble() * 360f;
                 if (Enliven(g, def, pos, scale, s.Str("behavior"))) continue;
                 var p = new Placement(def.Mesh, pos, yaw, scale, Color.white) { OnWater = def.OnWater };
                 if (s.Flag("solid") && !sky) Solidify(g, def, pos, p.Rotation, p.Scale);
                 g.Items.Add(p);
             }
             g.Dirty = true;
+        }
+
+        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+        /// <summary>The point a distance down a line of points, and which way the line runs there. Heights carry through in y.</summary>
+        static Vector3 OnRoute(List<Vector3> route, float distance, out Vector3 heading)
+        {
+            heading = Vector3.forward;
+            for (int k = 1; k < route.Count; k++)
+            {
+                Vector3 leg = route[k] - route[k - 1];
+                float run = Flat(leg).magnitude;
+                if (run < 0.0001f) continue;
+                heading = Flat(leg) / run;
+                if (distance <= run || k == route.Count - 1) return route[k - 1] + leg * Mathf.Clamp01(distance / run);
+                distance -= run;
+            }
+            return route[route.Count - 1];
+        }
+
+        /// <summary>
+        /// Is this a place the thing would stand? Floating things want water and everything else
+        /// wants land, as always; `where` narrows it to a kind of ground: `flat`, `steep`, `high`,
+        /// `low`, or the `shore` (the strip of land along the water's edge).
+        /// </summary>
+        bool Suits(Vector3 pos, string where, AssetDef def, bool hasWater, float waterY, float lowest, float highest, bool sky)
+        {
+            if (sky) return true;
+            TerrainSystem ground = _world.Terrain;
+            float h = ground.HeightAt(pos.x, pos.z);
+            if (hasWater && (h < waterY + 0.15f) != def.OnWater) return false;
+            if (where == "any" || def.OnWater) return true;
+            switch (where)
+            {
+                case "shore": return h < waterY + 1.3f;
+                case "high": return h > Mathf.Lerp(lowest, highest, 0.55f) && highest - lowest > 2f;
+                case "low": return h < Mathf.Lerp(Mathf.Max(lowest, hasWater ? waterY : lowest), highest, 0.3f) || highest - lowest <= 2f;
+            }
+            const float e = 1.5f;
+            float dx = ground.HeightAt(pos.x + e, pos.z) - ground.HeightAt(pos.x - e, pos.z), dz = ground.HeightAt(pos.x, pos.z + e) - ground.HeightAt(pos.x, pos.z - e);
+            float slope = Mathf.Sqrt(dx * dx + dz * dz) / (2f * e);
+            return where == "steep" ? slope > 0.3f : where != "flat" || slope < 0.12f;
         }
 
         public void Modify(Statement s)

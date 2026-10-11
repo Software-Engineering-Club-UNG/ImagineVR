@@ -69,12 +69,12 @@ def test_audio_validation(api, data, status):
 
 
 def test_audio_turn_and_transcription_error(api, monkeypatch):
-    async def transcribe(_):
+    async def transcribe(_, *hint):
         return 'build a forest'
     monkeypatch.setattr(stt, 'transcribe', transcribe)
     response = api.post('/v1/turn', headers={**HEADERS, 'Content-Type': 'audio/wav'}, content=wav())
     assert statements(response)[0] == {'op': 'transcript', 'text': 'build a forest'}
-    async def fail(_):
+    async def fail(_, *hint):
         raise RuntimeError('test')
     monkeypatch.setattr(stt, 'transcribe', fail)
     result = statements(api.post('/v1/turn', headers={**HEADERS, 'Content-Type': 'audio/wav'}, content=wav()))
@@ -315,7 +315,7 @@ def test_transcription_concurrency(monkeypatch, provider, expected_parallel):
         turn.reset_stt_slots()
         release, ready = asyncio.Event(), asyncio.Event()
         active = maximum = 0
-        async def transcribe(_):
+        async def transcribe(_, *hint):
             nonlocal active, maximum
             active += 1
             maximum = max(maximum, active)
@@ -484,3 +484,108 @@ def test_rule_capability_and_pose_are_combined_on_streamed_turns(api, monkeypatc
     assert rule['actions'][0]['position'] == [38, 0, 0]
     assert spawn['frame'] == [30, 0, 90]
     assert result[-1]['outcome'] == 'world_changed'
+
+
+def _model_turn(monkeypatch, model, text='put me in a forest'):
+    monkeypatch.setattr(config, 'OFFLINE', False)
+    monkeypatch.setattr(llm, 'stream_lines', model)
+    session = Session('retry')
+    catalog = Catalog.load(config.CATALOG_PATH)
+
+    async def run():
+        return [s async for s in turn.run_turn(session, catalog, 'system', text=text)]
+    return asyncio.run(run()), session
+
+
+def test_a_model_that_fails_before_writing_is_asked_again(monkeypatch):
+    calls = []
+
+    async def model(system, content, *args):
+        calls.append(content)
+        if len(calls) == 1:
+            raise llm.LLMError('went quiet before answering')
+        yield '{"op":"sky","preset":"morning"}'
+        yield '{"op":"say","text":"Morning."}'
+    result, _ = _model_turn(monkeypatch, model)
+    assert len(calls) == 2 and 'cut off' not in calls[1]
+    assert [s['op'] for s in result] == ['status', 'status', 'sky', 'say', 'done']
+    assert result[-1]['outcome'] == 'world_changed'
+
+
+def test_a_reply_cut_off_partway_is_carried_on_from_the_world_as_it_stands(monkeypatch):
+    calls = []
+
+    async def model(system, content, *args):
+        calls.append(content)
+        if len(calls) == 1:
+            yield '{"op":"think","text":"A forest."}'
+            yield '{"op":"sky","preset":"morning"}'
+            yield '{"op":"spawn","id":"oak","asset":"oak_tree","place":"front"}'
+            raise llm.LLMError('stream failed')
+        yield '{"op":"think","text":"Again."}'
+        yield '{"op":"clear"}'
+        yield '{"op":"scatter","id":"pines","asset":"pine_tree","count":5}'
+        yield '{"op":"say","text":"There."}'
+    result, session = _model_turn(monkeypatch, model)
+    assert 'cut off' in calls[1] and '"id":"oak"' in calls[1]
+    ops = [s['op'] for s in result]
+    assert ops.count('think') == 1 and 'clear' not in ops and 'error' not in ops
+    assert {'oak', 'pines'} <= set(session.world.things)
+    assert ops[-2:] == ['say', 'done'] and result[-1]['outcome'] == 'world_changed'
+
+
+def test_a_model_that_stays_down_never_answers_a_request_with_silence(monkeypatch):
+    async def model(*args):
+        raise llm.LLMError('down')
+        yield  # pragma: no cover
+    result, _ = _model_turn(monkeypatch, model, text='yeah place me in a water bottle')
+    assert any(s['op'] == 'say' for s in result)
+    assert result[-1] == {'op': 'done', 'outcome': 'failed'}
+
+
+def test_a_model_that_goes_quiet_is_given_up_on(monkeypatch):
+    async def check(first, frames, message):
+        async def body():
+            for wait, frame in frames:
+                await asyncio.sleep(wait)
+                yield (frame + '\n\n').encode()
+
+        async def handler(request):
+            return httpx.Response(200, content=body())
+        monkeypatch.setattr(config, 'FIRST_TOKEN_SECONDS', first)
+        monkeypatch.setattr(config, 'STALL_SECONDS', 0.15)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            monkeypatch.setattr(llm, '_client', client)
+            with pytest.raises(llm.LLMError, match=message):
+                _ = [line async for line in llm.stream_lines('system', 'user')]
+    word = 'data: ' + json.dumps({'choices': [{'delta': {'content': '{"op":"say","text":"hi"}\n'}}]})
+    # keep-alives are not the model speaking
+    asyncio.run(check(0.15, [(0.05, ': keepalive')] * 8, 'before answering'))
+    asyncio.run(check(1, [(0, word)] + [(0.05, ': keepalive')] * 8, 'partway through'))
+
+
+def test_ground_features_lines_clumps_and_runs_survive_validation():
+    validator, world = Validator(_catalog(), frame=[10, 0, 90]), WorldState()
+    terrain = validator.check({'op': 'terrain', 'type': 'hills', 'features': ['River', 'path', 'lava'], 'patches': 'dirt',
+                               'roughness': 3}, world)[-1]
+    assert terrain['features'] == ['river', 'path'] and terrain['patches'] == 'dirt' and terrain['roughness'] == 1
+    # a later tweak keeps them; a new kind of ground starts clean, as it does in the headset
+    validator.check({'op': 'terrain', 'material': 'snow'}, world)
+    assert world.globals['terrain']['features'] == ['river', 'path']
+    validator.check({'op': 'terrain', 'type': 'mesas'}, world)
+    assert 'features' not in world.globals['terrain'] and 'patches' not in world.globals['terrain']
+    assert validator.check({'op': 'terrain', 'features': []}, world)[-1]['features'] == []
+
+    fence = validator.check({'op': 'scatter', 'id': 'fence', 'asset': 'fence', 'count': 12, 'along': [[0, 0, 5], [0, 0, 25], 'x'],
+                             'spread': 1, 'where': 'Flat', 'clusters': 99}, world)[-1]
+    assert fence['along'] == [[0, 0, 5], [0, 0, 25]] and fence['where'] == 'flat' and fence['clusters'] == 24
+    assert fence['frame'] == [10, 0, 90]
+    # seen again from somewhere else, the line is where it was laid, not where the user now stands
+    seen = json.loads(world.render([10, 0, 0]).splitlines()[-1])
+    assert seen['along'] == [[5.0, 0, 0.0], [25.0, 0, 0.0]]
+    assert 'where' not in validator.check({'op': 'scatter', 'id': 'x', 'asset': 'rock', 'where': 'moon'}, world)[-1]
+
+    stairs = validator.check({'op': 'spawn', 'id': 'stairs', 'asset': 'cube', 'at': [0, 0, 6], 'repeat': 400, 'step': [0, 0.25, 0.5],
+                              'ring': 0}, world)[-1]
+    assert stairs['repeat'] == 40 and stairs['step'] == [0, 0.25, 0.5] and stairs['ring'] == 0
+    assert world.count('spawn') == 1

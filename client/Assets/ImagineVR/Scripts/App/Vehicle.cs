@@ -45,6 +45,9 @@ namespace ImagineVR
 
         public bool Riding => _visual != null;
         public string Asset => _def != null ? _def.Id : null;
+        public float Speed => _speed;
+        /// <summary>The user got in or on something. True when it flies.</summary>
+        public event System.Action<bool> Mounted;
 
         public void Init(Rig rig, World world, Terminal terminal)
         {
@@ -86,7 +89,7 @@ namespace ImagineVR
             // sit inside a vehicle, just under its roof; sit on top of an animal; stand in a balloon's basket
             bool enclosed = def.Category == "vehicles";
             _seat = top > 6f ? 0.3f : (enclosed ? top - 0.25f : top + 0.45f) - 1.6f;
-            _top = (def.Airborne ? 16f : enclosed ? 11f : 7f) * speed;
+            _top = (def.FliesRidden ? 16f : enclosed ? 11f : 7f) * speed;
             _speed = 0f;
 
             _visual = new GameObject("Vehicle_" + def.Id);
@@ -110,12 +113,13 @@ namespace ImagineVR
             _visualHome = _visual.transform.localPosition;
             _roll = _tilt = _turnRate = _gait = 0f;
             // an animal being ridden walks on its own legs, as one roaming free does
-            bool legged = !def.Airborne && def.Category == "animals";
+            bool legged = !def.FliesRidden && def.Category == "animals";
             _fourLegs = legged && b.extents.z > b.extents.x * 1.25f ? 1f : 0f;
             _legs = legged ? top * (_fourLegs > 0f ? 0.42f : 0.47f) : 0f;
             Shadows.Cast(_visual.transform, b);
             Sfx.Play("whoosh", _rig.transform.position, 0.6f);
             _world.Rules.Broadcast("mount", def.Id);
+            Mounted?.Invoke(def.FliesRidden);
         }
 
         /// <summary>Back on foot, standing wherever the ride stopped.</summary>
@@ -309,7 +313,7 @@ namespace ImagineVR
                 float water = _world.Terrain.WaterY;
                 if (!float.IsNaN(water)) target = Mathf.Max(target, water);
             }
-            _altitude = Mathf.MoveTowards(_altitude, Riding && _def.Airborne ? Cruise : 0f, 4f * dt);
+            _altitude = Mathf.MoveTowards(_altitude, Riding && _def.FliesRidden ? Cruise : 0f, 4f * dt);
             if (_route == null) _railHeight = Mathf.MoveTowards(_railHeight, 0f, 6f * dt);
             target += _altitude + _railHeight + (Riding ? _seat : 0f);
             _lastYaw = rig.eulerAngles.y;
@@ -333,7 +337,7 @@ namespace ImagineVR
             _lastSpeed = _speed;
             _turnRate = Mathf.Lerp(_turnRate, turnRate, 1f - Mathf.Exp(-dt * 8f));
             bool rails = Riding && _route != null;
-            bool flying = Riding && _def.Airborne;
+            bool flying = Riding && _def.FliesRidden;
             bool machine = Riding && _def.Category == "vehicles";
             bool grounded = _altitude < 0.5f && _railHeight < 0.5f && _world.Terrain.HasGround;
 

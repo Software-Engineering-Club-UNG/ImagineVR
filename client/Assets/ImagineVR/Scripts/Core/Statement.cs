@@ -20,6 +20,7 @@ namespace ImagineVR
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
             "kit", "spawn", "scatter", "give", "ride", "goal", "player", "modify", "remove", "ambience",
             "rule", "rule_remove",
+            "blueprint", "blueprint_remove", "blueprint_edit",
         };
 
         public bool IsStream => StreamOps.Contains(Op);

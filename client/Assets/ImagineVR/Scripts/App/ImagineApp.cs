@@ -41,7 +41,7 @@ namespace ImagineVR
         string _typed = "";
         bool _focusField;
         bool _foveationSet;
-        float _holdSince = -1f, _nextSample;
+        float _holdSince = -1f, _nextSample, _stickPeak;
         int _frames;
 
         void Awake()
@@ -212,6 +212,8 @@ namespace ImagineVR
                 if (slash >= 0) model = model.Substring(slash + 1);
                 Terminal.Note("online. model " + model + ". library: " + library);
                 Terminal.SetTitle(null, Terminal.Tag(Terminal.Green, Terminal.Dot) + Terminal.Tag(Terminal.Dim, " " + model));
+                // a server that wants to know what is in the user's hands is told, with each turn
+                World.Rules.ReportUser = health.TryGetValue("capabilities", out object caps) && caps is List<object> list && list.Contains(RuleEngine.UserState);
                 yield return Client.ResetSession();
             }
             else
@@ -230,7 +232,15 @@ namespace ImagineVR
             Terminal.SetFoldKey(Rig.XrActive ? "Y" : "C");
             Sample();
 
-            if (Rig.FoldPressed && !Typing) Terminal.Toggle();
+            if (Rig.FoldPressed && !Typing)
+            {
+                if(Rig.Grip(true)>.9f && Rig.Grip(false)>.9f)
+                {
+                    if(World.Blueprints.PlayerHealth<=0) { World.Blueprints.ResetHealth(); Terminal.Note("Session health restored"); }
+                    else { World.Blueprints.PlayerDamageEnabled=!World.Blueprints.PlayerDamageEnabled; Terminal.Note("Player damage "+(World.Blueprints.PlayerDamageEnabled?"enabled":"disabled")+" for this session"); }
+                }
+                else Terminal.Toggle();
+            }
 
             // X (or R): a tap recentres the terminal, and holding it down resets everything
             if (Rig.MenuPressed && !Typing)
@@ -273,8 +283,10 @@ namespace ImagineVR
                 }
             }
 
-            // B cycles the built-in demos, unless the right hand is holding a paintbrush (B then changes colour)
-            if (Rig.AltPressed && !Typing && _examples.Length > 0)
+            // B cycles the built-in demos, unless the right hand is holding a paintbrush (B then changes colour).
+            // In the headset that is only for when there is no server: B sits beside A, and a thumb that
+            // slipped onto it laid a golf course over a zombie street the server knew nothing about.
+            if (Rig.AltPressed && !Typing && _examples.Length > 0 && !(Rig.XrActive && Online))
             {
                 Prop held = Rig.RightGrabber != null ? Rig.RightGrabber.Held : null;
                 if (held == null || held.Def.Behavior != "paint") PlayDemo(_demo++);
@@ -357,6 +369,7 @@ namespace ImagineVR
         void Sample()
         {
             _frames++;
+            _stickPeak = Mathf.Max(_stickPeak, Rig.Stick.magnitude);
             if (Time.unscaledTime < _nextSample) return;
             float fps = _frames / Mathf.Max(0.001f, Time.unscaledTime - (_nextSample - 2f));
             _nextSample = Time.unscaledTime + 2f;
@@ -368,8 +381,10 @@ namespace ImagineVR
                 "dark", World.IsDark, "passthrough", QuestFeature.Passthrough,
                 "terminal", Terminal.State.ToString(), "collapsed", Terminal.Collapsed, "busy", Conductor.Busy,
                 "riding", World.Vehicle != null ? World.Vehicle.Asset : null,
+                "stick", System.Math.Round(_stickPeak, 2), "speed", World.Vehicle != null ? System.Math.Round(World.Vehicle.Speed, 1) : 0.0,
                 "left", left != null ? left.Def.Id : null, "right", right != null ? right.Def.Id : null,
                 "objects", World.Objects.Count, "props", World.Props.All.Count);
+            _stickPeak = 0f;
         }
 
         void OnApplicationPause(bool paused)
@@ -383,6 +398,8 @@ namespace ImagineVR
         {
             if (Rig == null || Rig.XrActive || Quiet) return;
             World.Rules.PlayerEffectsEnabled = GUI.Toggle(new Rect(12, 12, 280, 25), World.Rules.PlayerEffectsEnabled, "Allow rule-driven player effects (this session)");
+            World.Blueprints.PlayerDamageEnabled=GUI.Toggle(new Rect(12,40,280,25),World.Blueprints.PlayerDamageEnabled,"Allow player damage (this session)");
+            if(GUI.Button(new Rect(12,68,200,25),"Reset health ("+Mathf.CeilToInt(World.Blueprints.PlayerHealth)+")")) World.Blueprints.ResetHealth();
             const string fieldName = "ImaginePrompt";
             float w = Mathf.Min(Screen.width - 40f, 720f), h = 30f;
             var rect = new Rect((Screen.width - w) * 0.5f, Screen.height - h - 16f, w, h);

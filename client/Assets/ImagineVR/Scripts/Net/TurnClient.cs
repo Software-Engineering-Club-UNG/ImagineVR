@@ -74,7 +74,7 @@ namespace ImagineVR
         {
             request.SetRequestHeader("X-App-Token", Settings.AppToken);
             request.SetRequestHeader("X-Session-Id", session ?? SessionId);
-            request.SetRequestHeader("X-Client-Capabilities", RuleEngine.Capability);
+            request.SetRequestHeader("X-Client-Capabilities", RuleEngine.Capability+","+BlueprintContract.Capability);
             if (!string.IsNullOrEmpty(CatalogVersion)) request.SetRequestHeader("X-Catalog-Version", CatalogVersion);
         }
 
@@ -145,6 +145,7 @@ namespace ImagineVR
             Conductor conductor = GetComponent<Conductor>();
             while (_resettingSession == session || conductor != null && !conductor.IsCurrent(turn)) { if (turn.Closed) yield break; yield return null; }
             if (turn.Closed) yield break;
+            while(World!=null && World.Blueprints.Busy) { if(turn.Closed) yield break; yield return null; }
             if (World != null)
             {
                 byte[] snapshot = Encoding.UTF8.GetBytes(MiniJson.Serialize(World.Rules.Snapshot()));

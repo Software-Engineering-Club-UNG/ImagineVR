@@ -174,4 +174,16 @@ URL) so adding them later does not require a redesign.
   section, PATCH for wording.
 - Complexity that goes against Principle I or VI MUST be justified in the plan in one line.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-09
+### Runtime procedural blueprint amendment (2026-10-10)
+
+User-requested expansion: the AI MAY compose unfamiliar low-poly objects using a
+bounded, versioned declarative blueprint language. Geometry, named-part animation,
+movement, sensing, health and emitters are preimplemented capabilities, not executable
+model code. Blueprint recipes are session-only and use the procedural tier; no external
+mesh provider or additional provider secret is required. This exception expands the
+original demo-first scope to generic composition, while keeping baked assets preferred,
+safe fallback, no forced camera motion, and native Quest acceptance before release.
+Player damage MUST require local session opt-in. Procedural recipes need not use GLB;
+the GLB constraint continues to apply only to externally generated binary models.
+
+**Version**: 1.1.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-10

@@ -20,7 +20,8 @@ in `openrouter-api/.env`, not the old `server/.env`.
 
 The VM is now sized at 4 CPUs / 8 GB RAM ($40/month), per Parker's explicit
 resize request. Development, CI, and production use Python 3.13.16 and local
-faster-whisper `base.en` on CPU with int8 inference and four CPU threads.
+faster-whisper `base.en` on CPU with int8 inference, four CPU threads and a beam of 5
+(`IMAGINE_STT_BEAM`), primed with the names of what is in the speaker's world.
 No speech provider key or per-transcription charge is required. Audio stays on
 the VM; only the resulting text goes to OpenRouter for scene instructions.
 TTS remains off. Whisper startup failures are explicit, never a hosted fallback.
@@ -79,8 +80,10 @@ Local transcription permits one recording at a time across sessions to avoid CPU
 oversubscription; turns within a session also remain serialized. Empty-line
 heartbeats keep Unity's connection alive while waiting or transcribing.
 
-Whisper weights live at `/var/cache/openrouter-api/whisper-base.en`, owned by the
-service account and retained across releases. Provisioning downloads them once
+Whisper weights live at `/var/cache/openrouter-api/whisper-<model>`, owned by the
+service account and retained across releases. `base.en` and `small.en` are both
+prepared; `IMAGINE_STT_MODEL` in the service unit picks one (`small.en` is more
+accurate and roughly three times slower per spoken turn on this VM). Provisioning downloads them once
 and validates loading; runtime uses `local_files_only=True` and
 `HF_HUB_OFFLINE=1`. No Hugging Face or speech provider key is required for these
 public weights. Cached weights must exist before the service becomes ready.

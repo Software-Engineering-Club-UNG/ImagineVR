@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable
 
 from . import config, fallback, llm, stt, tts
 from .catalog import Catalog
@@ -16,6 +16,19 @@ from .session import Session
 log = logging.getLogger("imagine.turn")
 
 OUTCOMES = ("world_changed", "object_given", "answered", "ignored", "not_understood", "declined", "failed")
+
+
+def heard_here(session: Session) -> str:
+    """The names of what is in the user's world, as a sentence for the speech recogniser to lean on."""
+    names: list[str] = []
+    for stmt in session.world.things.values():
+        name = str(stmt.get("asset") or stmt.get("kit") or "").replace("_", " ")
+        if name and name not in names:
+            names.append(name)
+    ride = session.world.globals.get("ride", {}).get("asset")
+    if ride and ride.replace("_", " ") not in names:
+        names.append(ride.replace("_", " "))
+    return "Here now: " + ", ".join(names[:24]) + "." if names else ""
 
 
 def build_user_content(session: Session, text: str, frame: list | None = None) -> str:
@@ -31,29 +44,55 @@ def build_user_content(session: Session, text: str, frame: list | None = None) -
     return "\n".join(parts)
 
 
+RESUME = """Your reply to this request was cut off partway through. Everything you had written before that was applied and is in CURRENT WORLD above.{said}
+Write only what is still missing to finish the request: no `think`, no `clear`, nothing that is already there. End with one `say`{unless}."""
+
+
 async def _raw_statements(session: Session, catalog: Catalog, system_prompt: str, text: str,
-                          frame: list | None = None) -> AsyncIterator[dict]:
-    """Raw statements from the model, or from the offline director when the model is unavailable."""
+                          frame_now: Callable[[], list | None], said: list[str]) -> AsyncIterator[dict]:
+    """Raw statements from the model, or from the offline director when the model is unavailable.
+
+    A model that fails is asked once more before anything else is tried: again from the start if
+    it had written nothing, and to carry on from the world as it now stands if it was cut off.
+    """
     if config.OFFLINE:
         for stmt in fallback.compose(text, catalog, session.world):
             yield stmt
         return
     wrote_anything = False
-    try:
-        async for line in llm.stream_lines(system_prompt, build_user_content(session, text, frame)):
-            stmt = parse_line(line)
-            if stmt is None:
-                log.info("model line dropped (not a statement): %.200s", line.strip())
+    for attempt in (1, 2):
+        content = build_user_content(session, text, frame_now())
+        resuming = wrote_anything
+        if resuming:
+            yield {"op": "note", "text": "lost the AI for a moment, carrying on"}
+            content += "\n\n" + RESUME.format(
+                said=f' You had already said: "{" ".join(said)}"' if said else "",
+                unless=" unless you had already said one" if said else "")
+        try:
+            async for line in llm.stream_lines(system_prompt, content):
+                stmt = parse_line(line)
+                if stmt is None:
+                    log.info("model line dropped (not a statement): %.200s", line.strip())
+                    continue
+                if resuming and str(stmt.get("op", "")).lower() in ("think", "clear"):
+                    continue   # carrying on, not starting again
+                wrote_anything = True
+                yield stmt
+            return
+        except llm.LLMError as exc:
+            log.warning("model failed (attempt %d, %s): %s", attempt, "partway through" if wrote_anything else "before writing", exc)
+            if attempt == 1:
                 continue
-            wrote_anything = True
-            yield stmt
-    except llm.LLMError as exc:
-        log.warning("model failed: %s", exc)
-        if wrote_anything:
-            raise
-        yield {"op": "note", "text": "the AI model is unreachable, using the built-in director"}
-        for stmt in fallback.compose(text, catalog, session.world):
-            yield stmt
+            if wrote_anything:
+                raise
+    yield {"op": "note", "text": "the AI model is unreachable, using the built-in director"}
+    answer = fallback.compose(text, catalog, session.world)
+    if [str(s.get("op")) for s in answer] == ["outcome"]:
+        # the keyword director had nothing for it, but the user did ask, and must not be met with silence
+        answer = [{"op": "say", "text": "I couldn't reach my AI just then. Hold the button and say that again."},
+                  {"op": "outcome", "value": "failed"}]
+    for stmt in answer:
+        yield stmt
 
 
 SCULPT = """You wrote the statements below, but the assets they name are NOT in the CATALOG, so nothing appeared.
@@ -66,13 +105,17 @@ Write their replacements now, and nothing else:
 Output only `spawn` and `scatter` statements. No `think`, no `say`."""
 
 
-async def _sculpt(session: Session, system_prompt: str, text: str, frame: list | None, missing: list[dict]) -> AsyncIterator[dict]:
+async def _sculpt(session: Session, system_prompt: str, text: str, frame: list | None, missing: list[dict], allow_blueprints: bool=False) -> AsyncIterator[dict]:
     """A second, short request: the model builds from shapes what it asked the library for and the library lacks."""
     listed = "\n".join(json.dumps(m, separators=(",", ":")) for m in missing)
-    content = build_user_content(session, text, frame) + "\n\n" + SCULPT.format(missing=listed)
+    instruction=SCULPT.format(missing=listed)
+    if allow_blueprints:
+        instruction='These requested assets are missing:\n'+listed+'\nBuild complete low-poly blueprint definitions, then the requested spawn/give operations referencing them. Preserve original instance IDs and placement. Output only blueprint, spawn, give, or supporting rule operations. Do not make disconnected sculptures. For scatter use a baked approximation.'
+    content = build_user_content(session, text, frame) + "\n\n" + instruction
     async for line in llm.stream_lines(system_prompt, content):
         stmt = parse_line(line)
-        if stmt is not None and str(stmt.get("op", "")).lower() in ("spawn", "scatter"):
+        allowed=('blueprint','spawn','give','rule','scatter') if allow_blueprints else ('spawn','scatter')
+        if stmt is not None and str(stmt.get("op", "")).lower() in allowed:
             yield stmt
 
 
@@ -86,13 +129,14 @@ async def _run_turn(
     base_url: str = "",
     frame: list | None = None,
     allow_rules: bool = False,
+    allow_blueprints: bool = False,
 ) -> AsyncIterator[dict]:
     started = time.perf_counter()
 
     if audio is not None:
         try:
             async with _stt_slots:
-                text = await stt.transcribe(audio)
+                text = await stt.transcribe(audio, heard_here(session))
         except Exception:  # noqa: BLE001
             log.exception("transcription failed")
             yield {"op": "transcript", "text": ""}
@@ -111,7 +155,7 @@ async def _run_turn(
     yield {"op": "status", "state": "thinking"}
 
     # Only the model can sculpt, so only then is an unknown asset worth holding back for it.
-    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE, allow_rules=allow_rules)
+    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE, allow_rules=allow_rules, allow_blueprints=allow_blueprints)
     building = False
     changed = False
     gave = False
@@ -152,7 +196,7 @@ async def _run_turn(
         return out
 
     try:
-        async for raw in _raw_statements(session, catalog, system_prompt, text, frame):
+        async for raw in _raw_statements(session, catalog, system_prompt, text, lambda: validator.frame, said):
             op = str(raw.get("op", "")).lower()
             if op == "outcome":
                 value = str(raw.get("value", "")).lower()
@@ -173,9 +217,12 @@ async def _run_turn(
             yield {"op": "note", "text": f"no {names} in the library, sculpting from shapes"}
             made = 0
             try:
-                async for raw in _sculpt(session, system_prompt, text, frame, missing):
+                sculpt_prompt = system_prompt
+                if allow_blueprints:
+                    sculpt_prompt += '\nFor this client, replace missing assets with ONE blueprint definition then the original spawn/give referencing it. Do not scatter sculpture parts. Blueprint instructions override the legacy sculpt instruction.'
+                async for raw in _sculpt(session, sculpt_prompt, text, validator.frame, missing,allow_blueprints=allow_blueprints):
                     for stmt in send(raw, strict=False):
-                        made += stmt["op"] in ("spawn", "scatter")
+                        made += stmt["op"] in ("spawn", "scatter", "give")
                         yield stmt
             except llm.LLMError as exc:
                 log.warning("sculpting failed: %s", exc)
