@@ -73,8 +73,23 @@ namespace ImagineVR
             if (t == subject.Group || t == subject.Asset) return true;
             if (subject.Group != null && subject.Group.StartsWith(t + ".", System.StringComparison.Ordinal)) return true;
             // "zombies" for zombie, "sheep" for a made "fluffy_sheep"
-            AssetDef named = Library.FindAsset(t);
+            AssetDef named = Named(t);
             return named != null && named.Id == subject.Asset || subject.Asset != null && subject.Asset.Contains(t);
+        }
+
+        // What asset a rule's target names, remembered for a few seconds. Looking a name up is a
+        // search of the whole library by spelling, and a `near` rule asks it of everything in the
+        // world several times a second: with one such rule about a thing's id ("van_gogh") the
+        // 01:15 session ran at 11 frames a second until the place was cleared.
+        static readonly System.Collections.Generic.Dictionary<string, (AssetDef def, float until)> Names = new System.Collections.Generic.Dictionary<string, (AssetDef, float)>();
+
+        static AssetDef Named(string target)
+        {
+            if (Names.TryGetValue(target, out var known) && Time.realtimeSinceStartup < known.until) return known.def;
+            if (Names.Count > 64) Names.Clear();
+            AssetDef def = Library.FindAsset(target);
+            Names[target] = (def, Time.realtimeSinceStartup + 3f);
+            return def;
         }
 
         public static Subject Of(Creature c) => new Subject { Creature = c, Asset = c.Def.Id, Group = c.GroupId, Position = c.transform.position + Vector3.up * (c.Height * 0.6f) };

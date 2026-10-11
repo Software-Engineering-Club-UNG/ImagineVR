@@ -326,6 +326,24 @@ namespace ImagineVR.Tests
             foreach (Placement p in grid) { Assert.Greater(Mathf.Abs(p.Position.x), 6f); Assert.Greater(Mathf.Abs(p.Position.z), 6f); }
         }
 
+        /// <summary>
+        /// In the 01:15 session a single `near` rule about a thing's id took the headset from 90 frames
+        /// a second to 11: every check searched the whole library by spelling, once for each thing in
+        /// the world. A rule costs next to nothing to keep watching.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator ARuleThatWatchesForTheUserCostsNothingToKeep()
+        {
+            Play("{\"op\":\"terrain\",\"type\":\"flat\"}");
+            Play("{\"op\":\"scatter\",\"id\":\"lamps\",\"asset\":\"street_lamp\",\"count\":30,\"area\":\"around\",\"radius\":[10,60]}");
+            Play("{\"op\":\"spawn\",\"id\":\"van_gogh\",\"asset\":\"person\",\"at\":[0,0,20]}");
+            Play("{\"op\":\"when\",\"id\":\"tears\",\"event\":\"near\",\"target\":\"van_gogh\",\"radius\":3,\"do\":[{\"act\":\"sound\",\"name\":\"chime\"}]}");
+            yield return Settle();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < 120; i++) _world.Rules.Tick(0.011f);
+            Assert.Less(watch.ElapsedMilliseconds, 60, "120 frames of watching took " + watch.ElapsedMilliseconds + " ms");
+        }
+
         /// <summary>A row written tighter than the things are wide is opened out; plain shapes are left as written (steps, walls).</summary>
         [Test]
         public void ARowOfThingsIsOpenedOutToFitThem()

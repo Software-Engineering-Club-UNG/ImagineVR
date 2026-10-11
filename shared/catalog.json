@@ -1,6 +1,6 @@
 {
   "language_version": 2,
-  "catalog_version": "1.250.0bfd5c9f",
+  "catalog_version": "1.250.d1f059b0",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
@@ -724,7 +724,7 @@
     },
     {
       "id": "road",
-      "desc": "Stretch of road 8 m wide and 12 m long, with kerbs and a dashed centre line. Lay a street with `repeat` and `step` [0,0,12]",
+      "desc": "Stretch of road, already 8 m wide and 12 m long with kerbs and a centre line: never scale it, lay a street with `repeat` and `step` [0,0,12]",
       "tags": ["street", "city", "asphalt", "lane", "highway", "avenue"],
       "aliases": ["street", "road section", "highway", "avenue", "lane"],
       "category": "city",
