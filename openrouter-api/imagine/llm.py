@@ -78,7 +78,7 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
         "X-Title": "ImagineVR",
     }
     # A provider that hangs is worse than one that fails: the user stands waiting. So the model
-    # gets a few seconds to start writing and a few between words (keep-alives do not count),
+    # gets a configurable start allowance and content-stall allowance (keep-alives do not count),
     # and past that the caller is told, while there is still time to ask again.
     heard = time.monotonic()
     started = False
