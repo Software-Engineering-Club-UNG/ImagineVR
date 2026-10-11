@@ -94,3 +94,16 @@ def test_slow_first_text_and_content_gap_now_succeed(monkeypatch):
 def test_stalled_streams_still_terminate(monkeypatch, frames, message):
     with pytest.raises(llm.LLMError, match=message):
         stream(monkeypatch, frames)
+
+
+def test_the_model_is_asked_not_to_think_before_it_writes_unless_told_to(monkeypatch):
+    """A helicopter took over 30 silent seconds and was given up on; the default is to start writing."""
+    import importlib
+    from imagine import config
+    monkeypatch.delenv("IMAGINE_REASONING", raising=False)
+    monkeypatch.setattr("dotenv.load_dotenv", lambda *a, **k: None)
+    try:
+        assert importlib.reload(config).REASONING == "off"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(config)

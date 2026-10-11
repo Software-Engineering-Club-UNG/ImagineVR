@@ -20,7 +20,12 @@ def _env(name: str, default: str = "") -> str:
 OPENROUTER_API_KEY = _env("OPENROUTER_API_KEY")
 OPENROUTER_URL = _env("OPENROUTER_URL") or "https://openrouter.ai/api/v1/chat/completions"
 MODEL = _env("IMAGINE_MODEL", "anthropic/claude-haiku-5.5")
-REASONING = _env("IMAGINE_REASONING").lower()
+# Whether the model thinks to itself before it writes. "off" by default: left to itself it spent
+# 18 seconds in silence before the first line of a Batman, and over 30 on a helicopter, which the
+# server took for a dead connection. The user is standing in a headset watching a terminal, and
+# what they are waiting for is the first line. "low", "medium", "high" ask for thought; "auto"
+# leaves it to the provider.
+REASONING = _env("IMAGINE_REASONING", "off").lower()
 
 STT = _env("IMAGINE_STT", "local").lower()
 STT_MODEL = _env("IMAGINE_STT_MODEL", "base.en")

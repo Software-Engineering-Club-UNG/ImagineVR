@@ -69,7 +69,8 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
         "max_tokens": 6500 if 'runtime-blueprints-v1' in system_prompt else 2500,
     }
     if config.REASONING in ("low", "medium", "high"):
-        body["reasoning"] = {"effort": config.REASONING, "exclude": True}
+        # not excluded from the stream: its arrival is how a model that is thinking is told from one that has hung
+        body["reasoning"] = {"effort": config.REASONING}
     elif config.REASONING == "off":
         body["reasoning"] = {"enabled": False}
     headers = {
@@ -117,8 +118,12 @@ async def stream_lines(system_prompt: str, user_content: str, model: str | None 
                 reason = choices[0].get("finish_reason") or reason
                 if reason in ("length", "error", "content_filter"):
                     raise LLMError(f"OpenRouter incomplete response: {reason}")
-                delta = (choices[0].get("delta") or {}).get("content") or ""
+                message = choices[0].get("delta") or {}
+                delta = message.get("content") or ""
                 if not delta:
+                    # thinking is not writing, but it is not silence either: the wait for the first line starts over
+                    if message.get("reasoning") or message.get("reasoning_details"):
+                        heard = time.monotonic()
                     continue
                 started = True
                 heard = time.monotonic()
