@@ -77,7 +77,7 @@ namespace ImagineVR
                 }
             }
             Library.Register(def);
-            SessionLog.Write("made", "name", name, "kind", kind, "parts", parts.Count, "triangles", def.Mesh.triangles.Length / 3,
+            SessionLog.Write("made", "name", name, "as", kind, "parts", parts.Count, "triangles", def.Mesh.triangles.Length / 3,
                 "size", b.size, "fires", fires != null);
             return def;
         }

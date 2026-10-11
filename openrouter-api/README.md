@@ -4,19 +4,14 @@ FastAPI backend for ImagineVR, adapted from Israel-Jauregui's `online-ready`
 commit `e5f8c5a`. It exposes Unity's `/v1/turn`, `/v1/session/reset`, and
 `/v1/health`, plus the existing `/`, `/health`, `/docs`, and `/openapi.json`.
 
-Push-to-talk WAV uploads are transcribed locally with faster-whisper; complete text and
-session world state go to OpenRouter. Validated ImagineScript commands stream
-back to Unity as NDJSON, including `ride`, creature `behavior`, and `ignored`
-outcomes for background chatter. It also supports `think` terminal plan lines,
-solid scenery and the maze kit, moving spawn/ride paths, `goal` triggers, and
-`player` scaling. Plan lines are displayed but never stored as scene state or
-counted as world changes. The Unity-exported catalog is authoritative;
-do not edit it by hand. TTS remains off.
+Push-to-talk WAV uploads are transcribed locally with faster-whisper; the text, the
+session's world and what the user is holding go to OpenRouter. The reply is repaired
+(never refused) by `imagine/language.py` and streamed back to Unity as NDJSON. The language
+itself is described in `imagine/prompt.md`, which is what the model is told; the root README
+has a summary. The Unity-exported catalog is authoritative; do not edit it by hand.
 
-`openrouter-api/imagine/` is the single source of backend code. The old
-`server/imagine/` contains only a compatibility import bridge; Israel should
-edit this folder's `prompt.md` and `script.py` directly. Configure local settings
-in `openrouter-api/.env`, not the old `server/.env`.
+`openrouter-api/imagine/` is the only backend code. Configure local settings in
+`openrouter-api/.env`.
 
 The VM is now sized at 4 CPUs / 8 GB RAM ($40/month), per Parker's explicit
 resize request. Development, CI, and production use Python 3.13.16 and local
@@ -63,15 +58,15 @@ Sessions are in memory and are lost on restart/deployment. Audio is not intentio
 text; headset session logs also include what the user said. Tokens are not logged.
 
 From `openrouter-api`, run `python scripts/smoke.py` with `IMAGINE_URL` and
-`IMAGINE_APP_TOKEN` set. This is Israel's twelve-scenario acceptance check;
-live execution incurs model usage. Set `IMAGINE_REQUIRE_ONLINE=1` for real-model
-acceptance so offline fallback cannot pass unnoticed. Test a real audio upload
+`IMAGINE_APP_TOKEN` set. It is the acceptance check for the model and the prompt together
+(depth of a first build, a city to drive, made things, rules); live execution incurs
+model usage, and it exits 1 if the server has no key. Test a real audio upload
 and the Unity/headset path separately; the smoke script tests text turns.
 
 For local development, copy `.env.example` to `.env` and set provider keys.
-Without a key, development retains Israel's labelled keyword fallback.
+Without a key every turn answers that no model is connected: there is no offline director.
 Production fails startup if the OpenRouter key/client token are missing or local
-Whisper cannot load. OpenRouter errors before any output retain the explicit fallback note;
+Whisper cannot load. OpenRouter errors before any output are retried once;
 errors after partial output preserve the world already built and finish failed.
 Streams with `[DONE]` accept missing/provider-specific finish reasons; `length`,
 `error`, `content_filter`, and disconnection before `[DONE]` still fail explicitly.

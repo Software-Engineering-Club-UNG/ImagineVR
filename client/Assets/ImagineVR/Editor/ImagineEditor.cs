@@ -413,6 +413,7 @@ namespace ImagineVR.EditorTools
             SessionState.SetBool("ImagineSnap.Welcome", Arg("-snapWelcome", "0") == "1");
             SessionState.SetString("ImagineSnap.Sheet", Arg("-snapSheet", ""));
             SessionState.SetBool("ImagineSnap.Bare", Arg("-snapBare", "0") == "1");
+            SessionState.SetBool("ImagineSnap.Probe", Arg("-snapProbe", "0") == "1");
             Setup.OpenMainScene();
             EditorApplication.EnterPlaymode();
         }
@@ -438,6 +439,32 @@ namespace ImagineVR.EditorTools
             UnityEditor.Build.Reporting.BuildSummary summary = report.summary;
             Debug.Log("ImagineVR build: " + summary.result + ", " + (summary.totalSize / (1024 * 1024)) + " MB, " +
                       summary.totalErrors + " errors, " + summary.totalWarnings + " warnings -> " + output);
+            if (Application.isBatchMode) EditorApplication.Exit(summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+        }
+
+        /// <summary>
+        /// A player for this Mac, to check a real build without the headset: it goes through the same
+        /// shader stripping as the headset build, which the editor does not. Run what it makes with
+        ///   Builds/ImagineVRCheck.app/Contents/MacOS/ImagineVR -batchmode -snapOut dir -snapScripts "a.ndjson;b.ndjson" -snapProbe 1
+        /// (the same -snap arguments as the editor snapshot). Start Unity with -buildTarget StandaloneOSX.
+        /// </summary>
+        public static void BuildMacCheck()
+        {
+            string output = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "ImagineVRCheck.app"));
+            Directory.CreateDirectory(Path.GetDirectoryName(output));
+            // macOS will not package an app that uses the microphone without saying why
+            if (string.IsNullOrEmpty(PlayerSettings.macOS.microphoneUsageDescription))
+                PlayerSettings.macOS.microphoneUsageDescription = "ImagineVR listens while you hold the talk button.";
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { "Assets/ImagineVR/Scenes/Main.unity" },
+                locationPathName = output,
+                target = BuildTarget.StandaloneOSX,
+                targetGroup = BuildTargetGroup.Standalone,
+                options = BuildOptions.None,
+            };
+            UnityEditor.Build.Reporting.BuildSummary summary = BuildPipeline.BuildPlayer(options).summary;
+            Debug.Log("ImagineVR check build: " + summary.result + ", " + summary.totalErrors + " errors -> " + output);
             if (Application.isBatchMode) EditorApplication.Exit(summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
         }
 

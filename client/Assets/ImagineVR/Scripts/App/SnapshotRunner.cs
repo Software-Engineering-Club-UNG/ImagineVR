@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,9 +7,13 @@ using UnityEngine;
 namespace ImagineVR
 {
     /// <summary>
-    /// Editor-only helper used by the snapshot tool: plays one or more scripts in Play mode and
-    /// saves pictures of each result from several directions, so worlds can be checked without a
-    /// headset. Started by ImagineVR.EditorTools.Snapshot through SessionState.
+    /// Plays one or more scripts and saves pictures of each result from several directions, so
+    /// worlds can be checked without a headset. In the editor it is started by
+    /// ImagineVR.EditorTools.Snapshot; a built player starts it itself when run with -snapOut.
+    ///
+    /// Run it against a BUILD before trusting a change to how things are drawn. The editor keeps
+    /// every shader variant and a build does not: for a whole day the editor's pictures showed
+    /// forests that the headset never drew.
     /// </summary>
     public sealed class SnapshotRunner : MonoBehaviour
     {
@@ -23,22 +26,65 @@ namespace ImagineVR
         public string Sheet = "";      // "category" or "category:page": lay the library out for inspection
         float _deadline;
 
+        bool _bare, _probe;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Hook()
         {
+            string scripts, output, times, yaws, sheet = "";
+            float pitch;
+            bool welcome, bare, probe;
+#if UNITY_EDITOR
             if (!UnityEditor.SessionState.GetBool("ImagineSnap.Active", false)) return;
             UnityEditor.SessionState.SetBool("ImagineSnap.Active", false);
-            ImagineApp.Quiet = !UnityEditor.SessionState.GetBool("ImagineSnap.Welcome", false);
+            scripts = UnityEditor.SessionState.GetString("ImagineSnap.Scripts", "");
+            output = UnityEditor.SessionState.GetString("ImagineSnap.Out", "Snapshots");
+            times = UnityEditor.SessionState.GetString("ImagineSnap.Times", "");
+            yaws = UnityEditor.SessionState.GetString("ImagineSnap.Yaws", "");
+            pitch = UnityEditor.SessionState.GetFloat("ImagineSnap.Pitch", -4f);
+            sheet = UnityEditor.SessionState.GetString("ImagineSnap.Sheet", "");
+            welcome = UnityEditor.SessionState.GetBool("ImagineSnap.Welcome", false);
+            bare = UnityEditor.SessionState.GetBool("ImagineSnap.Bare", false);
+            probe = UnityEditor.SessionState.GetBool("ImagineSnap.Probe", false);
+#else
+            output = Arg("-snapOut", "");
+            if (output.Length == 0) return;
+            scripts = Arg("-snapScripts", "");
+            times = Arg("-snapTimes", "");
+            yaws = Arg("-snapYaws", "");
+            pitch = ParseList(Arg("-snapPitch", ""), new[] { -4f })[0];
+            welcome = Arg("-snapWelcome", "0") == "1";
+            bare = Arg("-snapBare", "0") == "1";
+            probe = Arg("-snapProbe", "0") == "1";
+#endif
+            ImagineApp.Quiet = !welcome;
             var go = new GameObject("SnapshotRunner");
             DontDestroyOnLoad(go);
             SnapshotRunner r = go.AddComponent<SnapshotRunner>();
-            string scripts = UnityEditor.SessionState.GetString("ImagineSnap.Scripts", "");
             r.ScriptFiles = scripts.Length > 0 ? scripts.Split(';') : new string[0];
-            r.OutputDir = UnityEditor.SessionState.GetString("ImagineSnap.Out", "Snapshots");
-            r.Times = ParseList(UnityEditor.SessionState.GetString("ImagineSnap.Times", ""), new[] { 6f });
-            r.Yaws = ParseList(UnityEditor.SessionState.GetString("ImagineSnap.Yaws", ""), new[] { 0f });
-            r.Pitch = UnityEditor.SessionState.GetFloat("ImagineSnap.Pitch", -4f);
-            r.Sheet = UnityEditor.SessionState.GetString("ImagineSnap.Sheet", "");
+            r.OutputDir = output;
+            r.Times = ParseList(times, new[] { 6f });
+            r.Yaws = ParseList(yaws, new[] { 0f });
+            r.Pitch = pitch;
+            r.Sheet = sheet;
+            r._bare = bare;
+            r._probe = probe;
+        }
+
+        static string Arg(string name, string fallback)
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++) if (args[i] == name) return args[i + 1];
+            return fallback;
+        }
+
+        static void Quit(int code)
+        {
+#if UNITY_EDITOR
+            Quit(code);
+#else
+            Application.Quit(code);
+#endif
         }
 
         IEnumerator Start()
@@ -54,11 +100,11 @@ namespace ImagineVR
             if (app == null)
             {
                 Debug.LogError("Snapshot: no ImagineApp in the scene");
-                UnityEditor.EditorApplication.Exit(1);
+                Quit(1);
                 yield break;
             }
             Directory.CreateDirectory(OutputDir);
-            if (UnityEditor.SessionState.GetBool("ImagineSnap.Bare", false))
+            if (_bare)
             {
                 // pictures of the world alone: no terminal across the middle, no hands in the corners
                 app.Terminal.gameObject.SetActive(false);
@@ -70,7 +116,7 @@ namespace ImagineVR
             {
                 foreach (string sheet in Sheet.Split(';')) yield return ShootSheet(app, sheet);
                 Debug.Log("Snapshot: done");
-                UnityEditor.EditorApplication.Exit(0);
+                Quit(0);
                 yield break;
             }
             if (ScriptFiles.Length == 0)
@@ -81,12 +127,69 @@ namespace ImagineVR
             {
                 if (!File.Exists(file)) { Debug.LogError("Snapshot: missing script " + file); continue; }
                 yield return Shoot(app, Path.GetFileNameWithoutExtension(file), File.ReadAllText(file));
-                app.World.ResetToDark(0.25f);
+                Census(app, Path.GetFileNameWithoutExtension(file));
+                app.World.ResetEverything(0.25f);
                 app.Conductor.ResetFirstLight();
                 yield return new WaitForSeconds(1.2f);
             }
+            if (_probe) yield return Probe(app);
             Debug.Log("Snapshot: done");
-            UnityEditor.EditorApplication.Exit(0);
+            Quit(0);
+        }
+
+        /// <summary>What is really in the renderers after a script, written beside its pictures.</summary>
+        void Census(ImagineApp app, string name)
+        {
+            app.World.Objects.Census(out int renderers, out int items, out int triangles);
+            string line = "{\"scene\":\"" + name + "\",\"groups\":" + app.World.Objects.Count + ",\"renderers\":" + renderers + ",\"items\":" + items +
+                ",\"triangles\":" + triangles + ",\"alive\":" + Creature.All.Count + ",\"props\":" + app.World.Props.All.Count +
+                ",\"rules\":" + app.World.Rules.Count + ",\"riding\":\"" + (app.World.Vehicle != null ? app.World.Vehicle.Asset : null) + "\",\"editor\":" + (Application.isEditor ? "true" : "false") + "}";
+            File.AppendAllText(Path.Combine(OutputDir, "census.ndjson"), line + "\n");
+            Debug.Log("Snapshot: " + line);
+        }
+
+        /// <summary>
+        /// The experiment behind the way scenery is drawn. Two magenta cubes are put in front of the
+        /// camera: the left one through GPU instancing with a material made at runtime (how scenery
+        /// used to be drawn), the right one as an ordinary renderer (how it is drawn now). In the
+        /// editor both appear. In a build, the left one is missing if instancing variants are stripped.
+        /// </summary>
+        IEnumerator Probe(ImagineApp app)
+        {
+            app.World.ResetEverything(0.1f);
+            yield return new WaitForSeconds(0.5f);
+            app.World.Apply(Statement.Make("sky", "preset", "white_room", "t", 0.2));
+            yield return new WaitForSeconds(1f);
+            app.Rig.DesktopLookAt(0f, 0f);
+            Mesh cube = Library.Asset("cube").Mesh;
+            var instanced = new Material(Shader.Find("ImagineVR/Lit")) { enableInstancing = true };
+            var block = new MaterialPropertyBlock();
+            block.SetColor("_Tint", Color.magenta);
+            block.SetFloat("_Appear", 1f);
+            var matrices = new[] { Matrix4x4.TRS(new Vector3(-1.2f, 1f, 4f), Quaternion.identity, Vector3.one) };
+            var ordinary = new GameObject("ProbeOrdinary");
+            ordinary.transform.position = new Vector3(1.2f, 1f, 4f);
+            ordinary.AddComponent<MeshFilter>().sharedMesh = cube;
+            MeshRenderer mr = ordinary.AddComponent<MeshRenderer>();
+            mr.sharedMaterial = app.World.Objects.LitMaterial;
+            mr.SetPropertyBlock(block);
+            for (int i = 0; i < 4; i++)
+            {
+                Graphics.RenderMeshInstanced(new RenderParams(instanced) { matProps = block, worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f) }, cube, 0, matrices, 1);
+                yield return null;
+            }
+            Graphics.RenderMeshInstanced(new RenderParams(instanced) { matProps = block, worldBounds = new Bounds(Vector3.zero, Vector3.one * 100f) }, cube, 0, matrices, 1);
+            string file = Path.Combine(OutputDir, "probe.png");
+            Texture2D tex = Capture(app, file, true);
+            bool Magenta(int x) { Color c = tex.GetPixel(x, Height / 2 - 20); return c.r > 0.5f && c.b > 0.5f && c.g < 0.45f; }
+            bool left = false, right = false;
+            for (int x = 0; x < Width / 2; x += 4) left |= Magenta(x);
+            for (int x = Width / 2; x < Width; x += 4) right |= Magenta(x);
+            string line = "{\"probe\":true,\"instanced_drew\":" + (left ? "true" : "false") + ",\"ordinary_drew\":" + (right ? "true" : "false") + ",\"editor\":" + (Application.isEditor ? "true" : "false") + "}";
+            File.AppendAllText(Path.Combine(OutputDir, "census.ndjson"), line + "\n");
+            Debug.Log("Snapshot: " + line);
+            Destroy(tex);
+            Destroy(ordinary);
         }
 
         IEnumerator Shoot(ImagineApp app, string name, string script)
@@ -159,17 +262,18 @@ namespace ImagineVR
             if (Time.realtimeSinceStartup > _deadline && _deadline > 0f)
             {
                 Debug.LogError("Snapshot: timed out");
-                UnityEditor.EditorApplication.Exit(2);
+                Quit(2);
             }
         }
 
-        void Capture(ImagineApp app, string file)
+        void Capture(ImagineApp app, string file) { Destroy(Capture(app, file, true)); }
+
+        Texture2D Capture(ImagineApp app, string file, bool keep)
         {
             Camera cam = app.Rig.Cam;
             var rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB) { antiAliasing = 4 };
             RenderTexture previous = cam.targetTexture;
             cam.targetTexture = rt;
-            app.World.Objects.Render();   // instanced draws are queued per frame: queue them for this extra render
             cam.Render();
             RenderTexture.active = rt;
             var tex = new Texture2D(Width, Height, TextureFormat.RGB24, false);
@@ -178,10 +282,10 @@ namespace ImagineVR
             RenderTexture.active = null;
             cam.targetTexture = previous;
             File.WriteAllBytes(file, tex.EncodeToPNG());
-            Destroy(tex);
             rt.Release();
             Destroy(rt);
             Debug.Log("Snapshot: wrote " + file);
+            return tex;
         }
 
         public static float[] ParseList(string text, float[] fallback)
@@ -196,4 +300,3 @@ namespace ImagineVR
         }
     }
 }
-#endif
