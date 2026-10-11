@@ -105,13 +105,17 @@ Write their replacements now, and nothing else:
 Output only `spawn` and `scatter` statements. No `think`, no `say`."""
 
 
-async def _sculpt(session: Session, system_prompt: str, text: str, frame: list | None, missing: list[dict]) -> AsyncIterator[dict]:
+async def _sculpt(session: Session, system_prompt: str, text: str, frame: list | None, missing: list[dict], allow_blueprints: bool=False) -> AsyncIterator[dict]:
     """A second, short request: the model builds from shapes what it asked the library for and the library lacks."""
     listed = "\n".join(json.dumps(m, separators=(",", ":")) for m in missing)
-    content = build_user_content(session, text, frame) + "\n\n" + SCULPT.format(missing=listed)
+    instruction=SCULPT.format(missing=listed)
+    if allow_blueprints:
+        instruction='These requested assets are missing:\n'+listed+'\nBuild complete low-poly blueprint definitions, then the requested spawn/give operations referencing them. Preserve original instance IDs and placement. Output only blueprint, spawn, give, or supporting rule operations. Do not make disconnected sculptures. For scatter use a baked approximation.'
+    content = build_user_content(session, text, frame) + "\n\n" + instruction
     async for line in llm.stream_lines(system_prompt, content):
         stmt = parse_line(line)
-        if stmt is not None and str(stmt.get("op", "")).lower() in ("spawn", "scatter"):
+        allowed=('blueprint','spawn','give','rule','scatter') if allow_blueprints else ('spawn','scatter')
+        if stmt is not None and str(stmt.get("op", "")).lower() in allowed:
             yield stmt
 
 
@@ -125,6 +129,7 @@ async def _run_turn(
     base_url: str = "",
     frame: list | None = None,
     allow_rules: bool = False,
+    allow_blueprints: bool = False,
 ) -> AsyncIterator[dict]:
     started = time.perf_counter()
 
@@ -150,7 +155,7 @@ async def _run_turn(
     yield {"op": "status", "state": "thinking"}
 
     # Only the model can sculpt, so only then is an unknown asset worth holding back for it.
-    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE, allow_rules=allow_rules)
+    validator = Validator(catalog, frame, hold_unknown=not config.OFFLINE, allow_rules=allow_rules, allow_blueprints=allow_blueprints)
     building = False
     changed = False
     gave = False
@@ -212,9 +217,12 @@ async def _run_turn(
             yield {"op": "note", "text": f"no {names} in the library, sculpting from shapes"}
             made = 0
             try:
-                async for raw in _sculpt(session, system_prompt, text, frame, missing):
+                sculpt_prompt = system_prompt
+                if allow_blueprints:
+                    sculpt_prompt += '\nFor this client, replace missing assets with ONE blueprint definition then the original spawn/give referencing it. Do not scatter sculpture parts. Blueprint instructions override the legacy sculpt instruction.'
+                async for raw in _sculpt(session, sculpt_prompt, text, validator.frame, missing,allow_blueprints=allow_blueprints):
                     for stmt in send(raw, strict=False):
-                        made += stmt["op"] in ("spawn", "scatter")
+                        made += stmt["op"] in ("spawn", "scatter", "give")
                         yield stmt
             except llm.LLMError as exc:
                 log.warning("sculpting failed: %s", exc)

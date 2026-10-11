@@ -50,6 +50,11 @@ def selector(value):
 
 def validate_action(action):
     kind = action.get('action') if isinstance(action, dict) else None
+    if not isinstance(kind,str): raise RuleError('invalid action kind')
+    from .blueprints import CONTRACT, validate_extension_action
+    if kind in CONTRACT['actions']:
+        validate_extension_action(action)
+        return
     schema = CAPABILITIES['actions'].get(kind)
     if schema is None:
         raise RuleError('unsupported action')
@@ -108,33 +113,37 @@ def validate_rule(raw):
     if raw['op'] != 'rule': raise RuleError('expected rule')
     identifier(raw['id'])
     selector(raw['selector'])
-    if raw['event'] not in CAPABILITIES['events']: raise RuleError('unsupported event')
+    from .blueprints import CONTRACT
+    if raw['event'] not in CAPABILITIES['events'] + CONTRACT['events']: raise RuleError('unsupported event')
     if raw.get('mode','replace') not in ('replace','add'): raise RuleError('invalid rule mode')
     for key in ('once','enabled'):
         if key in raw and not isinstance(raw[key], bool): raise RuleError('expected boolean')
     number(raw.get('cooldown', .1), 0, 60)
     filters = raw.get('filters', {})
-    strict(filters, ('source_kind','source_asset','source_tag','min_speed','radius','threshold','name','duration'))
+    strict(filters, ('source_kind','source_asset','source_tag','min_speed','radius','threshold','name','duration','part','line_of_sight'))
     for key, value in filters.items():
         if key == 'source_kind':
             if value not in ('projectile','thrown','melee','collision'): raise RuleError('unknown hit source')
         elif key in ('min_speed','radius','threshold','duration'):
             number(value, .25 if key == 'duration' else 0, 60 if key == 'duration' else 120)
+        elif key == 'line_of_sight':
+            if not isinstance(value,bool): raise RuleError('expected line_of_sight boolean')
         else: identifier(value)
     if raw['event'] in ('timer','interval') and 'duration' not in filters:
         raise RuleError('timer event requires duration')
     if raw['event'] in ('zone_enter','zone_exit','proximity_enter','proximity_exit') and 'radius' not in filters:
         raise RuleError('spatial event requires radius')
+    if raw['event']=='part_contact' and 'part' not in filters: raise RuleError('part_contact requires part filter')
     conditions = raw.get('conditions', [])
     if not isinstance(conditions, list) or len(conditions) > 8: raise RuleError('too many conditions')
     for condition in conditions:
         strict(condition, ('field','operator','value','name'), ('field','operator','value'))
-        if condition['field'] not in ('health','durability','speed','source_kind','source_asset','source_tag','counter','state','chance'):
+        if condition['field'] not in ('health','durability','speed','source_kind','source_asset','source_tag','counter','state','actor_state','chance'):
             raise RuleError('unknown condition field')
         if condition['operator'] not in ('eq','ne','lt','le','gt','ge'): raise RuleError('unknown comparison')
         if condition['field'] in ('counter','state'): identifier(condition.get('name'))
         value = condition['value']
-        if condition['field'] in ('source_kind','source_asset','source_tag','state'):
+        if condition['field'] in ('source_kind','source_asset','source_tag','state','actor_state'):
             if not isinstance(value, (str, bool)) or isinstance(value, str) and len(value) > 80: raise RuleError('invalid condition value')
         else: number(value, 0, 1) if condition['field'] == 'chance' else number(value)
     actions = raw['actions']
@@ -164,7 +173,7 @@ def validate_user(raw):
 
 
 def validate_snapshot(raw):
-    strict(raw, ('generation','sequence','entities','rules','counters','states','player','failures','user'), ('generation','sequence','entities','rules','counters','states','player','failures'))
+    strict(raw, ('generation','sequence','entities','rules','counters','states','player','failures','blueprints','overrides','player_health','player_damage_enabled','user'), ('generation','sequence','entities','rules','counters','states','player','failures'))
     if 'user' in raw: validate_user(raw['user'])
     for key in ('generation','sequence'):
         number(raw[key], 0, 2**31-1)
@@ -174,7 +183,7 @@ def validate_snapshot(raw):
     if not isinstance(entities, list) or len(entities) > LIMITS['snapshot_entities']: raise RuleError('too many entities')
     ids = set()
     for entity in entities:
-        strict(entity, ('id','group','asset','position','tags','health','durability'), ('id','group','asset','position','tags'))
+        strict(entity, ('id','group','asset','position','tags','health','durability','revision','parts','actor_state','movement','animations','emitters','contacts'), ('id','group','asset','position','tags'))
         for key in ('id','group','asset'): identifier(entity[key])
         if entity['id'] in ids: raise RuleError('duplicate instance id')
         ids.add(entity['id'])
@@ -183,6 +192,18 @@ def validate_snapshot(raw):
         for tag in entity['tags']: identifier(tag)
         for key in ('health','durability'):
             if key in entity: number(entity[key],0,10000)
+        if 'revision' in entity: number(entity['revision'],1,2**31-1)
+        if 'parts' in entity:
+            from .blueprints import strings
+            strings(entity['parts'],64)
+        if 'actor_state' in entity: identifier(entity['actor_state'])
+        if 'movement' in entity:
+            from .blueprints import movement
+            movement(entity['movement'])
+        for key in ('animations','emitters','contacts'):
+            if key in entity:
+                from .blueprints import strings
+                strings(entity[key])
     if not isinstance(raw['rules'], list) or len(raw['rules']) > 64: raise RuleError('too many rules')
     validated_rules = [validate_rule(rule) for rule in raw['rules']]
     if len({r['id'] for r in validated_rules}) != len(validated_rules): raise RuleError('duplicate rules')
@@ -193,4 +214,16 @@ def validate_snapshot(raw):
             if key == 'counters': number(value)
             elif not isinstance(value,(str,bool)) or isinstance(value,str) and len(value)>80: raise RuleError('invalid state')
     if not isinstance(raw['failures'],list) or len(raw['failures'])>32 or any(not isinstance(v,str) or len(v)>200 for v in raw['failures']): raise RuleError('invalid failures')
+    from .blueprints import validate_blueprint
+    definitions=raw.get('blueprints',[])
+    if not isinstance(definitions,list) or len(definitions)>64: raise RuleError('blueprint registry limit')
+    for b in definitions: validate_blueprint(b)
+    if len({b['id'] for b in definitions})!=len(definitions): raise RuleError('duplicate blueprint')
+    if len(json.dumps(definitions))>256000: raise RuleError('registry byte budget')
+    overrides=raw.get('overrides',{})
+    if not isinstance(overrides,dict) or len(overrides)>64: raise RuleError('override limit')
+    for key,b in overrides.items(): identifier(key); validate_blueprint(b)
+    if len(json.dumps(overrides))>128000: raise RuleError('override byte budget')
+    if 'player_health' in raw: number(raw['player_health'],0,100)
+    if 'player_damage_enabled' in raw and not isinstance(raw['player_damage_enabled'],bool): raise RuleError('invalid player damage permission')
     return copy.deepcopy(raw)

@@ -19,6 +19,7 @@ namespace ImagineVR
         public Quaternion BirthRotation;
         public Vector3 BirthScale;
         public World World;
+        public Dictionary<string,object> BlueprintRecipe;
         public bool Alive => !Removed && (Index >= 0 || Object != null);
         public Vector3 Position
         {
@@ -59,6 +60,7 @@ namespace ImagineVR
         {
             Visible = visible;
             if (Object != null) foreach (Renderer r in Object.GetComponentsInChildren<Renderer>()) r.enabled = visible;
+            if(Object!=null) Object.GetComponent<BlueprintActor>()?.Rebatch();
             UpdatePlacement();
         }
     }

@@ -362,7 +362,8 @@ namespace ImagineVR
             if (_gripSince >= 0f)
             {
                 float squeezed = Time.time - _gripSince;
-                if (_held == null) _gripSince = -1f;
+                // both grips squeezed together is the start of a chord (with X or Y: the local permissions), not a wish to drop
+                if (_held == null || _rig.Grip(!_right) > 0.55f) _gripSince = -1f;
                 else if (squeezed >= LetGoHold) Release(true);
                 else if (Time.frameCount % 5 == 0) _rig.Haptic(_right, 0.15f + 0.5f * squeezed / LetGoHold, 0.03f);   // felt building up
             }
@@ -463,7 +464,14 @@ namespace ImagineVR
             prop.Holder = this;
             prop.Floating = false;
             prop.Body.isKinematic = true;
-            if (prop.Def.Tool)
+            var blueprint=prop.GetComponent<BlueprintActor>();
+            var grip=blueprint!=null?BlueprintData.Wrap(blueprint.Recipe).Obj("capabilities")?.TryGetValue("grip",out object gripData)==true?gripData as Dictionary<string,object>:null:null;
+            if(grip!=null)
+            {
+                _gripRotation=Quaternion.Euler(BlueprintData.Vec(grip,"rotation",Vector3.zero));
+                _gripOffset=-(_gripRotation*Vector3.Scale(BlueprintData.Vec(grip,"position",Vector3.zero),prop.transform.localScale));
+            }
+            else if (prop.Def.Tool)
             {
                 // a tool's handle sits in the fist and its length runs along the controller's forward axis
                 _gripOffset = Vector3.zero;

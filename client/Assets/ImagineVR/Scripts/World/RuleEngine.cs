@@ -25,6 +25,7 @@ namespace ImagineVR
         readonly Dictionary<string, object> _states = new Dictionary<string, object>();
         readonly List<string> _failures = new List<string>();
         readonly Dictionary<string, object> _contract;
+        readonly Dictionary<string, object> _blueprintContract;
         int _next, _depth, _generation, _sequence, _interactive, _frameActions;
         readonly List<ParticleSystem> _effects = new List<ParticleSystem>();
         Coroutine _playerRoutine;
@@ -48,6 +49,28 @@ namespace ImagineVR
             TextAsset contract = Resources.Load<TextAsset>("RuntimeRules");
             _contract = contract != null ? MiniJson.ParseObject(contract.text) : null;
             if (_contract == null) throw new InvalidOperationException("Missing RuntimeRules contract");
+            _blueprintContract=MiniJson.ParseObject(Resources.Load<TextAsset>("RuntimeBlueprints").text);
+            foreach(var pair in (Dictionary<string,object>)_blueprintContract["actions"]) ((Dictionary<string,object>)_contract["actions"])[pair.Key]=pair.Value;
+            ((List<object>)_contract["events"]).AddRange((List<object>)_blueprintContract["events"]);
+        }
+        public IEnumerable<RuleEntity> Live => _entities.Values.Where(e=>e.Alive);
+        public bool Selects(Dictionary<string,object> selector,RuleEntity entity) => Matches(selector,entity);
+        public void CancelEntityActions(RuleEntity e) { if(e!=null) _pending.RemoveAll(p=>p.Self==e && new[]{"emit_projectile","damage","kill","break"}.Contains(p.Action.Op)); }
+        public bool LineOfSight(Vector3 from,Vector3 to,RuleEntity self)
+        {
+            Vector3 delta=to-from; if(delta.magnitude<.01f) return true;
+            foreach(var hit in Physics.RaycastAll(from,delta.normalized,delta.magnitude,~0,QueryTriggerInteraction.Ignore).OrderBy(h=>h.distance))
+            {
+                var owner=hit.collider.GetComponentInParent<RuleBody>()?.Entity;
+                if(owner==self) continue;
+                return Vector3.Distance(hit.point,to)<.75f || owner!=null && Vector3.Distance(owner.Position,to)<1;
+            }
+            return true;
+        }
+        public void RegisterBlueprint(BlueprintActor actor,string group,List<string> tags)
+        {
+            RegisterObject(actor.gameObject,group,(string)actor.Recipe["id"],new HashSet<string>());
+            actor.Entity=Find(actor.gameObject); foreach(string tag in tags) actor.Entity.Tags.Add(tag);
         }
         public void Fail(string text)
         {
@@ -123,6 +146,7 @@ namespace ImagineVR
             }
             foreach (Prop prop in _world.Props.All)
                 if (prop != null) RegisterObject(prop.gameObject, prop.GroupId, prop.Def.Id, present);
+            if(_world.Blueprints!=null) foreach(var actor in _world.Blueprints.Instances) RegisterObject(actor.gameObject,actor.Entity!=null?actor.Entity.GroupId:"blueprint",(string)actor.Recipe["id"],present);
             foreach (RuleEntity e in _entities.Values.ToArray())
                 if (!present.Contains(e.Id)) { e.Removed = true; Detach(e); }
             foreach (RuleEntity e in _entities.Values.Where(e => e.Removed).ToArray())
@@ -142,6 +166,8 @@ namespace ImagineVR
             Color tint = go.GetComponent<Prop>() != null ? go.GetComponent<Prop>().Tint : owner != null ? owner.Tint : Color.white;
             e.Original = new Placement(def.Mesh, go.transform.position, go.transform.eulerAngles.y, go.transform.localScale.y, tint, false);
             body = go.AddComponent<RuleBody>(); body.Engine = this; body.Entity = e;
+            var actor=go.GetComponent<BlueprintActor>();
+            if(actor!=null) { actor.Entity=e; Statement caps=BlueprintData.Wrap(BlueprintData.Wrap(actor.Recipe).Obj("capabilities")); e.Health=caps.Num("health",-1); e.Durability=caps.Num("durability",-1); }
             PrepareForRules(e); Emit("spawn", e);
         }
         bool NeedsBody(Statement rule) => !new[] { "spawn", "remove", "timer", "interval", "counter_changed", "counter_reached", "state_changed" }.Contains(rule.Str("event"));
@@ -149,6 +175,12 @@ namespace ImagineVR
         bool MakeGrabbable(RuleEntity e)
         {
             if (e.Object != null && e.Object.GetComponent<Prop>() != null) return true;
+            var actor=e.Object!=null?e.Object.GetComponent<BlueprintActor>():null;
+            if(actor!=null)
+            {
+                if(_world.Props.All.Count(p=>p!=null && p.GroupId!="shot")>=PropSystem.MaxPhysics) { Fail("Grab rule exceeds physics budget"); return false; }
+                _world.Props.AttachGenerated(e.Object,actor.Def,e.GroupId,actor.Visual); return true;
+            }
             if (_world.Props.All.Count(p => p != null && p.GroupId != "shot") >= PropSystem.MaxPhysics) { Fail("Grab rule exceeds physics budget"); return false; }
             if (!Promote(e)) return false;
             GameObject old = e.Object;
@@ -164,6 +196,7 @@ namespace ImagineVR
                 if (rule.Flag("enabled", true) && Matches(rule.Obj("selector"), e) && NeedsBody(rule))
                 {
                     if (NeedsProp(rule) && !MakeGrabbable(e)) continue;
+                    if(rule.Str("event")=="part_contact" && e.Object!=null) e.Object.GetComponent<BlueprintActor>()?.EnsureSensor(Wrap(rule.Obj("filters")).Str("part"));
                     if (Promote(e) && new[] { "damage", "death", "health_below" }.Contains(rule.Str("event")) && e.Health < 0) e.Health = 100;
                     if (rule.Str("event") == "break" && e.Durability < 0) e.Durability = 100;
                 }
@@ -187,7 +220,7 @@ namespace ImagineVR
         {
             try
             {
-                RuleContract.Validate(rule, _contract);
+                RuleContract.Validate(rule, _contract, _blueprintContract);
                 string id = rule.Str("id");
                 if (rule.Op == "rule_remove") { RemoveRule(id); return true; }
                 if (string.IsNullOrEmpty(id) || rule.Obj("selector") == null || rule.Obj("selector").Count != 1 || !((List<object>)_contract["events"]).Contains(rule.Str("event")))
@@ -241,13 +274,15 @@ namespace ImagineVR
         {
             foreach (RuleEntity e in _entities.Values.Where(e => e.Alive && (e.GroupId == id || e.GroupId.StartsWith(id + ".", StringComparison.Ordinal))).ToArray()) Emit("remove", e);
         }
-        bool Fits(Statement rule, string name, RuleEntity self, RuleEntity source, string kind, float speed, string eventName = null, float previous = float.NaN, float current = float.NaN)
+        bool Fits(Statement rule, string name, RuleEntity self, RuleEntity source, string kind, float speed, string eventName = null, float previous = float.NaN, float current = float.NaN, string part=null)
         {
             if (!rule.Flag("enabled", true) || rule.Str("event") != name || !Matches(rule.Obj("selector"), self)) return false;
             var filters = rule.Obj("filters");
             if (filters != null)
             {
                 Statement f = Wrap(filters);
+                if(f.Has("part") && f.Str("part")!=part) return false;
+                if(f.Flag("line_of_sight") && !LineOfSight(self.Position,source!=null?source.Position:_world.Head!=null?_world.Head.position:self.Position,self)) return false;
                 if (name == "health_below" && !(previous >= f.Num("threshold", 50) && current < f.Num("threshold", 50))) return false;
                 if (name == "counter_reached" && !(previous < f.Num("threshold", 1) && current >= f.Num("threshold", 1))) return false;
                 if (f.Has("source_kind") && f.Str("source_kind") != kind || f.Has("source_asset") && (source == null || source.Asset != f.Str("source_asset")) || f.Has("source_tag") && (source == null || !source.Tags.Contains(f.Str("source_tag"))) || speed < f.Num("min_speed", 0) || f.Has("name") && f.Str("name") != eventName) return false;
@@ -256,7 +291,7 @@ namespace ImagineVR
                 foreach (object item in conditions)
                 {
                     Statement c = Wrap((Dictionary<string, object>)item); string field = c.Str("field");
-                    object value = field == "health" ? self.Health : field == "durability" ? self.Durability : field == "speed" ? speed : field == "source_kind" ? kind : field == "source_asset" ? source?.Asset : field == "source_tag" ? (source != null && source.Tags.Contains(c.Str("value")) ? c.Str("value") : "") : field == "counter" ? (_counters.TryGetValue(c.Str("name"), out float n) ? n : 0) : field == "state" ? (_states.TryGetValue(c.Str("name"), out object state) ? state : null) : UnityEngine.Random.value;
+                    object value = field == "actor_state" ? self.Object?.GetComponent<BlueprintActor>()?.State : field == "health" ? self.Health : field == "durability" ? self.Durability : field == "speed" ? speed : field == "source_kind" ? kind : field == "source_asset" ? source?.Asset : field == "source_tag" ? (source != null && source.Tags.Contains(c.Str("value")) ? c.Str("value") : "") : field == "counter" ? (_counters.TryGetValue(c.Str("name"), out float n) ? n : 0) : field == "state" ? (_states.TryGetValue(c.Str("name"), out object state) ? state : null) : UnityEngine.Random.value;
                     object want = c.Fields["value"]; string op = c.Str("operator");
                     if (value is string || value is bool || value == null) { bool same = Equals(value, want); if (!(op == "eq" && same || op == "ne" && !same)) return false; }
                     else { float a = Convert.ToSingle(value), b = Convert.ToSingle(want); if (!(op == "eq" && a == b || op == "ne" && a != b || op == "lt" && a < b || op == "le" && a <= b || op == "gt" && a > b || op == "ge" && a >= b)) return false; }
@@ -265,13 +300,13 @@ namespace ImagineVR
         }
         public bool Replaces(string name, RuleEntity self, RuleEntity source = null, string kind = "", float speed = 0)
             => self != null && _rules.Any(r => r.Str("mode", "replace") == "replace" && Fits(r, name, self, source, kind, speed));
-        public bool Emit(string name, RuleEntity self, RuleEntity source = null, string kind = "", float speed = 0, string eventName = null, float previous = float.NaN, float current = float.NaN)
+        public bool Emit(string name, RuleEntity self, RuleEntity source = null, string kind = "", float speed = 0, string eventName = null, float previous = float.NaN, float current = float.NaN, string part=null)
         {
             if (self == null || _depth >= 4) return false;
             bool replace = false;
             foreach (Statement rule in _rules.ToArray())
             {
-                if (!Fits(rule, name, self, source, kind, speed, eventName, previous, current)) continue;
+                if (!Fits(rule, name, self, source, kind, speed, eventName, previous, current,part)) continue;
                 replace |= rule.Str("mode", "replace") == "replace";
                 string key = rule.Str("id") + ":" + self.Id;
                 if (rule.Flag("once") && _once.Contains(key) || _last.TryGetValue(key, out float last) && Time.time - last < rule.Num("cooldown", .1f)) continue;
@@ -304,6 +339,7 @@ namespace ImagineVR
         {
             if (e.Object != null)
             {
+                var generated=e.Object.GetComponent<BlueprintActor>(); if(generated!=null) e.BlueprintRecipe=BlueprintData.Clone(generated.Recipe);
                 Prop prop = e.Object.GetComponent<Prop>(); if (prop != null && prop.Holder != null) prop.Holder.ForceRelease();
                 if (e.Index >= 0) _interactive = Mathf.Max(0, _interactive - 1);
                 UnityEngine.Object.Destroy(e.Object); e.Object = null;
@@ -408,6 +444,8 @@ namespace ImagineVR
             if (kind == "spawn" && a.Str("target") == "world") { Spawn(a, p.Position); return; }
             foreach (RuleEntity e in Targets(p))
             {
+                var actor=e.Object!=null?e.Object.GetComponent<BlueprintActor>():null;
+                if(((Dictionary<string,object>)_blueprintContract["actions"]).ContainsKey(kind)) { if(actor!=null) actor.Action(a); else Fail("Blueprint action requires a generated object"); continue; }
                 Vector3 position = e.Alive ? e.Position : p.Position;
                 if (kind == "sound") { Sfx.Play(a.Str("name"), position, Mathf.Clamp01(a.Num("volume", .8f)), Mathf.Clamp(a.Num("pitch", 1), .5f, 2)); continue; }
                 if (kind == "particles") { Particles(a, position + Vector3.up * .5f, color); continue; }
@@ -427,11 +465,12 @@ namespace ImagineVR
                     case "break": if (e.Durability < 0) e.Durability = 100; float health = e.Health; e.Health = -1; Damage(e, e.Durability, p.Source); e.Health = health; break;
                     case "set_gravity": e.Gravity = Mathf.Clamp(value, -.5f, 2); break;
                     case "rotate": if (a.TryVec3("rotation", out Vector3 rotation)) { if (e.Object != null) e.Object.transform.rotation = Quaternion.Euler(rotation); else { e.Original.Rotation = Quaternion.Euler(rotation); e.UpdatePlacement(); } } break;
-                    case "set_collision": if (Promote(e)) foreach (Collider collider in e.Object.GetComponents<Collider>()) collider.enabled = a.Flag("enabled"); break;
-                    case "set_physics": if (Promote(e)) { Rigidbody body = e.Object.GetComponent<Rigidbody>(); body.isKinematic = !a.Flag("enabled"); } break;
+                    case "set_collision": if (Promote(e)) { if(actor!=null) actor.SetCollision(a.Flag("enabled")); else foreach (Collider collider in e.Object.GetComponentsInChildren<Collider>()) collider.enabled = a.Flag("enabled"); } break;
+                    case "set_physics": if (Promote(e)) { actor?.SetMovement(new Dictionary<string,object>{{"mode","still"}}); Rigidbody body = e.Object.GetComponent<Rigidbody>(); body.isKinematic = !a.Flag("enabled"); } break;
                     case "impulse": case "set_velocity": if (Promote(e) && a.TryVec3("vector", out Vector3 vector)) { Rigidbody body = e.Object.GetComponent<Rigidbody>(); if (body.isKinematic) { Fail("Physics action requires a dynamic body"); break; } if (kind == "impulse") body.AddForce(Vector3.ClampMagnitude(vector, 40), ForceMode.Impulse); else body.linearVelocity = Vector3.ClampMagnitude(vector, 40); } break;
                     case "set_behavior": if (Promote(e))
                         {
+                            if(actor!=null) { actor.SetMovement(new Dictionary<string,object>{{"mode",a.Str("behavior")}}); break; }
                             Creature creature = e.Object.GetComponent<Creature>();
                             if (creature == null)
                             {
@@ -443,8 +482,8 @@ namespace ImagineVR
                             }
                             creature.SetBehavior(a.Str("behavior"));
                         } break;
-                    case "stop_motion": if (e.Object != null) { Creature creature = e.Object.GetComponent<Creature>(); if (creature != null) creature.SetBehavior("still"); RuleMotion motion = e.Object.GetComponent<RuleMotion>(); if (motion != null) UnityEngine.Object.Destroy(motion); Rigidbody body = e.Object.GetComponent<Rigidbody>(); if (body != null && !body.isKinematic) body.linearVelocity = Vector3.zero; } break;
-                    case "move_to": case "follow_path": if (Promote(e)) { Creature creature = e.Object.GetComponent<Creature>(); if (creature != null) creature.SetBehavior("still"); RuleMotion motion = e.Object.GetComponent<RuleMotion>() ?? e.Object.AddComponent<RuleMotion>(); motion.Init(this, e, a); } break;
+                    case "stop_motion": if (e.Object != null) { actor?.SetMovement(new Dictionary<string,object>{{"mode","still"}}); Creature creature = e.Object.GetComponent<Creature>(); if (creature != null) creature.SetBehavior("still"); RuleMotion motion = e.Object.GetComponent<RuleMotion>(); if (motion != null) UnityEngine.Object.Destroy(motion); Rigidbody body = e.Object.GetComponent<Rigidbody>(); if (body != null && !body.isKinematic) body.linearVelocity = Vector3.zero; } break;
+                    case "move_to": case "follow_path": if (Promote(e)) { actor?.SetMovement(new Dictionary<string,object>{{"mode","still"}}); Creature creature = e.Object.GetComponent<Creature>(); if (creature != null) creature.SetBehavior("still"); RuleMotion motion = e.Object.GetComponent<RuleMotion>() ?? e.Object.AddComponent<RuleMotion>(); motion.Init(this, e, a); } break;
                     case "spawn": Spawn(a, position); break;
                     default: Fail("Unsupported runtime action: " + kind); break;
                 }
@@ -454,12 +493,13 @@ namespace ImagineVR
         {
             int count = Mathf.Clamp(a.Int("count", 1), 1, 20);
             if (_world.Objects.CountKind("spawn") + count > ObjectSystem.MaxSpawned) { Fail("Spawn action exceeds object budget"); return; }
-            AssetDef def = Library.FindAsset(a.Str("asset")); if (def == null) { Fail("Unknown action asset"); return; }
+            AssetDef def = Library.FindAsset(a.Str("asset")); bool generated=_world.Blueprints.Has(a.Str("asset")); if (def == null && !generated) { Fail("Unknown action asset"); return; }
             a.TryVec3("offset", out Vector3 offset);
             for (int i = 0; i < count; i++)
             {
                 Vector3 at = position + offset + Vector3.right * i;
-                var stmt = Statement.Make("spawn", "asset", def.Id, "id", "rule_spawn_" + (++_next), "at", new List<object> { (double)at.x, (double)(at.y - _world.Terrain.HeightAt(at.x, at.z)), (double)at.z }, "scale", (double)a.Num("scale", 1), "tint", a.Str("color", "#FFFFFF"), "behavior", a.Str("behavior", "still"), "tags", a.StrList("tags").Cast<object>().ToList());
+                var stmt = Statement.Make("spawn", "asset", generated?a.Str("asset"):def.Id, "id", "rule_spawn_" + (++_next), "at", new List<object> { (double)at.x, (double)(at.y - _world.Terrain.HeightAt(at.x, at.z)), (double)at.z }, "scale", (double)a.Num("scale", 1), "tint", a.Str("color", "#FFFFFF"), "tags", a.StrList("tags").Cast<object>().ToList());
+                if(a.Has("behavior")) stmt.Fields["behavior"]=a.Str("behavior");
                 _world.Apply(stmt);
             }
             SyncEntities();
@@ -467,6 +507,7 @@ namespace ImagineVR
         void Respawn(RuleEntity e)
         {
             if (e.Alive) Remove(e);
+            if(e.BlueprintRecipe!=null) { _world.Blueprints.Respawn(e,e.BlueprintRecipe); return; }
             var action = Statement.Make("spawn", "asset", e.Asset, "scale", (double)e.BirthScale.y);
             Spawn(action, e.BirthPosition);
             RuleEntity fresh = _entities.Values.LastOrDefault(x => x.Alive && x.Asset == e.Asset);
@@ -484,6 +525,7 @@ namespace ImagineVR
                 : Fx.Burst(at, color, color, count, preset == "smoke" ? .8f : 3, size, life, preset == "splash" ? 1 : 0, preset == "sparks" || preset == "sparkles");
             effect.transform.SetParent(_world.transform, true); _effects.Add(effect);
         }
+        public void ParticleBurst(Statement a,Vector3 at) => Particles(a,at,a.TryColor("color",out Color color)?color:Color.white);
         void PlayerAction(Statement a)
         {
             if (!PlayerEffectsEnabled) { Fail("Player effects disabled; enable them locally for this session"); return; }
@@ -548,12 +590,15 @@ namespace ImagineVR
                 var item = new Dictionary<string, object> { ["id"] = e.Id, ["group"] = e.GroupId, ["asset"] = e.Asset, ["position"] = new List<object> { (double)p.x, (double)p.y, (double)p.z }, ["tags"] = e.Tags.Cast<object>().ToList() };
                 if (e.Health >= 0) item["health"] = (double)e.Health;
                 if (e.Durability >= 0) item["durability"] = (double)e.Durability;
+                var actor=e.Object!=null?e.Object.GetComponent<BlueprintActor>():null;
+                if(actor!=null) { item["revision"]=(double)BlueprintData.Wrap(actor.Recipe).Int("revision",1); item["parts"]=actor.Parts.Keys.Cast<object>().ToList(); item["actor_state"]=actor.State; item["movement"]=actor.Movement; item["animations"]=actor.ActiveAnimations; item["emitters"]=actor.ActiveEmitters; item["contacts"]=actor.ActiveContacts; }
                 entities.Add(item);
             }
             Vector3 head = _world.Head != null ? _world.Head.position : Vector3.zero;
             var snapshot = new Dictionary<string, object> { ["generation"] = _generation, ["sequence"] = ++_sequence, ["entities"] = entities,
                 ["rules"] = _rules.Select(r => (object)r.Fields).ToList(), ["counters"] = _counters.ToDictionary(p => p.Key, p => (object)(double)p.Value),
-                ["states"] = new Dictionary<string, object>(_states), ["player"] = new List<object> { (double)head.x,(double)head.y,(double)head.z }, ["failures"] = _failures.Cast<object>().ToList() };
+                ["states"] = new Dictionary<string, object>(_states), ["player"] = new List<object> { (double)head.x,(double)head.y,(double)head.z }, ["failures"] = _failures.Cast<object>().ToList(),
+                ["blueprints"]=_world.Blueprints.Definitions,["overrides"]=_world.Blueprints.Overrides,["player_health"]=(double)_world.Blueprints.PlayerHealth,["player_damage_enabled"]=_world.Blueprints.PlayerDamageEnabled };
             if (ReportUser) snapshot["user"] = UserNow();
             return snapshot;
         }

@@ -362,6 +362,7 @@ class WorldState:
         self.globals: dict[str, dict] = {}  # sky, light, fog, terrain, weather, physics, ambience
         self.things: dict[str, dict] = {}  # id -> the statement that made it
         self.rules: dict[str, dict] = {}
+        self.blueprints: dict[str, dict] = {}
         self.runtime: dict | None = None
         self._auto = 0
 
@@ -398,6 +399,14 @@ class WorldState:
 
     def apply(self, stmt: dict) -> None:
         op = stmt["op"]
+        if op == 'blueprint':
+            self.blueprints[stmt['id']] = copy.deepcopy(stmt)
+            return
+        if op == 'blueprint_remove':
+            self.blueprints.pop(stmt['id'],None)
+            return
+        if op == 'blueprint_edit':
+            return  # authoritative applied overrides arrive in the client's runtime snapshot
         if op == "rule":
             self.rules[stmt['id']] = dict(stmt)
             return
@@ -448,6 +457,7 @@ class WorldState:
                 self.globals.clear()
                 self.things.clear()
                 self.rules.clear()
+                self.blueprints.clear()
                 self.runtime = None
                 return
             keep = set(stmt.get("keep", []))
@@ -465,9 +475,10 @@ class WorldState:
 
     def render(self, frame: list | None = None) -> str:
         """The world as ImagineScript, with positions relative to a user standing at `frame`."""
-        if self.is_empty() and not self.rules and self.runtime is None:
+        if self.is_empty() and not self.rules and not self.blueprints and self.runtime is None:
             return "(empty: the dark room, nothing built yet)"
         lines = []
+        lines.extend(json.dumps(_blueprint_coordinates(b,frame,inverse=True),separators=(',',':')) for b in self.blueprints.values())
         for op in ("sky", "light", "fog", "terrain", "weather", "physics", "ambience", "ride", "player"):
             if op in self.globals:
                 lines.append(_compact(self.globals[op], frame))
@@ -490,6 +501,7 @@ class WorldState:
             summary['entities_truncated'] = len(live) > 128
             summary.pop('rules', None)  # installed rules already appear above
             user = summary.pop('user', None)
+            summary.pop('blueprints',None)  # recipes already shown above
             lines.append(json.dumps(summary, separators=(',', ':')))
             if user is not None:
                 lines.append(_user_now(user))
@@ -516,6 +528,8 @@ def _rule_coordinates(rule: dict, frame: list | None, inverse: bool = False) -> 
         return out
     transform = _from_world if inverse else _to_world
     for action in out.get("actions", []):
+        if action.get('action')=='motion_config' and 'path' in action.get('config',{}):
+            action['config']['path']=[[round(v,4) for v in transform(p,frame)] for p in action['config']['path']]
         if "position" in action:
             action["position"] = [round(v, 4) for v in transform(action["position"], frame)]
         if "path" in action:
@@ -528,12 +542,22 @@ def _rule_coordinates(rule: dict, frame: list | None, inverse: bool = False) -> 
     return out
 
 
+def _blueprint_coordinates(recipe: dict, frame: list | None, inverse: bool=False) -> dict:
+    out=copy.deepcopy(recipe)
+    if not frame: return out
+    transform=_from_world if inverse else _to_world
+    configs=[out.get('capabilities',{}).get('movement',{})]+[s.get('movement',{}) for s in out.get('states',{}).values()]
+    for config in configs:
+        if 'path' in config: config['path']=[[round(v,4) for v in transform(p,frame)] for p in config['path']]
+    return out
+
+
 def _compact(stmt: dict, frame: list | None = None) -> str:
     return json.dumps(_seen_from(stmt, frame), separators=(",", ":"))
 
 
 class Validator:
-    def __init__(self, catalog: Catalog, frame: list | None = None, hold_unknown: bool = False, allow_rules: bool = True):
+    def __init__(self, catalog: Catalog, frame: list | None = None, hold_unknown: bool = False, allow_rules: bool = True, allow_blueprints: bool = False):
         self.catalog = catalog
         # where the user stands; placed statements are stamped with it so the headset builds
         # them around the user and not around the middle of the world
@@ -543,6 +567,7 @@ class Validator:
         self.hold_unknown = hold_unknown
         self.missing: list[dict] = []
         self.allow_rules = allow_rules
+        self.allow_blueprints = allow_blueprints
 
     def check(self, raw: dict, world: WorldState) -> list[dict]:
         """Validate one model statement. Returns the statements to send (notes first)."""
@@ -558,6 +583,29 @@ class Validator:
 
     def _check(self, raw: dict, world: WorldState) -> list[dict]:
         op = str(raw.get("op", "")).lower()
+        if op in ('blueprint','blueprint_remove','blueprint_edit'):
+            if not self.allow_blueprints: return [_note('This client does not support runtime blueprints; update the Unity app.')]
+            from .blueprints import validate_blueprint
+            from .rules import RuleError,strict,identifier,selector
+            try:
+                if op=='blueprint':
+                    out=validate_blueprint(_blueprint_coordinates(validate_blueprint(raw,self.catalog),self.frame),self.catalog)
+                    if out['id'] not in world.blueprints and len(world.blueprints)>=64: raise RuleError('blueprint limit')
+                    if self.catalog.has('asset',out['id']): raise RuleError('blueprint ID conflicts with baked asset')
+                    out['revision']=world.blueprints.get(out['id'],{}).get('revision',0)+1
+                    registry=dict(world.blueprints); registry[out['id']]=out
+                    if len(json.dumps(registry))>256000: raise RuleError('registry byte budget')
+                    for e in out.get('capabilities',{}).get('emitters',[]):
+                        if not self.catalog.has('asset',e['asset']) and e['asset'] not in registry: raise RuleError('unknown projectile asset; define it first')
+                elif op=='blueprint_edit':
+                    strict(raw,('op','selector','blueprint'),('op','selector','blueprint')); selector(raw['selector'])
+                    out=copy.deepcopy(raw); out['blueprint']=validate_blueprint(_blueprint_coordinates(validate_blueprint(raw['blueprint'],self.catalog),self.frame),self.catalog)
+                    for e in out['blueprint'].get('capabilities',{}).get('emitters',[]):
+                        if not self.catalog.has('asset',e['asset']) and e['asset'] not in world.blueprints: raise RuleError('unknown projectile asset')
+                else:
+                    strict(raw,('op','id'),('op','id')); identifier(raw['id']); out=dict(raw)
+                world.apply(out); return [out]
+            except RuleError as exc: return [_note(f'Blueprint rejected: {exc}; existing objects unchanged.')]
         if op in ('rule', 'rule_remove'):
             if not self.allow_rules:
                 return [_note('This client does not support runtime rules; update the Unity app.')]
@@ -565,9 +613,12 @@ class Validator:
             try:
                 if op == 'rule':
                     out = validate_rule(raw)
+                    from .blueprints import CONTRACT
+                    if not self.allow_blueprints and (out['event'] in CONTRACT['events'] or any(a['action'] in CONTRACT['actions'] for a in out['actions']) or any(k in out.get('filters',{}) for k in ('part','line_of_sight')) or any(c['field']=='actor_state' for c in out.get('conditions',[]))):
+                        raise RuleError('client does not support blueprint rules')
                     out = validate_rule(_rule_coordinates(out, self.frame))
                     for action in out['actions']:
-                        if action['action'] in ('spawn', 'mount') and not self.catalog.has('asset', action['asset']):
+                        if action['action'] in ('spawn', 'mount') and not self.catalog.has('asset', action['asset']) and not (self.allow_blueprints and action['action']=='spawn' and action['asset'] in world.blueprints):
                             raise RuleError('action references an unknown asset')
                     if out['id'] not in world.rules and len(world.rules) >= 64:
                         raise RuleError('rule limit reached')
@@ -630,10 +681,16 @@ class Validator:
             if isinstance(name, str) and name.strip():
                 wanted = to_id(name) or ""
                 # `give` accepts any asset: the headset shrinks non-holdables to hand size
-                resolved, _ = self.catalog.resolve(kind, wanted)
+                if op=='scatter' and wanted in world.blueprints:
+                    return [_note('Generated blueprints use individual spawn commands, not scatter.')]
+                resolved, _ = (wanted, False) if self.allow_blueprints and op in ('spawn','give') and kind=='asset' and wanted in world.blueprints else self.catalog.resolve(kind, wanted)
+                if self.allow_blueprints and self.hold_unknown and op in ('spawn','give') and resolved and resolved!=wanted:
+                    entry=self.catalog.get('asset',resolved) or {}
+                    aliases={str(a).lower().replace(' ','_').replace('-','_') for a in entry.get('aliases',[])}
+                    if wanted not in aliases: resolved=None  # do not silently turn a new invention into a fuzzy catalog match
                 if resolved is None:
                     if kind == "asset":
-                        if self.hold_unknown and op in ("spawn", "scatter"):
+                        if self.hold_unknown and (op in ("spawn", "scatter") or self.allow_blueprints and op=='give'):
                             self.missing.append(dict(raw))
                             return []
                         # keep the name: the headset shows a labelled stand-in shape. It is

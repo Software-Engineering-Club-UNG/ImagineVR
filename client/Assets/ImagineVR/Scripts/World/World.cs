@@ -24,6 +24,7 @@ namespace ImagineVR
         public WeatherSystem Weather { get; private set; }
         public AmbienceSystem Ambience { get; private set; }
         public RuleEngine Rules { get; private set; }
+        public BlueprintSystem Blueprints { get; private set; }
 
         /// <summary>The user's head. Used to place things in reach and to aim sounds.</summary>
         public Transform Head;
@@ -86,6 +87,7 @@ namespace ImagineVR
             Weather = new WeatherSystem(this);
             Ambience = new AmbienceSystem(this);
             Rules = new RuleEngine(this);
+            Blueprints = new BlueprintSystem(this);
             Terrain.Changed += OnGroundChanged;
         }
 
@@ -124,17 +126,18 @@ namespace ImagineVR
                 case "weather": Weather.Apply(s); break;
                 case "physics": Props.SetGravity(s.Num("gravity", 1f)); break;
                 case "kit": Kits.Apply(s); _everLit = true; break;
-                case "spawn": EnsureLight(); Objects.Spawn(s); break;
+                case "spawn": EnsureLight(); if(!Blueprints.Spawn(s)) Objects.Spawn(s); break;
                 case "scatter": EnsureLight(); Objects.Scatter(s); break;
-                case "give": Props.Give(s); break;
+                case "give": EnsureLight(); if(!Blueprints.Spawn(s)) Props.Give(s); break;
                 case "ride": EnsureLight(); if (Vehicle != null) Vehicle.Apply(s); break;
                 case "goal": Objects.Goal(s); break;
                 case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
-                case "modify": Objects.Modify(s); Props.Modify(s); break;
+                case "modify": Objects.Modify(s); Props.Modify(s); Blueprints.Modify(s); break;
                 case "remove": Rules.RemovingGroup(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); break;
                 case "ambience": Ambience.Apply(s); break;
                 case "clear": Clear(s); break;
                 case "rule": case "rule_remove": Rules.SyncEntities(); Rules.Install(s); break;
+                case "blueprint": case "blueprint_remove": case "blueprint_edit": Blueprints.Apply(s); break;
             }
             Rules.SyncEntities();
         }
@@ -163,6 +166,7 @@ namespace ImagineVR
             }
             List<string> keep = s.StrList("keep");
             Rules.Reset(keep.Contains("rules"));
+            Blueprints.Reset();
             Objects.Clear(t);
             Kits.Forget();
             Props.ClearLoose();
@@ -197,6 +201,7 @@ namespace ImagineVR
         /// <summary>Back to the dark room.</summary>
         public void ResetToDark(float seconds)
         {
+            Blueprints.Reset();
             Rules.Reset();
             Rules.PlayerEffectsEnabled = false;
             Objects.Clear(seconds);
@@ -218,6 +223,7 @@ namespace ImagineVR
         /// </summary>
         public void ResetEverything(float seconds)
         {
+            Blueprints.Reset(true);
             ResetToDark(seconds);
             Props.ClearAll();
             Rules.SyncEntities();
@@ -258,6 +264,7 @@ namespace ImagineVR
             _real = Mathf.MoveTowards(_real, QuestFeature.Passthrough && IsDark ? 1f : 0f, dt / 2.5f);
             Shader.SetGlobalFloat(RealId, _real);
             Rules.Tick(dt);
+            Blueprints.Tick();
         }
 
         static readonly int RealId = Shader.PropertyToID("_ImReal");
