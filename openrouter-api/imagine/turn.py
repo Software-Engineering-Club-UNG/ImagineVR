@@ -15,6 +15,8 @@ from .session import Session
 
 log = logging.getLogger("imagine.turn")
 
+REFUSED = "That change didn't take: I wrote it in a way the world wouldn't accept, so nothing is different yet. Ask me again and I'll redo it."
+
 OUTCOMES = ("world_changed", "object_given", "answered", "ignored", "not_understood", "declined", "failed")
 
 
@@ -164,10 +166,12 @@ async def _run_turn(
     waiting: list[dict] = []   # replies held until what they talk about has been made
     emitted = 0
     first_at: float | None = None
+    rejected = False           # a blueprint or rule the model wrote was refused this turn
+    owned_up = False
 
     def send(raw: dict, strict: bool = True) -> list[dict]:
         """Validates one statement and does the turn's bookkeeping for what comes out."""
-        nonlocal building, changed, gave, emitted, first_at
+        nonlocal building, changed, gave, emitted, first_at, rejected, owned_up
         validator.hold_unknown = strict and not config.OFFLINE
         out: list[dict] = []
         checked = validator.check(raw, session.world)
@@ -175,10 +179,19 @@ async def _run_turn(
             log.info("statement dropped: %.300s", json.dumps(raw, separators=(",", ":")))
         for stmt in checked:
             kind = stmt["op"]
+            if kind == "note" and " rejected: " in stmt.get("text", ""):
+                rejected = True
             if kind == "say":
                 if validator.missing and strict:
                     waiting.append(stmt)
                     continue
+                if rejected and not changed and not gave:
+                    # The model wrote this line before it could know its change was refused.
+                    # Nothing happened, so it must not tell the user that something did.
+                    if owned_up:
+                        continue
+                    owned_up = True
+                    stmt = {"op": "say", "text": REFUSED}
                 said.append(stmt["text"])
                 if tts.enabled():
                     stmt["audio"] = f"{base_url}/v1/audio/{tts.start(stmt['text'])}"
@@ -247,6 +260,8 @@ async def _run_turn(
         yield {"op": "say", "text": "I couldn't work out how to build that. Try saying it another way."}
         hinted = hinted or "not_understood"
 
+    if rejected and not changed and not gave:
+        hinted = "failed"
     outcome = hinted or ("world_changed" if changed else "object_given" if gave else "answered")
     if outcome != "ignored":
         session.history.append((text, " ".join(said)[:300]))

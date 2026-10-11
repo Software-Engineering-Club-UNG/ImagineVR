@@ -18,8 +18,13 @@ class RuleError(ValueError):
 
 
 def strict(value, allowed, required=()):
-    if not isinstance(value, dict) or set(value) - set(allowed) or set(required) - set(value):
+    if not isinstance(value, dict):
         raise RuleError('unknown or missing rule fields')
+    unknown, missing = sorted(set(value) - set(allowed)), sorted(set(required) - set(value))
+    if unknown or missing:
+        # named, so the session log says what the model got wrong and not only that it did
+        detail = '; '.join(f'{label} {", ".join(map(str, names))[:80]}' for label, names in (('unknown', unknown), ('missing', missing)) if names)
+        raise RuleError(f'unknown or missing rule fields ({detail})')
 
 
 def identifier(value):

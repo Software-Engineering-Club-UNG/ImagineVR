@@ -144,3 +144,49 @@ def test_missing_give_gets_blueprint_retry_without_duplicate(monkeypatch):
 def test_actions_reject_malformed_kind():
     from imagine.rules import validate_action
     with pytest.raises(RuleError): validate_action({'action':{}})
+
+
+def _turn(monkeypatch, lines):
+    import asyncio
+    from imagine import config,llm,turn
+    from imagine.session import Session
+    monkeypatch.setattr(config,'OFFLINE',False)
+    async def model(prompt,content,model=None):
+        for line in lines: yield json.dumps(line)
+    monkeypatch.setattr(llm,'stream_lines',model)
+    async def collect():
+        return [s async for s in turn._run_turn(Session('bp-test'),Catalog.load(ROOT/'shared/catalog.json'),'runtime-blueprints-v1',text='turn the grip round',allow_rules=True,allow_blueprints=True)]
+    return asyncio.run(collect())
+
+
+def test_edit_accepts_a_nested_recipe_without_its_op(monkeypatch):
+    nested={k:v for k,v in recipe().items() if k!='op'}
+    out=_turn(monkeypatch,[{'op':'blueprint_edit','selector':{'instance':'tool'},'blueprint':nested},{'op':'say','text':'Turned it.'}])
+    edit=[s for s in out if s['op']=='blueprint_edit']
+    assert len(edit)==1 and edit[0]['blueprint']['op']=='blueprint'
+    assert [s['text'] for s in out if s['op']=='say']==['Turned it.']
+    assert out[-1]=={'op':'done','outcome':'world_changed'}
+
+
+def test_a_rejected_change_is_not_reported_as_done(monkeypatch):
+    from imagine import turn
+    out=_turn(monkeypatch,[{'op':'blueprint_edit','id':'tool','blueprint':recipe()},{'op':'say','text':"I've turned the grip."},{'op':'say','text':'Hold it out again.'}])
+    notes=[s['text'] for s in out if s['op']=='note']
+    assert any('rejected' in n and 'unknown id' in n and 'missing selector' in n for n in notes)
+    assert [s['text'] for s in out if s['op']=='say']==[turn.REFUSED]
+    assert out[-1]=={'op':'done','outcome':'failed'}
+
+
+def test_a_rejection_beside_a_real_change_keeps_the_reply(monkeypatch):
+    out=_turn(monkeypatch,[{'op':'rule','id':'bad','event':'use_start'},recipe(),{'op':'give','asset':'new_tool','id':'tool'},{'op':'say','text':'Here it is.'}])
+    assert [s['text'] for s in out if s['op']=='say']==['Here it is.']
+    assert out[-1]['outcome']=='world_changed'
+
+
+def test_the_prompt_example_of_a_trigger_fired_tool_is_valid():
+    text=(ROOT/'openrouter-api/imagine/blueprints-prompt.md').read_text(encoding='utf-8')
+    gun=json.loads(next(line for line in text.splitlines() if line.startswith('{"op":"blueprint","id":"ray_gun"')))
+    v=Validator(Catalog.load(ROOT/'shared/catalog.json'),allow_rules=True,allow_blueprints=True); w=WorldState()
+    assert v.check(gun,w)[0]['op']=='blueprint'
+    emitter=gun['capabilities']['emitters'][0]
+    assert emitter['enabled'] is True and 'autofire' not in emitter

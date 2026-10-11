@@ -403,10 +403,18 @@ namespace ImagineVR
                 case "sky": rMin = 8f; rMax = 85f; break;
                 default: rMin = 6f; rMax = 60f; break;
             }
-            if (s.TryRange("radius", out float a, out float b)) { rMin = a; rMax = Mathf.Max(b, a + 0.01f); }
-            float safe = World.SafeRadius + Mathf.Min(footprint, 6f);
             bool sky = area == "sky" || def.Airborne;
             float hMin = sky ? 10f : 0f, hMax = sky ? 40f : 0f;
+            if (sky && !def.Airborne)
+            {
+                // Birds and clouds are made to be seen high and far off. A pig is not: up there it
+                // is a speck. Whatever else is put in the sky stays near enough to be recognised.
+                float big = Mathf.Max(footprint, 0.3f);
+                rMin = Mathf.Clamp(big * 4f, 3f, 12f); rMax = Mathf.Clamp(big * 22f, 12f, 85f);
+                hMin = Mathf.Clamp(big * 4f, 3f, 12f); hMax = Mathf.Clamp(big * 11f, 6f, 40f);
+            }
+            if (s.TryRange("radius", out float a, out float b)) { rMin = a; rMax = Mathf.Max(b, a + 0.01f); }
+            float safe = World.SafeRadius + Mathf.Min(footprint, 6f);
             if (s.TryRange("height", out a, out b)) { hMin = a; hMax = b; }
             if (hMin < 0.5f && hMax < 0.5f) rMin = Mathf.Max(rMin, Mathf.Min(safe, rMax - 0.01f));
             float sMin = 0.8f, sMax = 1.25f;
@@ -495,6 +503,17 @@ namespace ImagineVR
                 if (!found && where != "any") continue;
                 pos.y = lift + Mathf.Lerp(hMin, hMax, (float)rng.NextDouble());
                 float scale = Mathf.Lerp(sMin, sMax, (float)rng.NextDouble());
+                if (sky)
+                {
+                    // Overhead, something too big for how close it is stops being a shape and becomes
+                    // the ceiling: it is kept to a size the eye can take in, and clear of the user's head.
+                    Vector3 reach = def.Bounds.size;
+                    float span = Mathf.Max(reach.x, Mathf.Max(reach.y, reach.z), 0.01f);
+                    Vector3 off = pos - frame.position;
+                    float away = Mathf.Sqrt(off.x * off.x + off.z * off.z + (pos.y - 1.6f) * (pos.y - 1.6f));
+                    scale = Mathf.Min(scale, Mathf.Max(away, 3f) * 0.8f / span);
+                    pos.y = Mathf.Max(pos.y, 2.6f + def.Bounds.extents.y * scale);
+                }
                 if (Enliven(g, def, pos, scale, s.Str("behavior"))) continue;
                 var p = new Placement(def.Mesh, pos, yaw, scale, Color.white) { OnWater = def.OnWater };
                 if (s.Flag("solid") && !sky) Solidify(g, def, pos, p.Rotation, p.Scale);
