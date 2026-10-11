@@ -1,6 +1,6 @@
 # Explorable interiors
 
-The `structures-v1` client capability enables enclosed, single-floor structures. The backend lays out rooms deterministically; Unity creates solid floors, segmented brick/panel walls, ceilings, door openings, and independently interactive doors. This is not a scatter of building props.
+The `structures-v1`/`structures-v2` client capabilities enable enclosed, single-floor structures: the inside of anything with walls round it (a house, a cockpit, a classroom, a hangar). The backend lays out rooms deterministically; Unity creates solid floors, segmented brick/panel walls, ceilings, door openings, and independently interactive doors. This is not a scatter of building props.
 
 ## Controls
 
@@ -27,22 +27,29 @@ The model writes the compact room description. The backend sends a normalized `z
 
 ## Defaults and limits
 
-| Setting | First version |
+A client that sends `structures-v2` gets the general form below; one that sends only `structures-v1` is sent the first version (4–16 m rooms, corridors, no windows).
+
+| Setting | Now |
 |---|---|
-| Themes | `dungeon` (brick/torches), `house` (wood/plaster), `sci_fi` (metal/lamps): a starting look only |
-| Look | Optional `wall`, `floor` and `light` colours and `brightness` 0..1 replace the theme's own, so an interior can be any kind of place |
-| Layouts | `chain`: up to 8 rooms; `hub`: centre plus up to 4 branches |
-| Rooms | Default 6 × 8 m; dimensions 4–16 m |
-| Ceilings | Default 3 m; 2.5–6 m |
-| Corridors | 2 m wide, 4 m long |
-| Door opening | 1.2 × 2.2 m |
+| Themes | Wall texture only: `plain` (smooth, the default), `dungeon` (brick, torches), `house`, `sci_fi` |
+| Look | `wall`, `floor` and `light` colours and `brightness` 0..1 make it the place it is |
+| Layouts | `chain`: up to 8 rooms in a line; `hub`: centre plus up to 4 branches |
+| Rooms | The size of the real thing: 2–30 m, 2.2–12 m high, per room; default 6 × 8 × 3 |
+| Joining | A 4 m corridor, or `halls:false` for rooms wall to wall; `"door":false` on a room is an open doorway; `exit:false` leaves no door outside |
+| Windows | `windows:true` or a list of sides, on the structure or a room: openings with a sill, head and frame. The collider is the whole wall |
+| Ceiling | `flat` or `vault` (an arch along the line of rooms) |
+| Altitude | 0–80 m above the ground, for anything that flies or stands high; no way out unless `exit:true` |
+| Entering | `enter:true` (first room) or `"enter":"<room id>"` |
 | Active structures | One; a new structure replaces it |
-| Lighting | Per-room ambient and two bounded local lights; no real-time shadow maps |
-| Terrain | Common floor above sampled terrain; foundation skirts, no landscape flattening |
+| Lighting | Per-room ambient (more with windows) and two bounded lights whose reach grows with the room |
 
-Static geometry uses GameObjects/MeshRenderers and box colliders; there is no enclosing building-sized collider. Indoor volumes suppress outdoor sunlight for the shared solid-object shader. Lights are scoped to their room, so outdoor appearance is unchanged. Invalid builds leave the previous structure intact and report a note. A `spawn` or `door` that names a room or door that is not there is not refused: the server uses the nearest one. Removing/clearing the floor relocates the player to terrain.
+### Furnishing
 
-Multi-floor layouts, stairs, destruction, locks/keys, grabbed hinges, and physically simulated door pushing are not included. Lighting is stylized rather than a physically accurate simulation of illumination through doors. Optional `seed`, `at`, and `rot_y` control appearance/placement. `enter:true` relocates the player; otherwise placement leaves them outside/currently positioned.
+`spawn` with `room` and `at` places one thing, measured from the middle of that room's floor (x east, z north). `scatter` with `room` places many: `arrange` is `rows` (a grid with an aisle, facing `face`), `walls` (backs to the walls, clear of doorways) or `loose` (spread out, never overlapping). `at` shifts a whole arrangement, so two scatters of the same count pair up (desks and their chairs). A scatter with a short `radius` and no room, asked for by someone standing indoors, lands in the room they are in; what grows on the ground does not grow through an interior's floor, and nothing scattered outdoors lands inside one.
+
+Static geometry uses GameObjects/MeshRenderers and box colliders; there is no enclosing building-sized collider. Indoor volumes suppress outdoor sunlight for the shared solid-object shader. Nothing is refused: sizes out of range are clamped, and a room or door named wrongly is the nearest one. Removing/clearing the floor relocates the player to terrain.
+
+Multi-floor layouts, stairs, destruction, locks/keys, grabbed hinges, and physically simulated door pushing are not included.
 
 ## Verification and rollout
 

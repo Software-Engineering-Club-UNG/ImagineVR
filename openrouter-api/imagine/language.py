@@ -25,6 +25,8 @@ BEHAVIORS = ("wander", "chase", "flee", "still")
 MOTIONS = ("none", "bob", "spin", "hover", "sway", "orbit", "drift")
 FEATURES = ("river", "pond", "path", "terraces", "outcrops")
 WHERES = ("shore", "high", "low", "steep", "flat")
+ARRANGES = ("rows", "walls", "loose")
+SIDES = ("north", "east", "south", "west")
 EVENTS = ("hit", "near", "grab", "use", "every", "start")
 ACTIONS = ("burst", "sound", "remove", "spawn", "tint", "scale", "say", "score", "explode", "launch", "respawn")
 BURSTS = ("confetti", "sparks", "smoke", "sparkles", "dust", "splash", "fire")
@@ -261,11 +263,13 @@ def parse_line(line: str) -> dict | None:
 class Checker:
     """Turns what the model wrote into what the headset plays. One per turn."""
 
-    def __init__(self, catalog: Catalog, world: WorldState, frame: list[float] | None = None, structures: bool = False):
+    def __init__(self, catalog: Catalog, world: WorldState, frame: list[float] | None = None, structures: bool = False,
+                 wide: bool | None = None):
         self.catalog = catalog
         self.world = world
         self.frame = frame
         self.structures = structures
+        self.wide = structures if wide is None else wide   # the client builds the second version of interiors
         self.problem: str | None = None
         self.missing: list[str] = []      # asset names used that neither the catalog nor a `make` provides
         self.made_now: set[str] = set()
@@ -467,7 +471,7 @@ class Checker:
             self.problem = "This app needs an update before it can build explorable interiors."
             return None
         from .structures import normalize
-        return normalize(raw, self.frame)
+        return normalize(raw, self.frame, self.wide)
 
     def _door(self, raw):
         # Nothing is refused: a door named a little wrongly is the nearest one there is, and with no
@@ -482,6 +486,13 @@ class Checker:
             identity = next((d["id"] for d in self.world.structure["doors"] if wanted and d["room"] == wanted), close[0] if close else ids[0])
         return {"id": identity, "state": pick(raw.get("state"), ("open", "close", "toggle"), "toggle")}
 
+    def _room(self, raw, identity: str = "") -> dict | None:
+        """The room of the interior a statement puts its thing in, or None when it names none (or there is no interior)."""
+        if not raw.get("room") or not self.structures:
+            return None
+        from .structures import room_of
+        return room_of(self.world.structure, name_of(raw.get("room")), identity)
+
     def _common(self, raw, out):
         out["tint"] = color(raw.get("tint", raw.get("color")))
         out["behavior"] = pick(raw.get("behavior"), BEHAVIORS)
@@ -495,21 +506,15 @@ class Checker:
             return None
         out = {"id": name_of(raw.get("id")) or self.world.next_id(asset + "_"), "asset": asset}
         out["at"] = vec(raw.get("at"), 3, -200, 200)
-        if raw.get("room"):
-            room = name_of(raw.get("room"))
-            structure = self.world.structure
-            target = next((r for r in structure["rooms"] if r["id"] == room), None) if structure else None
-            if target is None and self.structures and structure:
-                # a room named a little wrongly is the nearest one there is, or the way in
-                ids = [r["id"] for r in structure["rooms"]]
-                room = (difflib.get_close_matches(room, ids, n=1, cutoff=0.6) or [structure["entry"]])[0]
-                target = next(r for r in structure["rooms"] if r["id"] == room)
-        if raw.get("room") and self.structures and self.world.structure:
+        target = self._room(raw, out["id"])
+        if target is not None:
+            # measured from the middle of the room's floor, and kept inside its walls
             p = out["at"] or [0, 0, 0]
-            out["room"] = room
-            out["at"] = [num(p[0], -target["size"][0] / 2 + 1, target["size"][0] / 2 - 1),
+            edge = 0.3 if self.wide else 1
+            out["room"] = target["id"]
+            out["at"] = [num(p[0], -max(target["size"][0] / 2 - edge, 0), max(target["size"][0] / 2 - edge, 0)),
                          num(p[1], 0, target["size"][1] - 0.5),
-                         num(p[2], -target["size"][2] / 2 + 1, target["size"][2] / 2 - 1)]
+                         num(p[2], -max(target["size"][2] / 2 - edge, 0), max(target["size"][2] / 2 - edge, 0))]
         if out["at"] is None:
             out["place"] = pick(raw.get("place"), PLACES, "front")
             out["distance"] = num(raw.get("distance"), 0, 110)
@@ -549,6 +554,23 @@ class Checker:
         out["along"] = points(raw.get("along"), 3, 24)
         out["where"] = pick(raw.get("where"), WHERES)
         out["seed"] = num(raw.get("seed"), 0, 99999)
+        if self.wide:
+            from .structures import room_of
+            # In a room: named, or (the model forgets) one that the scatter's own id speaks of.
+            target = self._room(raw, out["id"])
+            if target is None and self.world.structure and out["area"] not in ("edges", "sky") and not out["along"]:
+                target = room_of(self.world.structure, "", out["id"])
+            arrange = pick(raw.get("arrange"), ARRANGES)
+            if target is not None:
+                out["room"] = target["id"]
+                out["arrange"] = arrange
+                out["face"] = pick(raw.get("face"), SIDES)
+                out["at"] = vec(raw.get("at"), 3, -30, 30)
+                for key in ("area", "radius", "along", "clusters", "where"):
+                    out.pop(key, None)
+            elif arrange == "rows":
+                out["arrange"] = arrange
+            out["gap"] = num(raw.get("gap"), 0, 40)
         self._common(raw, out)
         return out
 

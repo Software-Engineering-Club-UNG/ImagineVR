@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -10,6 +11,7 @@ namespace ImagineVR.Tests
     {
         GameObject root, head, hand;
         World world;
+        GameObject releaseRig;
         [SetUp] public void Setup()
         {
             Time.captureDeltaTime = 1f / 72;
@@ -20,6 +22,7 @@ namespace ImagineVR.Tests
         [TearDown] public void Cleanup()
         {
             Time.captureDeltaTime = 0;
+            if (releaseRig != null) Object.DestroyImmediate(releaseRig);
             Object.DestroyImmediate(root); Object.DestroyImmediate(head); Object.DestroyImmediate(hand);
             foreach (ParticleSystem p in Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None)) Object.DestroyImmediate(p.gameObject);
             Library.ForgetMade();
@@ -35,7 +38,96 @@ namespace ImagineVR.Tests
             prop.Floating = false; prop.Body.isKinematic = false;
             prop.Body.position = new Vector3(0, 1.2f, 0);
             prop.Body.linearVelocity = velocity; prop.LetGoAt = Time.time;
-            prop.GetComponent<HeldItemRuntime>().Released(true, velocity, hand.transform);
+            prop.Thrown = velocity.magnitude >= Grabber.ThrowSpeed;
+            prop.GetComponent<HeldItemRuntime>().Released(true, velocity, hand.transform, prop.Thrown);
+        }
+
+        Grabber HoldForRelease(Prop prop, Vector3 current, Vector3 angular, params Vector3[] samples)
+        {
+            releaseRig = new GameObject("ReleaseIntegrationRig");
+            var rig = releaseRig.AddComponent<Rig>(); rig.Build(); rig.enabled = false;
+            rig.LeftGrabber.enabled = rig.RightGrabber.enabled = false;
+            Grabber grabber = rig.RightGrabber;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            typeof(Grabber).GetMethod("Grab", flags).Invoke(grabber, new object[] { prop, "test" });
+            typeof(Grabber).GetField("_velocity", flags).SetValue(grabber, current);
+            typeof(Grabber).GetField("_angular", flags).SetValue(grabber, angular);
+            var recent = (Vector3[])typeof(Grabber).GetField("_recent", flags).GetValue(grabber);
+            var times = (float[])typeof(Grabber).GetField("_recentAt", flags).GetValue(grabber);
+            for (int i = 0; i < times.Length; i++) times[i] = -100;
+            for (int i = 0; i < samples.Length; i++) { recent[i] = samples[i]; times[i] = Time.time; }
+            return grabber;
+        }
+
+        static void ReleaseFromHand(Grabber grabber)
+        {
+            typeof(Grabber).GetMethod("Release", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(grabber, new object[] { true });
+        }
+
+        [TestCase("sword")]
+        [TestCase("sport_frisbee")]
+        [TestCase("wooden_boomerang")]
+        [TestCase("frag_grenade")]
+        public void NativeItemsKeepRecentPeakAndCentreOfMassThrowVelocity(string asset)
+        {
+            Prop prop = Give(asset);
+            Vector3 angular = Vector3.up * 4;
+            Grabber grabber = HoldForRelease(prop, Vector3.forward * 0.5f, angular,
+                Vector3.forward * 6, Vector3.forward * 4, Vector3.forward * 2);
+            Vector3 flung = Vector3.forward * 4;
+            Assert.Less((grabber.ThrowVelocity() - flung).magnitude, 0.001f);
+            Vector3 arm = prop.Body.worldCenterOfMass - grabber.transform.position;
+            Vector3 expected = (flung + Vector3.ClampMagnitude(Vector3.Cross(angular, arm), flung.magnitude * 0.5f)) * 1.2f;
+            ReleaseFromHand(grabber);
+            Assert.IsTrue(prop.Thrown);
+            Assert.Less((prop.Body.linearVelocity - expected).magnitude, 0.001f, "Native behavior must not overwrite Israel's launch velocity");
+            if (asset == "sport_frisbee" || asset == "wooden_boomerang") Assert.IsTrue(prop.GetComponent<HeldItemRuntime>().Busy);
+            else Assert.Less((prop.Body.angularVelocity - angular).magnitude, 0.001f);
+            if (asset == "frag_grenade") Assert.IsTrue(prop.GetComponent<HeldItemRuntime>().Armed);
+        }
+
+        [TestCase("sport_frisbee")]
+        [TestCase("wooden_boomerang")]
+        [TestCase("sword")]
+        public void SlowDeliberateDropStaysPutAndDoesNotStartFlight(string asset)
+        {
+            Prop prop = Give(asset);
+            Grabber grabber = HoldForRelease(prop, Vector3.forward * 0.9f, Vector3.up * 4, Vector3.forward * 0.9f);
+            ReleaseFromHand(grabber);
+            Assert.IsFalse(prop.Thrown);
+            Assert.Less((prop.Body.linearVelocity - Vector3.forward * 0.9f).magnitude, 0.001f);
+            Assert.AreEqual(Vector3.zero, prop.Body.angularVelocity);
+            if (prop.GetComponent<HeldItemRuntime>() != null) Assert.IsFalse(prop.GetComponent<HeldItemRuntime>().Busy);
+            prop.LetGoAt = Time.time - 6;
+            world.Props.Tick(0.01f);
+            Assert.IsFalse(prop.Floating, "A put-down item must not be recalled");
+        }
+
+        [Test] public void GenericRecoveryDoesNotInterruptNativeBoomerangFlight()
+        {
+            Prop prop = Give("wooden_boomerang"); Throw(prop, Vector3.forward * 5);
+            prop.LetGoAt = Time.time - 5;
+            world.Props.Tick(0.01f);
+            Assert.IsFalse(prop.Floating);
+            Assert.IsTrue(prop.GetComponent<HeldItemRuntime>().Busy);
+        }
+
+        [Test] public void OrdinaryThrownToolRecoversAfterLanding()
+        {
+            Prop prop = Give("sword"); prop.Drop(); prop.Thrown = true;
+            prop.Body.linearVelocity = Vector3.zero; prop.LetGoAt = Time.time - 2;
+            world.Props.Tick(0.01f);
+            Assert.IsTrue(prop.Floating); Assert.IsFalse(prop.Thrown);
+        }
+
+        [Test] public void GrenadeDropArmsButForcedReleaseDoesNot()
+        {
+            Prop prop = Give("frag_grenade");
+            Grabber grabber = HoldForRelease(prop, Vector3.zero, Vector3.zero, Vector3.zero);
+            grabber.ForceRelease(); Assert.IsFalse(prop.GetComponent<HeldItemRuntime>().Armed);
+            typeof(Grabber).GetMethod("Grab", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(grabber, new object[] { prop, "test" });
+            ReleaseFromHand(grabber);
+            Assert.IsFalse(prop.Thrown); Assert.IsTrue(prop.GetComponent<HeldItemRuntime>().Armed);
         }
         [Test] public void ExactlyOneHundredNewHeldRecipesBuildRealMeshes()
         {

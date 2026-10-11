@@ -35,6 +35,8 @@ namespace ImagineVR
         Vector3 _visualHome;
         float _roll, _tilt, _turnRate, _lastSpeed, _stepped, _gait, _beat, _dustDue, _legs, _fourLegs;
         bool _snapArmed = true;
+        Color _tint = Color.white;
+        float _offSince = -1f, _bumpedAt = -10f, _crashedAt = -10f, _rumbleDue;
         CharacterController walker;
         float falling;
         Vector3 rideVelocity;
@@ -76,7 +78,7 @@ namespace ImagineVR
         {
             string name = s.Str("asset", "none");
             AssetDef def = name == "none" ? null : Library.FindAsset(name);
-            if (def == null) { Dismount(); return; }
+            if (def == null) { Dismount(true); return; }
             _world.Placed(s, name, def, false, _rig.transform.position, null);
             Mount(def, s.TryColor("tint", out Color tint) ? tint : Color.white, Mathf.Clamp(s.Num("speed", 1f), 0.2f, 3f));
             // on rails: a roller coaster, a guided tour, a boat ride. The route does the steering.
@@ -100,6 +102,8 @@ namespace ImagineVR
             walker.enabled = false;
             Dismount();
             _def = def;
+            _tint = tint;
+            _offSince = -1f;
             Bounds b = def.Bounds;
             float top = b.max.y;
             // sit inside a vehicle, just under its roof; sit on top of an animal; stand in a balloon's basket
@@ -141,9 +145,32 @@ namespace ImagineVR
             if (_terminal != null) _terminal.Recenter(false);
         }
 
-        /// <summary>Back on foot, standing wherever the ride stopped.</summary>
-        public void Dismount()
+        /// <summary>The user gets into or onto something standing in the world, where it stands, facing the way it faces.</summary>
+        public void Board(AssetDef def, Color tint, Vector3 at, float yaw)
         {
+            PlaceAt(at, yaw);
+            Mount(def, tint, 1f);
+            _route = null;
+            SessionLog.Write("board", "asset", def.Id, "at", at);
+        }
+
+        /// <summary>
+        /// Back on foot, standing wherever the ride stopped. With `park` the ride is left standing
+        /// there too, and the user steps out beside it: it can be got back into by hand.
+        /// </summary>
+        public void Dismount(bool park = false)
+        {
+            if (park && _visual != null && _def != null && _world != null && _world.Objects != null)
+            {
+                Transform rig = _rig.transform;
+                _world.Objects.Park(_def, rig.position, rig.eulerAngles.y, _tint);
+                float aside = Mathf.Clamp(_def.Bounds.extents.x, 0.4f, 4f) + 0.7f;
+                Vector3 old = rig.position;
+                rig.position -= rig.right * aside;
+                _terminal?.Carry(rig.position - old, 0f, rig.position);
+                Sfx.Play("release", rig.position, 0.5f, 0.7f);
+                SessionLog.Write("park", "asset", _def.Id, "at", old);
+            }
             if (_visual != null) Destroy(_visual);
             _visual = null;
             _body = null;
@@ -270,9 +297,26 @@ namespace ImagineVR
                 Vector3 wanted = WalkDirection(MovementForward(), MovementInput()) * _top;
                 float acceleration = wanted.magnitude > rideVelocity.magnitude ? 6f : 10f;
                 rideVelocity = Vector3.MoveTowards(rideVelocity, wanted, acceleration * dt);
+                Vector3 forward = rideVelocity.sqrMagnitude > 0.01f ? rideVelocity.normalized : rig.forward;
                 Vector3 step = Blocked(p, rideVelocity * dt);
-                if (dt > 0) rideVelocity = step / dt;
+                if (step == Vector3.zero && rideVelocity.sqrMagnitude > 0.01f)
+                {
+                    if (rideVelocity.magnitude > 4f && Time.time - _crashedAt > 0.5f) Crash(p + forward * _def.Bounds.extents.z);
+                    rideVelocity *= rideVelocity.magnitude > 4f ? -0.25f : 0.5f;
+                }
+                else if (dt > 0) rideVelocity = step / dt;
                 p += step;
+                _speed = rideVelocity.magnitude;
+                Bump(p, forward);
+                if (rideVelocity.magnitude > 0.001f) rideVelocity *= _speed / rideVelocity.magnitude;
+
+                // Backward is movement, not dismounting. Click the right stick, or hold Q on desktop.
+                if (xr && _rig.StickClicked) { Dismount(true); return; }
+                var kb = Keyboard.current;
+                bool off = !xr && kb != null && !ImagineApp.Typing && kb.qKey.isPressed;
+                if (!off) _offSince = -1f;
+                else if (_offSince < 0f) _offSince = Time.time;
+                else if (Time.time - _offSince > 0.5f) { Dismount(true); return; }
                 float edge = World.Radius - 8f;
                 Vector2 flat = new Vector2(p.x, p.z);
                 if (flat.magnitude > edge) { flat = flat.normalized * edge; p.x = flat.x; p.z = flat.y; }
@@ -304,6 +348,62 @@ namespace ImagineVR
             if (_terminal != null && (p != before || turn != 0f)) _terminal.Carry(p - turned, turn, centre + (p - turned));
 
             if (dt > 0f) Liven(dt, snapped ? 0f : turn / dt, xr);
+        }
+
+        static readonly Collider[] Struck = new Collider[32];
+
+        /// <summary>
+        /// Whatever is ridden shoves what is loose or alive out of its way: bins and cones fly, a
+        /// stack of crates bursts, a zombie goes down, and a rule for being hit fires as it would for
+        /// a shot. Solid scenery is not moved: that is a crash (see <see cref="Crash"/>).
+        /// </summary>
+        void Bump(Vector3 at, Vector3 heading)
+        {
+            float speed = Mathf.Abs(_speed);
+            if (speed < 1.5f || _altitude > 3f) return;
+            Bounds b = _def.Bounds;
+            float radius = Mathf.Clamp(b.extents.x, 0.5f, 1.6f) + 0.25f;
+            Vector3 nose = at + heading * Mathf.Min(b.extents.z, 3f) * 0.6f;
+            nose.y = _rig.transform.position.y - _seat + Mathf.Min(radius, Mathf.Max(b.extents.y, 0.3f));
+            int n = Physics.OverlapSphereNonAlloc(nose, radius, Struck, ~0, QueryTriggerInteraction.Ignore);
+            bool hit = false;
+            for (int i = 0; i < n; i++)
+            {
+                Prop prop = Struck[i].GetComponentInParent<Prop>();
+                if (prop != null)
+                {
+                    if (prop.Held || prop.Floating || prop.Body == null || prop.Body.isKinematic || Time.time - prop.RuledAt < 0.3f) continue;
+                    prop.RuledAt = Time.time;
+                    Vector3 away = prop.transform.position - at;
+                    away.y = 0f;
+                    Vector3 thrown = (heading * 0.7f + away.normalized * 0.3f).normalized;
+                    prop.Body.linearVelocity = thrown * (speed * 1.15f) + Vector3.up * (1.5f + speed * 0.2f);
+                    prop.Body.angularVelocity = Random.insideUnitSphere * Mathf.Min(speed, 12f);
+                    _world.Rules.Fire("hit", Rules.Of(prop));
+                    hit = true;
+                    continue;
+                }
+                Creature creature = Struck[i].GetComponentInParent<Creature>();
+                if (creature != null && creature.Up) { creature.Struck(heading); hit = true; }
+            }
+            if (!hit || Time.time - _bumpedAt < 0.12f) return;
+            _bumpedAt = Time.time;
+            Sfx.Play("thud", nose, Mathf.Clamp01(0.35f + speed / 12f), Random.Range(0.8f, 1.1f));
+            _rig.Haptic(true, 0.7f, 0.07f);
+            _rig.Haptic(false, 0.7f, 0.07f);
+            _speed *= 0.94f;
+        }
+
+        /// <summary>Ran into something that does not give: heard, felt in both hands, and seen.</summary>
+        void Crash(Vector3 at)
+        {
+            _crashedAt = Time.time;
+            at.y = _rig.transform.position.y - _seat + 0.5f;
+            Sfx.Play("thud", at, 1f, 0.55f);
+            Fx.Burst(at, new Color(1f, 0.85f, 0.5f), new Color(0.6f, 0.6f, 0.6f), 18, 3.5f, 0.05f, 0.5f, 0.6f, false);
+            _rig.Haptic(true, 1f, 0.18f);
+            _rig.Haptic(false, 1f, 0.18f);
+            SessionLog.Write("crash", "asset", _def.Id, "speed", Mathf.Abs(_speed));
         }
 
         /// <summary>
@@ -510,6 +610,13 @@ namespace ImagineVR
                         Sfx.Play("hoof", rig.position, 0.3f + 0.3f * pace, Random.Range(0.85f, 1.2f));
                     }
                 }
+            }
+            // a machine under way is felt in the hand that steers it
+            _rumbleDue -= dt;
+            if (machine && grounded && speed > 1f && _rumbleDue <= 0f)
+            {
+                _rumbleDue = 0.11f;
+                _rig.Haptic(true, 0.04f + 0.1f * pace, 0.03f);
             }
             _visual.transform.localPosition = _visualHome + Vector3.up * bob;
             _visual.transform.localRotation = Quaternion.Euler(_tilt, 0f, _roll);

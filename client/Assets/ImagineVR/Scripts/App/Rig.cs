@@ -25,6 +25,7 @@ namespace ImagineVR
     ///   open nearby door   point + free-hand trigger   F (look at door)
     ///   move when riding   left thumbstick             W A S D
     ///   turn when riding   right thumbstick (45°)
+    ///   get off a ride     click right thumbstick      hold Q
     ///   look                                           hold right mouse button
     /// </summary>
     public sealed class Rig : MonoBehaviour
@@ -349,7 +350,9 @@ namespace ImagineVR
         static readonly Collider[] Hits = new Collider[16];
 
         /// <summary>How long the grip is held squeezed before a tool is let go of.</summary>
-        public const float LetGoHold = 0.9f;
+        public const float LetGoHold = 0.7f;
+        /// <summary>A hand moving at least this fast when it lets go is throwing; slower, it is putting the thing down.</summary>
+        public const float ThrowSpeed = 1.2f;
         /// <summary>
         /// A squeeze that begins this soon after taking a tool is the hand closing round it, not a
         /// wish to drop it. In the 20:45 session the blaster was taken by touch, gripped 70 ms later
@@ -366,6 +369,32 @@ namespace ImagineVR
         public Prop Held => _held;
         public Vector3 Velocity => _velocity;
 
+        // The hand's last few speeds. A throw is let go of a moment after the arm is at its fastest,
+        // and by then the hand is already slowing and curling over: taken from that one frame, every
+        // throw came out weak and aimed at the floor. The fastest moments just before the release
+        // are what the thrower meant.
+        const int Samples = 12;
+        readonly Vector3[] _recent = new Vector3[Samples];
+        readonly float[] _recentAt = new float[Samples];
+        int _sample;
+
+        /// <summary>How the hand was moving as it threw: the mean of its three fastest moments in the last eighth of a second.</summary>
+        public Vector3 ThrowVelocity()
+        {
+            Vector3 first = Vector3.zero, second = Vector3.zero, third = Vector3.zero;
+            int found = 0;
+            for (int i = 0; i < Samples; i++)
+            {
+                if (Time.time - _recentAt[i] > 0.125f) continue;
+                Vector3 v = _recent[i];
+                found++;
+                if (v.sqrMagnitude > first.sqrMagnitude) { third = second; second = first; first = v; }
+                else if (v.sqrMagnitude > second.sqrMagnitude) { third = second; second = v; }
+                else if (v.sqrMagnitude > third.sqrMagnitude) third = v;
+            }
+            return found == 0 ? _velocity : (first + second + third) / Mathf.Min(found, 3);
+        }
+
         public void Init(Rig rig, bool right)
         {
             _rig = rig;
@@ -378,6 +407,8 @@ namespace ImagineVR
             float dt = Mathf.Max(Time.deltaTime, 0.0001f);
             Vector3 v = (transform.position - _lastPos) / dt;
             _velocity = Vector3.Lerp(_velocity, v, 0.5f);
+            _recent[_sample % Samples] = v;
+            _recentAt[_sample++ % Samples] = Time.time;
             Quaternion dq = transform.rotation * Quaternion.Inverse(_lastRot);
             dq.ToAngleAxis(out float angle, out Vector3 axis);
             if (angle > 180f) angle -= 360f;
@@ -393,23 +424,27 @@ namespace ImagineVR
             {
                 SessionLog.Write("press", "button", _right ? "grip_right" : "grip_left", "holding", _held != null ? _held.Def.Id : null);
                 if (_held == null) TryGrab(false);
-                else if (_latched && _held.Def.Tool) { if (Time.time - _grabbedAt > GraspGrace) _gripSince = Time.time; }   // let go of only if this squeeze is held
+                else if (_latched && _held.Def.Tool) { if (Time.time - _grabbedAt > GraspGrace) _gripSince = Time.time; }   // let go of by a swing, or by holding the squeeze
                 else _latched = false;   // now held by the grip: letting go throws it
             }
             else if (!grip && _gripDown)
             {
-                if (_gripSince >= 0f && _held != null)
+                // A tool that sits in the hand is thrown the way anything is: squeeze, swing, let go.
+                // Let go of with the hand still, the squeeze was only a squeeze and the tool stays.
+                bool swung = _gripSince >= 0f && ThrowVelocity().magnitude >= ThrowSpeed;
+                if (_gripSince >= 0f && _held != null && !swung)
                     SessionLog.Write("grab", "hand", _right ? "right" : "left", "result", "kept (a quick squeeze does not let go)", "asset", _held.Def.Id);
                 _gripSince = -1f;
-                if (_held != null && !_latched) Release(true);
+                if (_held != null && (!_latched || swung)) Release(true);
             }
             if (_gripSince >= 0f)
             {
                 float squeezed = Time.time - _gripSince;
                 // both grips squeezed together is the start of a chord (with X or Y: the local permissions), not a wish to drop
                 if (_held == null || _rig.Grip(!_right) > 0.55f) _gripSince = -1f;
-                else if (squeezed >= LetGoHold) Release(true);
-                else if (Time.frameCount % 5 == 0) _rig.Haptic(_right, 0.15f + 0.5f * squeezed / LetGoHold, 0.03f);   // felt building up
+                // held squeezed with the hand still, it is put down; a hand winding up for a throw is waited for
+                else if (squeezed >= LetGoHold && _velocity.magnitude < 0.6f) Release(true);
+                else if (Time.frameCount % 5 == 0) _rig.Haptic(_right, 0.15f + 0.5f * Mathf.Min(squeezed / LetGoHold, 1f), 0.03f);   // felt building up
             }
             _gripDown = grip;
 
@@ -418,6 +453,8 @@ namespace ImagineVR
                 if (_rig.XrActive && World.Instance != null && World.Instance.Structures.TryInteract(transform, trig && !_triggerDown))
                 { _triggerDown = trig; return; }
                 if (trig && !_triggerDown) TryGrab(true);
+                // pointing an empty hand at something to ride and pulling the trigger gets in or on it
+                if (_held == null && trig && !_triggerDown && World.Instance != null && World.Instance.TryBoard(transform)) { _triggerDown = trig; return; }
                 if (_held == null) Reach();
             }
             if (_held != null) Flail();
@@ -576,19 +613,32 @@ namespace ImagineVR
             EndUse(prop);
             if (prop == null) return;
             prop.LetGoAt = Time.time;
-            SessionLog.Write("release", "hand", _right ? "right" : "left", "asset", prop.Def.Id, "thrown", thrown, "speed", _velocity.magnitude);
+            Vector3 flung = ThrowVelocity();
+            bool really = thrown && flung.magnitude >= ThrowSpeed;
+            prop.Thrown = really;
+            SessionLog.Write("release", "hand", _right ? "right" : "left", "asset", prop.Def.Id, "thrown", really, "speed", flung.magnitude);
             _rig.OnReleased(prop, _right);
             prop.Holder = null;
             prop.Visual.localPosition = Vector3.zero;
             prop.Visual.localRotation = Quaternion.identity;
             prop.Body.isKinematic = false;
             prop.Body.position = prop.transform.position;
-            if (thrown)
+            if (really)
             {
-                prop.Body.linearVelocity = _velocity * 1.25f;
-                prop.Body.angularVelocity = _angular;
+                // it leaves as its own middle was moving, which for a long thing swung by its handle is faster than the fist
+                Vector3 arm = prop.Body.worldCenterOfMass - transform.position;
+                prop.Body.linearVelocity = (flung + Vector3.ClampMagnitude(Vector3.Cross(_angular, arm), flung.magnitude * 0.5f)) * 1.2f;
+                prop.Body.angularVelocity = Vector3.ClampMagnitude(_angular, 25f);
+                _rig.Haptic(_right, 0.5f, 0.04f);
             }
-            prop.GetComponent<HeldItemRuntime>()?.Released(thrown, prop.Body.linearVelocity, transform);
+            else if (thrown)
+            {
+                prop.Body.linearVelocity = _velocity;
+                prop.Body.angularVelocity = Vector3.zero;
+            }
+            // Native item logic receives Israel's final launch velocity; never replace the hand/COM calculation.
+            // A deliberate slow drop arms grenades, but only an actual throw starts disc/boomerang flight.
+            prop.GetComponent<HeldItemRuntime>()?.Released(thrown, prop.Body.linearVelocity, transform, really);
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }

@@ -128,3 +128,12 @@ def test_the_prompt_is_small_and_names_only_real_assets():
     for line in template.splitlines():
         if line.startswith('{"op"'):
             assert c.check(parse_line(line), strict=False) is not None or '"op":"ignore"' in line, line
+
+
+def test_a_word_several_things_answer_to_names_none_of_them():
+    """In the 00:28 session "a club in reach" against ogres arrived as a golf club."""
+    catalog = Catalog.load(Path(__file__).resolve().parents[2] / "shared" / "catalog.json")
+    assert catalog.alias("asset", "club") is None and catalog.alias("asset", "ball") is None
+    assert catalog.alias("asset", "putter") == "golf_club"
+    c = Checker(catalog, WorldState())
+    assert c.check({"op": "give", "asset": "club"}) is None and c.missing == ["club"], "so the model is asked to make one"

@@ -95,10 +95,12 @@ async def _run_turn(session: Session, catalog: Catalog, system_prompt: str, *, t
         yield {"op": "done", "outcome": "failed"}
         return
 
-    from .structures import CAPABILITY, PROMPT
-    structures = CAPABILITY in capabilities.split(",")
-    system_prompt += PROMPT if structures else "\nThis client cannot build explorable interiors or interactive doors. Do not emit structure/door or room-local placement. Do not claim a decorative building is an explorable interior."
-    checker = Checker(catalog, session.world, frame, structures=structures)
+    from .structures import CAPABILITY, PROMPT, PROMPT_V1, WIDE
+    offered = [c.strip() for c in capabilities.split(",")]
+    wide = WIDE in offered
+    structures = wide or CAPABILITY in offered
+    system_prompt += PROMPT if wide else PROMPT_V1 if structures else "\nThis client cannot build explorable interiors or interactive doors. Do not emit structure/door or room-local placement. Do not claim a decorative building is an explorable interior."
+    checker = Checker(catalog, session.world, frame, structures=structures, wide=wide)
     content = build_user_content(session, text, frame, user_state)
     held: list[dict] = []        # statements waiting on an asset that has to be made first
     said: list[str] = []

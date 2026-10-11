@@ -43,10 +43,10 @@ namespace ImagineVR
             if (!armed) releasedAt = 0;
         }
 
-        public void Released(bool thrown, Vector3 velocity, Transform hand)
+        public void Released(bool deliberateRelease, Vector3 velocity, Transform hand, bool launched = true)
         {
             EndUse();
-            if (!thrown || spent) return; // cleanup/forced release never arms an explosive
+            if (!deliberateRelease || spent) return; // cleanup/forced release never arms an explosive
             returningHand = hand; launchPosition = transform.position; releasedAt = Time.time;
             if (profile.Action == "explosive" || profile.Action == "payload")
             {
@@ -55,7 +55,7 @@ namespace ImagineVR
             }
             if (profile.Action == "returning" || profile.Action == "disc")
             {
-                if (velocity.magnitude < 0.8f) return;
+                if (!launched || velocity.magnitude < 0.8f) return;
                 returning = profile.Action == "returning"; flying = true;
                 prop.Body.angularDamping = 0.05f;
                 prop.Body.angularVelocity = Vector3.up * (returning ? 18f : 24f);

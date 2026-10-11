@@ -1,6 +1,6 @@
 {
   "language_version": 2,
-  "catalog_version": "1.345.76bb0f8f",
+  "catalog_version": "1.350.5ec96bc6",
   "limits": {
     "max_spawned": 60,
     "max_scatter_count": 300,
@@ -721,6 +721,47 @@
       "aliases": ["picket fence", "railing", "fencing"],
       "category": "city",
       "size_m": 1.1
+    },
+    {
+      "id": "road",
+      "desc": "Stretch of road, already 8 m wide and 12 m long with kerbs and a centre line: never scale it, lay a street with `repeat` and `step` [0,0,12]",
+      "tags": ["street", "city", "asphalt", "lane", "highway", "avenue"],
+      "aliases": ["street", "road section", "highway", "avenue", "lane"],
+      "category": "city",
+      "size_m": 0.05
+    },
+    {
+      "id": "crossroads",
+      "desc": "Road junction 8 m square with zebra crossings on all four sides: joins `road`s",
+      "tags": ["street", "city", "junction", "intersection", "crossing"],
+      "aliases": ["intersection", "junction", "crossing", "zebra crossing"],
+      "category": "city",
+      "size_m": 0.05
+    },
+    {
+      "id": "bus_stop",
+      "desc": "Bus shelter with a bench and a lit sign",
+      "tags": ["city", "street", "shelter", "transit", "stop"],
+      "aliases": ["bus shelter", "shelter", "tram stop"],
+      "category": "city",
+      "size_m": 2.6
+    },
+    {
+      "id": "mailbox",
+      "desc": "Blue street mailbox",
+      "tags": ["city", "street", "post", "letters"],
+      "aliases": ["postbox", "post box", "letterbox"],
+      "category": "city",
+      "size_m": 1.2,
+      "prop": true
+    },
+    {
+      "id": "billboard",
+      "desc": "Big lit advertising board on a steel post: tint it any colour",
+      "tags": ["city", "street", "sign", "advert", "roadside", "highway"],
+      "aliases": ["hoarding", "advertising board", "ad board"],
+      "category": "city",
+      "size_m": 9
     },
     {
       "id": "car",
@@ -3742,7 +3783,7 @@
       "size_m": 1.2
     }
   ],
-  "primitives": ["cube", "sphere", "cylinder", "cone", "capsule", "pyramid", "torus", "disc", "wedge", "plank"],
+  "primitives": ["cube", "sphere", "cylinder", "cone", "capsule", "pyramid", "torus", "disc", "wedge", "blob", "dome", "plank"],
   "motions": ["none", "bob", "spin", "hover", "sway", "orbit", "drift"],
   "weather": [
     {

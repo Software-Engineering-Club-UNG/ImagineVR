@@ -124,6 +124,8 @@
 ## Safety and integration
 
 - Per-instance state: shared mesh recipes do not share fuse timers, drink servings, cast lines or cooldowns.
+- Throwing keeps the shared hand-physics path: the mean of the three fastest recent hand samples, centre-of-mass angular contribution, launch multiplier and angular clamp. Native behaviors receive that final velocity afterward; discs and boomerangs add flight/spin without replacing launch velocity.
+- Slow deliberate drops stay put and do not start disc/boomerang flight. A deliberate grenade drop starts its fuse; forced cleanup release does not. Generic thrown-tool recovery waits while a native flight, fuse or fishing line is active.
 - Explosions and status effects are bounded by radius and solid-wall line of sight; no player health/destruction system is invented. Flash effects are local particles, not a full-screen VR flash.
 - Freeze/stun temporarily suspend creature movement and loose-prop physics. Existing hit rules can replace creature hit responses; existing use rules can replace held-item trigger actions.
 - Grappling is a short ground-level pull through the walking capsule, not a rope-swing simulator. Movement input cancels it; walls block it. Teleport uses a clear, nearby ground destination.
