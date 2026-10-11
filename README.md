@@ -1,5 +1,7 @@
 # ImagineVR
 
+![Speak a world into being: ImagineVR's glowing terminal surrounded by a forest at dawn.](docs/images/speak-a-world.png)
+
 Hacklanta 2 submission (Creative track).
 
 A voice-driven VR sandbox for Meta Quest 3S: Garry's Mod with a voice, behind a terminal that
@@ -7,6 +9,19 @@ behaves like an agentic coding CLI. You stand in a dark room, say what you imagi
 built around you as you watch. Then you poke at it: hold it, throw it, ride it, shoot it.
 
 `old_main` is the first version, kept for reference. `main` is the rewrite described here.
+
+## A look inside
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/built-for-vr.png" alt="Built for VR: Meta Quest headsets and controllers." width="100%"></td>
+    <td width="50%"><img src="docs/images/watch-it-build.png" alt="Watch it build: the terminal bringing a lunar landscape to life." width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/images/many-places.png" alt="One idea, many places: a forest, the moon, a neon landscape, and a medieval village." width="100%"></td>
+    <td width="50%"><img src="docs/images/make-it-playable.png" alt="Make it playable: a dinosaur world with a tool held in front of the terminal." width="100%"></td>
+  </tr>
+</table>
 
 ## How it fits together
 
