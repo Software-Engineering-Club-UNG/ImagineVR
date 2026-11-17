@@ -36,6 +36,8 @@ CacheDirectory=openrouter-api
 ReadWritePaths=/var/cache/openrouter-api
 Environment=IMAGINE_PUBLIC_URL=https://64.177.52.162.sslip.io
 Environment=IMAGINE_CATALOG=/srv/openrouter-api/current/shared/catalog.json
+# pictures made for the sky and for walls are kept here, under the one writable path
+Environment=IMAGINE_GEN_CACHE=/var/cache/openrouter-api/gen
 TimeoutStartSec=300
 
 [Install]

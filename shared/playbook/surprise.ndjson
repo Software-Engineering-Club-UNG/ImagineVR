@@ -1,0 +1,20 @@
+{"playbook":"choosing for them","ask":"surprise me","tags":["surprise","surprised","bored","boring","random","dunno","idea","ideas","unexpected","choose","pick"]}
+{"op":"think","text":"Floating islands at dawn, a hover bike, a trail of golden coins through the arches: choose boldly, never ask."}
+{"op":"sky","preset":"dreamy","image":"towering sunlit cloud canyons with distant floating rock islands trailing waterfalls"}
+{"op":"terrain","type":"archipelago","material":"grass","patches":"rock","size":"wide","height":0.7}
+{"op":"scatter","id":"sky_rocks","asset":"boulder","count":22,"area":"sky","radius":[20,250],"scale":[3,9],"motion":"bob"}
+{"op":"scatter","id":"arches","asset":"ruined_arch","count":8,"area":"front","radius":[30,220],"scale":[2,3]}
+{"op":"spawn","id":"coins_a","asset":"coin","at":[0,4,20],"scale":3,"repeat":8,"step":[2,1.5,14],"motion":"spin","light":"#FFD040"}
+{"op":"spawn","id":"coins_b","asset":"coin","at":[40,18,150],"scale":3,"repeat":8,"step":[-10,0.5,10],"motion":"spin","light":"#FFD040"}
+{"op":"spawn","id":"beacon","asset":"crystal","at":[-40,26,240],"scale":8,"light":{"color":"#80F0FF","range":40,"intensity":2},"motion":"hover"}
+{"op":"zone","id":"at_beacon","on":"beacon","radius":14}
+{"op":"scatter","id":"whales","asset":"whale","count":3,"area":"sky","radius":[80,200],"motion":"drift"}
+{"op":"scatter","id":"flock","asset":"bird","count":20,"area":"sky","motion":"orbit"}
+{"op":"ride","asset":"hover_bike","drive":"hover","speed":1.4}
+{"op":"var","name":"coins","value":0,"label":"Coins","max":16}
+{"op":"hud","objective":"Follow the coins to the crystal beacon"}
+{"op":"when","id":"collect","event":"near","target":"coin","radius":4,"do":[{"act":"add","var":"coins"},{"act":"sound","name":"coin"},{"act":"burst","kind":"sparkles","color":"#FFD040"},{"act":"remove"}]}
+{"op":"when","id":"arrived","event":"enter","zone":"at_beacon","do":[{"act":"win","text":"The beacon! {coins} of 16 coins"},{"act":"fx","kind":"magic","seconds":20},{"act":"direct","note":"they reached the crystal beacon on the hover bike: reveal what it wakes"}]}
+{"op":"music","mood":"dreamy"}
+{"op":"ambience","loop":"wind"}
+{"op":"say","text":"You're on a hover bike above the clouds. Left stick flies it, right stick turns and climbs: follow the coins."}

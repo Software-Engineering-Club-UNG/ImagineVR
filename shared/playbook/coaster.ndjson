@@ -1,0 +1,18 @@
+{"playbook":"a ride on rails","ask":"put me on a rollercoaster","tags":["rollercoaster","coaster","roller","ride","rails","train","theme","park","funfair","fairground","log","flume","tour","monorail","cable","gondola","sleigh","track"]}
+{"op":"think","text":"A night funfair: a car on rails that climbs, drops and corkscrews over the lights, a ferris wheel beside it."}
+{"op":"sky","preset":"night_stars","stars":0.9}
+{"op":"terrain","type":"flat","material":"grass","size":"wide"}
+{"op":"road","id":"rails","kind":"rail","points":[[0,0,4],[0,8,40],[0,28,90],[20,30,120],[60,6,130],[90,14,100],[100,24,60],[80,4,20],[40,10,-10],[10,2,-10]],"loop":true,"height":2,"width":2.2}
+{"op":"make","name":"coaster_car","kind":"vehicle","drive":"rail","parts":[{"shape":"cube","position":[0,0.45,0],"scale":[1.3,0.6,2.2],"bevel":0.5,"color":"#D0202A","finish":"paint"},{"shape":"cube","position":[0,0.85,0.95],"scale":[1.2,0.5,0.3],"color":"#F2C020","finish":"paint"},{"shape":"cube","position":[0,0.6,-0.4],"scale":[1.0,0.3,0.6],"color":"#202028","role":"seat"},{"shape":"cylinder","position":[0.6,0.2,0.7],"rotation":[0,0,90],"scale":[0.3,0.12,0.3],"color":"#303038","role":"wheel","mirror":"x"},{"shape":"cylinder","position":[0.6,0.2,-0.7],"rotation":[0,0,90],"scale":[0.3,0.12,0.3],"color":"#303038","role":"wheel","mirror":"x"}],"refine":"a two-seat rollercoaster car: glossy red tub with a gold lightning flash down each side, a chrome lap bar, padded black seats with headrests, a pointed nose with a single headlamp, small guide wheels on each corner"}
+{"op":"spawn","id":"wheel","asset":"ferris_wheel","at":[-30,0,60],"light":"#FF60C0"}
+{"op":"scatter","id":"tents","asset":"tent","count":8,"area":"front","radius":[14,60],"tint":"#D03040"}
+{"op":"scatter","id":"lights","asset":"fairy_lights","count":16,"area":"around","radius":[6,60],"light":"#FFD060"}
+{"op":"scatter","id":"crowd","asset":"person","count":12,"area":"front","radius":[8,40],"behavior":"wander"}
+{"op":"spawn","id":"popcorn","asset":"food_cart","at":[4,0,2],"light":"#FFC060","sign":"POPCORN"}
+{"op":"ride","asset":"coaster_car","path":[[0,0,4],[0,8,40],[0,28,90],[20,30,120],[60,6,130],[90,14,100],[100,24,60],[80,4,20],[40,10,-10],[10,2,-10]],"speed":2}
+{"op":"var","name":"laps","value":0,"label":"Rides"}
+{"op":"zone","id":"station","at":[0,2,4],"radius":4}
+{"op":"when","id":"round","event":"enter","zone":"station","cooldown":10,"do":[{"act":"add","var":"laps"},{"act":"sound","name":"cheer"},{"act":"burst","kind":"confetti"}]}
+{"op":"when","id":"drop","event":"becomes","test":"height() > 24","cooldown":15,"do":[{"act":"sound","name":"whistle"},{"act":"shake","amount":0.3}]}
+{"op":"music","mood":"playful"}
+{"op":"say","text":"Hold on: lap bar's down and the chain is pulling. Click the right stick if you want to get off at the station."}

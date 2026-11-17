@@ -1,0 +1,28 @@
+{"playbook":"ten-pin bowling","ask":"take me bowling","tags":["bowl","bowling","pins","lane","alley","strike","skittles","ninepin","candlepin"]}
+{"op":"think","text":"One glossy lane straight ahead, ten heavy pins, gutters, a pit behind them, a scoreboard overhead."}
+{"op":"sky","preset":"night_city"}
+{"op":"terrain","type":"flat","material":"concrete"}
+{"op":"spawn","id":"lane","asset":"cube","at":[0,0,10.5],"scale":[1.1,0.05,19],"tint":"#D8A868","solid":true,"surface":"wood","finish":"gloss","pattern":"planks","pattern_scale":0.12}
+{"op":"spawn","id":"gutter","asset":"cube","at":[-0.75,0,10.5],"scale":[0.3,0.02,19],"tint":"#2A2A30","repeat":2,"step":[1.5,0,0],"solid":true,"surface":"metal"}
+{"op":"spawn","id":"rail","asset":"cube","at":[-1.0,0,10.5],"scale":[0.12,0.25,19],"tint":"#3A3F58","repeat":2,"step":[2,0,0],"solid":true}
+{"op":"spawn","id":"backstop","asset":"cube","at":[0,0,20.6],"scale":[2.4,1.6,0.3],"tint":"#1C1C24","solid":true,"surface":"rubber"}
+{"op":"spawn","id":"pins_1","asset":"bowling_pin","at":[0,0.06,17.6],"physics":true,"mass":1.5}
+{"op":"spawn","id":"pins_2","asset":"bowling_pin","at":[-0.15,0.06,17.86],"physics":true,"mass":1.5,"repeat":2,"step":[0.3,0,0]}
+{"op":"spawn","id":"pins_3","asset":"bowling_pin","at":[-0.3,0.06,18.12],"physics":true,"mass":1.5,"repeat":3,"step":[0.3,0,0]}
+{"op":"spawn","id":"pins_4","asset":"bowling_pin","at":[-0.45,0.06,18.38],"physics":true,"mass":1.5,"repeat":4,"step":[0.3,0,0]}
+{"op":"spawn","id":"rack","asset":"table","at":[1.4,0,0.6],"solid":true}
+{"op":"spawn","id":"spares","asset":"bowling_ball","at":[1.2,0.9,0.6],"physics":true,"mass":6,"repeat":3,"step":[0.26,0,0],"tint":"#3050C8"}
+{"op":"spawn","id":"neon","asset":"neon_sign","at":[0,3.4,20.4],"sign":"LUCKY STRIKE","light":"#FF4FA0"}
+{"op":"give","asset":"bowling_ball"}
+{"op":"var","name":"frame","value":1,"label":"Frame","max":10}
+{"op":"var","name":"score","value":0,"label":"Score"}
+{"op":"var","name":"throws","value":0}
+{"op":"hud","objective":"Roll the ball down the lane: two throws a frame","board":{"at":[0,2.6,20.3],"title":"LANE 7","show":["frame","score"]}}
+{"op":"zone","id":"pit","at":[0,0.5,19.9],"size":[2.4,1.2,1.0]}
+{"op":"when","id":"roll","event":"enter","zone":"pit","target":"bowling_ball","do":[{"act":"remove"},{"act":"sound","name":"roll"},{"act":"add","var":"throws","delay":2.5},{"act":"give","asset":"bowling_ball","delay":3}]}
+{"op":"when","id":"gutter_ball","event":"rest","target":"bowling_ball","if":"dist(bowling_ball, player) > 3","do":[{"act":"remove"},{"act":"add","var":"throws"},{"act":"give","asset":"bowling_ball","delay":1}]}
+{"op":"when","id":"frame_over","event":"becomes","test":"throws >= 2 or (throws >= 1 and standing(pins) == 0)","do":[{"act":"banner","text":"STRIKE!","if":"throws == 1 and standing(pins) == 0"},{"act":"banner","text":"Spare!","if":"throws == 2 and standing(pins) == 0"},{"act":"sound","name":"strike","if":"standing(pins) == 0"},{"act":"add","var":"score","by":"tipped(pins)"},{"act":"add","var":"score","by":10,"if":"standing(pins) == 0"},{"act":"reset","target":"pins","delay":1.5},{"act":"set","var":"throws","to":0},{"act":"add","var":"frame"}]}
+{"op":"when","id":"game_over","event":"becomes","test":"frame > 10","do":[{"act":"win","text":"Game over: {score} points"},{"act":"set","var":"frame","to":1,"delay":6},{"act":"set","var":"score","to":0,"delay":6}]}
+{"op":"music","mood":"retro"}
+{"op":"ambience","loop":"city_night"}
+{"op":"say","text":"Lane seven is yours. Grip the ball, swing and let go: two throws a frame, ten frames."}

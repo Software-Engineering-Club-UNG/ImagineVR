@@ -1,11 +1,11 @@
 {
-  "language_version": 2,
-  "catalog_version": "1.350.5ec96bc6",
+  "language_version": 3,
+  "catalog_version": "1.406.bcea537c",
   "limits": {
-    "max_spawned": 60,
+    "max_spawned": 140,
     "max_scatter_count": 300,
-    "max_scatter_total": 1500,
-    "max_physics": 40,
+    "max_scatter_total": 2500,
+    "max_physics": 64,
     "safe_radius_m": 3,
     "world_radius_m": 120
   },
@@ -410,6 +410,41 @@
       "desc": "Pale sea floor sand and silt",
       "tags": ["ocean floor", "underwater", "reef"],
       "aliases": ["sea floor", "ocean floor"]
+    },
+    {
+      "id": "green",
+      "desc": "Close-mown putting green: a ball rolls true on it",
+      "tags": ["golf", "putting", "lawn", "bowls", "croquet"],
+      "aliases": ["putting green", "golf green"],
+      "since": 3
+    },
+    {
+      "id": "fairway",
+      "desc": "Mown fairway and sports turf",
+      "tags": ["golf", "pitch", "field", "turf", "stadium"],
+      "aliases": ["turf", "pitch", "sports field"],
+      "since": 3
+    },
+    {
+      "id": "gravel",
+      "desc": "Loose grey gravel",
+      "tags": ["path", "yard", "track", "quarry"],
+      "aliases": ["pebbles", "shingle"],
+      "since": 3
+    },
+    {
+      "id": "mud",
+      "desc": "Dark wet mud: slow and slippery",
+      "tags": ["bog", "rally", "wet", "farm"],
+      "aliases": ["bog", "muddy"],
+      "since": 3
+    },
+    {
+      "id": "cobble",
+      "desc": "Old cobblestones",
+      "tags": ["medieval", "old town", "street", "square"],
+      "aliases": ["cobblestone", "cobbles", "paving stones"],
+      "since": 3
     }
   ],
   "assets": [
@@ -3781,6 +3816,526 @@
       "aliases": ["loudspeaker", "amp", "amplifier", "boombox"],
       "category": "party",
       "size_m": 1.2
+    },
+    {
+      "id": "sports_car",
+      "desc": "Low two-door sports car with a spoiler",
+      "tags": ["vehicle", "car", "fast", "race", "road"],
+      "aliases": ["supercar", "coupe", "lamborghini", "ferrari", "porsche", "muscle car", "roadster"],
+      "category": "vehicles",
+      "size_m": 1.25,
+      "since": 3
+    },
+    {
+      "id": "pickup_truck",
+      "desc": "Pickup truck with an open bed",
+      "tags": ["vehicle", "truck", "farm", "road", "desert"],
+      "aliases": ["pickup", "truck", "ute"],
+      "category": "vehicles",
+      "size_m": 1.85,
+      "since": 3
+    },
+    {
+      "id": "police_car",
+      "desc": "Police patrol car with a light bar",
+      "tags": ["vehicle", "car", "police", "chase", "city"],
+      "aliases": ["cop car", "patrol car", "cruiser", "squad car"],
+      "category": "vehicles",
+      "size_m": 1.6,
+      "since": 3
+    },
+    {
+      "id": "taxi",
+      "desc": "Yellow city taxi with a roof sign",
+      "tags": ["vehicle", "car", "city", "traffic"],
+      "aliases": ["cab", "yellow cab", "taxicab"],
+      "category": "vehicles",
+      "size_m": 1.6,
+      "since": 3
+    },
+    {
+      "id": "race_car",
+      "desc": "Open-wheel racing car with wings",
+      "tags": ["vehicle", "car", "race", "track", "fast"],
+      "aliases": ["formula one", "f1 car", "racing car", "indycar", "racecar"],
+      "category": "vehicles",
+      "size_m": 1,
+      "since": 3
+    },
+    {
+      "id": "monster_truck",
+      "desc": "Monster truck on giant tyres",
+      "tags": ["vehicle", "truck", "stunt", "arena", "crush"],
+      "aliases": ["bigfoot truck", "giant truck"],
+      "category": "vehicles",
+      "size_m": 3.3,
+      "since": 3
+    },
+    {
+      "id": "jeep",
+      "desc": "Open off-road jeep with a roll bar",
+      "tags": ["vehicle", "car", "offroad", "safari", "army"],
+      "aliases": ["off roader", "4x4", "safari jeep", "suv"],
+      "category": "vehicles",
+      "size_m": 1.9,
+      "since": 3
+    },
+    {
+      "id": "van",
+      "desc": "Delivery van",
+      "tags": ["vehicle", "city", "road", "delivery"],
+      "aliases": ["minivan", "delivery van", "camper van"],
+      "category": "vehicles",
+      "size_m": 2.1,
+      "since": 3
+    },
+    {
+      "id": "fire_truck",
+      "desc": "Red fire engine with a ladder",
+      "tags": ["vehicle", "truck", "fire", "rescue", "city"],
+      "aliases": ["fire engine"],
+      "category": "vehicles",
+      "size_m": 3,
+      "since": 3
+    },
+    {
+      "id": "motorcycle",
+      "desc": "Motorcycle with a headlamp",
+      "tags": ["vehicle", "bike", "road", "fast", "chase"],
+      "aliases": ["motorbike", "harley", "dirt bike", "moped"],
+      "category": "vehicles",
+      "size_m": 1.15,
+      "since": 3
+    },
+    {
+      "id": "bicycle",
+      "desc": "Pedal bicycle",
+      "tags": ["vehicle", "bike", "park", "street"],
+      "aliases": ["cycle", "bmx", "mountain bike", "pushbike"],
+      "category": "vehicles",
+      "size_m": 1.05,
+      "since": 3
+    },
+    {
+      "id": "go_kart",
+      "desc": "Go-kart, low and quick",
+      "tags": ["vehicle", "race", "track", "kart"],
+      "aliases": ["kart", "gokart"],
+      "category": "vehicles",
+      "size_m": 0.65,
+      "since": 3
+    },
+    {
+      "id": "tractor",
+      "desc": "Farm tractor with big rear wheels",
+      "tags": ["vehicle", "farm", "field", "harvest"],
+      "aliases": ["farm tractor"],
+      "category": "vehicles",
+      "size_m": 2.7,
+      "since": 3
+    },
+    {
+      "id": "tank",
+      "desc": "Battle tank with a turret and a cannon that fires",
+      "tags": ["vehicle", "army", "war", "battle", "cannon"],
+      "aliases": ["panzer", "army tank", "battle tank"],
+      "category": "vehicles",
+      "size_m": 2.5,
+      "since": 3
+    },
+    {
+      "id": "train_engine",
+      "desc": "Steam locomotive",
+      "tags": ["vehicle", "train", "railway", "steam"],
+      "aliases": ["train", "locomotive", "steam train", "steam engine"],
+      "category": "vehicles",
+      "size_m": 3.7,
+      "since": 3
+    },
+    {
+      "id": "speedboat",
+      "desc": "Fast motor boat",
+      "tags": ["vehicle", "boat", "water", "sea", "lake"],
+      "aliases": ["motorboat", "jet ski", "powerboat", "motor boat"],
+      "category": "vehicles",
+      "size_m": 1.5,
+      "since": 3
+    },
+    {
+      "id": "prop_plane",
+      "desc": "Single-propeller light aircraft",
+      "tags": ["vehicle", "plane", "fly", "airfield", "pilot"],
+      "aliases": ["cessna", "light aircraft", "propeller plane", "small plane"],
+      "category": "vehicles",
+      "size_m": 2.7,
+      "since": 3
+    },
+    {
+      "id": "biplane",
+      "desc": "Two-winged vintage aeroplane",
+      "tags": ["vehicle", "plane", "fly", "stunt", "vintage"],
+      "aliases": ["stunt plane", "crop duster", "old plane"],
+      "category": "vehicles",
+      "size_m": 2.9,
+      "since": 3
+    },
+    {
+      "id": "airliner",
+      "desc": "Passenger jet airliner",
+      "tags": ["vehicle", "plane", "fly", "airport", "jet"],
+      "aliases": ["jumbo jet", "747", "passenger plane", "jetliner", "boeing"],
+      "category": "vehicles",
+      "size_m": 11,
+      "since": 3
+    },
+    {
+      "id": "fighter_jet",
+      "desc": "Swept-wing fighter jet with cannons that fire",
+      "tags": ["vehicle", "plane", "fly", "dogfight", "air force"],
+      "aliases": ["fighter", "warplane", "f16", "jet fighter", "fighter plane"],
+      "category": "vehicles",
+      "size_m": 4,
+      "since": 3
+    },
+    {
+      "id": "helicopter",
+      "desc": "Helicopter with a spinning rotor",
+      "tags": ["vehicle", "fly", "rescue", "rotor"],
+      "aliases": ["chopper", "copter", "heli"],
+      "category": "vehicles",
+      "size_m": 3.3,
+      "since": 3
+    },
+    {
+      "id": "hover_bike",
+      "desc": "Floating speeder bike",
+      "tags": ["vehicle", "fly", "scifi", "future", "speeder"],
+      "aliases": ["speeder", "hoverbike", "landspeeder", "hover car"],
+      "category": "vehicles",
+      "size_m": 1.15,
+      "since": 3
+    },
+    {
+      "id": "starfighter",
+      "desc": "Small space fighter with laser cannons that fire",
+      "tags": ["vehicle", "fly", "space", "scifi", "dogfight"],
+      "aliases": ["space fighter", "x wing", "starship", "space ship"],
+      "category": "vehicles",
+      "size_m": 2.7,
+      "since": 3
+    },
+    {
+      "id": "townhouse",
+      "desc": "Narrow three-storey town house",
+      "tags": ["city", "street", "home", "row"],
+      "aliases": ["row house", "terraced house", "terrace"],
+      "category": "buildings",
+      "size_m": 10,
+      "since": 3
+    },
+    {
+      "id": "brownstone",
+      "desc": "Brick city house with a stoop",
+      "tags": ["city", "street", "home", "brick", "new york"],
+      "aliases": ["brick house", "tenement"],
+      "category": "buildings",
+      "size_m": 13,
+      "since": 3
+    },
+    {
+      "id": "diner",
+      "desc": "Chrome roadside diner with a neon sign",
+      "tags": ["city", "road", "food", "retro", "americana"],
+      "aliases": ["restaurant", "cafe", "burger joint", "roadhouse"],
+      "category": "buildings",
+      "size_m": 4.6,
+      "since": 3
+    },
+    {
+      "id": "glass_tower",
+      "desc": "Glass curtain-wall skyscraper",
+      "tags": ["city", "downtown", "modern", "skyline"],
+      "aliases": ["glass skyscraper", "corporate tower", "high rise"],
+      "category": "buildings",
+      "size_m": 62,
+      "since": 3
+    },
+    {
+      "id": "art_deco_tower",
+      "desc": "Stepped art-deco skyscraper with a spire",
+      "tags": ["city", "downtown", "skyline", "landmark", "new york"],
+      "aliases": ["empire state", "chrysler building", "deco tower"],
+      "category": "buildings",
+      "size_m": 78,
+      "since": 3
+    },
+    {
+      "id": "warehouse",
+      "desc": "Corrugated warehouse with loading doors",
+      "tags": ["city", "industrial", "docks", "storage"],
+      "aliases": ["depot", "storehouse", "shed"],
+      "category": "buildings",
+      "size_m": 8.5,
+      "since": 3
+    },
+    {
+      "id": "factory",
+      "desc": "Brick factory with tall chimneys",
+      "tags": ["city", "industrial", "smoke", "works"],
+      "aliases": ["plant", "mill", "works", "refinery"],
+      "category": "buildings",
+      "size_m": 15,
+      "since": 3
+    },
+    {
+      "id": "church",
+      "desc": "Stone church with a steeple",
+      "tags": ["town", "village", "steeple", "bell"],
+      "aliases": ["chapel", "cathedral", "parish church"],
+      "category": "buildings",
+      "size_m": 17,
+      "since": 3
+    },
+    {
+      "id": "hangar",
+      "desc": "Arched aircraft hangar, open at the front",
+      "tags": ["airfield", "airport", "plane", "base"],
+      "aliases": ["aircraft hangar", "airplane hangar"],
+      "category": "buildings",
+      "size_m": 10,
+      "since": 3
+    },
+    {
+      "id": "gas_station",
+      "desc": "Filling station with pumps under a canopy",
+      "tags": ["road", "car", "fuel", "americana"],
+      "aliases": ["petrol station", "fuel station", "service station"],
+      "category": "buildings",
+      "size_m": 5.2,
+      "since": 3
+    },
+    {
+      "id": "grandstand",
+      "desc": "Tiered spectator stand with a roof and a crowd",
+      "tags": ["sport", "race", "stadium", "crowd", "track"],
+      "aliases": ["bleachers", "stands", "stadium seats", "spectator stand"],
+      "category": "buildings",
+      "size_m": 8.5,
+      "since": 3
+    },
+    {
+      "id": "control_tower",
+      "desc": "Airport control tower with a glass cab",
+      "tags": ["airfield", "airport", "plane", "runway"],
+      "aliases": ["air traffic control", "atc tower"],
+      "category": "buildings",
+      "size_m": 23,
+      "since": 3
+    },
+    {
+      "id": "ring_gate",
+      "desc": "Glowing hoop to drive, fly or throw through",
+      "tags": ["race", "fly", "stunt", "checkpoint", "target"],
+      "aliases": ["hoop gate", "checkpoint ring", "flying ring", "stunt ring"],
+      "category": "sports",
+      "size_m": 5,
+      "since": 3
+    },
+    {
+      "id": "explosive_barrel",
+      "desc": "Red fuel barrel that begs to be shot",
+      "tags": ["shoot", "explode", "danger", "fuel"],
+      "aliases": ["red barrel", "oil drum", "fuel barrel", "tnt barrel"],
+      "category": "props",
+      "size_m": 1.1,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "sandbags",
+      "desc": "Low wall of sandbags to take cover behind",
+      "tags": ["army", "cover", "war", "defence"],
+      "aliases": ["sandbag wall", "sand bags"],
+      "category": "props",
+      "size_m": 1,
+      "since": 3
+    },
+    {
+      "id": "coin",
+      "desc": "Big gold coin to collect",
+      "tags": ["collect", "gold", "treasure", "reward"],
+      "aliases": ["gold coin", "token", "doubloon"],
+      "category": "props",
+      "size_m": 0.3,
+      "holdable": true,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "gem",
+      "desc": "Faceted gem to collect",
+      "tags": ["collect", "treasure", "jewel", "reward"],
+      "aliases": ["jewel", "diamond", "ruby", "emerald"],
+      "category": "props",
+      "size_m": 0.25,
+      "holdable": true,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "lever",
+      "desc": "Floor lever to pull",
+      "tags": ["switch", "machine", "puzzle", "press"],
+      "aliases": ["control lever", "pull switch"],
+      "category": "props",
+      "size_m": 1,
+      "since": 3
+    },
+    {
+      "id": "push_button",
+      "desc": "Big red button on a pedestal",
+      "tags": ["switch", "machine", "puzzle", "press"],
+      "aliases": ["button", "red button", "buzzer"],
+      "category": "props",
+      "size_m": 1,
+      "since": 3
+    },
+    {
+      "id": "barrier",
+      "desc": "Striped road barrier",
+      "tags": ["road", "race", "track", "block"],
+      "aliases": ["roadblock", "crash barrier", "jersey barrier"],
+      "category": "city",
+      "size_m": 1,
+      "since": 3
+    },
+    {
+      "id": "tire_stack",
+      "desc": "Stack of tyres",
+      "tags": ["race", "track", "garage", "barrier"],
+      "aliases": ["tyre wall", "tire wall", "tyre stack"],
+      "category": "props",
+      "size_m": 1,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "hockey_stick",
+      "desc": "Ice hockey stick. Swing it at the puck",
+      "tags": ["sport", "ice", "hockey", "swing"],
+      "aliases": ["hockey bat"],
+      "category": "sports",
+      "size_m": 1.4,
+      "holdable": true,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "hockey_puck",
+      "desc": "Hockey puck that slides",
+      "tags": ["sport", "ice", "hockey"],
+      "aliases": ["puck"],
+      "category": "sports",
+      "size_m": 0.03,
+      "holdable": true,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "pool_cue",
+      "desc": "Pool cue. Strike the balls with its tip",
+      "tags": ["sport", "pool", "billiards", "snooker"],
+      "aliases": ["cue", "snooker cue", "billiard cue"],
+      "category": "sports",
+      "size_m": 1.45,
+      "holdable": true,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "billiard_ball",
+      "desc": "Pool ball. Tint it for the set",
+      "tags": ["sport", "pool", "billiards", "snooker"],
+      "aliases": ["pool ball", "cue ball", "snooker ball"],
+      "category": "sports",
+      "size_m": 0.057,
+      "holdable": true,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "dartboard",
+      "desc": "Dartboard on a stand",
+      "tags": ["sport", "pub", "darts", "target"],
+      "aliases": ["darts board"],
+      "category": "sports",
+      "size_m": 1.9,
+      "since": 3
+    },
+    {
+      "id": "dart",
+      "desc": "Throwing dart",
+      "tags": ["sport", "pub", "darts", "throw"],
+      "aliases": ["darts"],
+      "category": "sports",
+      "size_m": 0.16,
+      "holdable": true,
+      "prop": true,
+      "since": 3
+    },
+    {
+      "id": "punching_bag",
+      "desc": "Hanging punching bag that swings when hit",
+      "tags": ["sport", "boxing", "gym", "punch"],
+      "aliases": ["heavy bag", "boxing bag", "punch bag"],
+      "category": "sports",
+      "size_m": 2.2,
+      "since": 3
+    },
+    {
+      "id": "phone_booth",
+      "desc": "Glass telephone box",
+      "tags": ["city", "street", "retro"],
+      "aliases": ["telephone box", "phone box", "call box"],
+      "category": "city",
+      "size_m": 2.4,
+      "since": 3
+    },
+    {
+      "id": "food_cart",
+      "desc": "Street food cart with an umbrella",
+      "tags": ["city", "street", "food", "market"],
+      "aliases": ["hot dog stand", "food stand", "vendor cart", "market stall"],
+      "category": "city",
+      "size_m": 2.3,
+      "since": 3
+    },
+    {
+      "id": "dumpster",
+      "desc": "Steel dumpster",
+      "tags": ["city", "alley", "street", "rubbish"],
+      "aliases": ["skip", "garbage bin", "waste container"],
+      "category": "city",
+      "size_m": 1.5,
+      "since": 3
+    },
+    {
+      "id": "parking_meter",
+      "desc": "Parking meter",
+      "tags": ["city", "street", "kerb"],
+      "aliases": ["meter"],
+      "category": "city",
+      "size_m": 1.3,
+      "since": 3
+    },
+    {
+      "id": "windsock",
+      "desc": "Windsock on a pole",
+      "tags": ["airfield", "airport", "runway", "wind"],
+      "aliases": ["wind sock"],
+      "category": "city",
+      "size_m": 6,
+      "since": 3
     }
   ],
   "primitives": ["cube", "sphere", "cylinder", "cone", "capsule", "pyramid", "torus", "disc", "wedge", "blob", "dome", "plank"],

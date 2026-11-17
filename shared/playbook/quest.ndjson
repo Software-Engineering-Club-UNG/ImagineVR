@@ -1,0 +1,27 @@
+{"playbook":"a story with stages","ask":"I'm a knight rescuing a princess from a dragon","tags":["story","quest","adventure","knight","princess","dragon","rescue","castle","hero","tale","kingdom","sword","legend","fantasy","wizard","dungeon","treasure","mission"]}
+{"op":"think","text":"A ruined keep at dusk: a hermit who knows the way, a locked gate, a key in the well, a dragon on the tower."}
+{"op":"story","title":"The Ember Tower","premise":"The dragon Vharn has taken Princess Ilse to the old watchtower. Only the hermit Oswin knows where the gate key was hidden.","goal":"Reach the tower and free Ilse."}
+{"op":"sky","preset":"dusk","image":"a jagged mountain range at dusk with a far glow of fire on one peak"}
+{"op":"terrain","type":"hills","material":"grass","patches":"rock","size":"wide","height":0.5,"features":["path","outcrops"]}
+{"op":"spawn","id":"oswin","asset":"wizard","at":[-2.5,0,5],"behavior":"still","name":"Oswin","voice":"old","persona":"An old hermit who once served the king. He hid the gate key in the well when the dragon came. Afraid, kind, speaks in short riddling sentences, and wants the princess saved.","says":["Knight! Over here.","The gate will not open by force."],"light":"#FFC878"}
+{"op":"spawn","id":"fire","asset":"campfire","at":[-1.5,0,4],"light":"#FF9040"}
+{"op":"spawn","id":"well","asset":"well","at":[7,0,9],"solid":true}
+{"op":"spawn","id":"gate_key","asset":"key","at":[7,1.1,9],"physics":true,"scale":2,"light":"#FFE080"}
+{"op":"spawn","id":"wall","asset":"castle_wall","at":[-12,0,30],"repeat":5,"step":[8,0,0],"solid":true}
+{"op":"spawn","id":"gate","asset":"castle_gate","at":[4,0,30],"solid":true,"label":"Locked"}
+{"op":"spawn","id":"tower","asset":"castle_tower","at":[4,0,62],"scale":1.6,"solid":true}
+{"op":"give","asset":"broadsword"}
+{"op":"player","health":100}
+{"op":"stage","id":"find_key","goal":"Ask the hermit where the gate key is","first":true,"next":"open_gate","enter":[{"act":"narrate","text":"Smoke hangs over the Ember Tower. Somewhere up there, Ilse is waiting."}]}
+{"op":"when","id":"got_key","event":"grab","target":"gate_key","stage":"find_key","do":[{"act":"sound","name":"coin"},{"act":"stage","go":"next"}]}
+{"op":"stage","id":"open_gate","goal":"Carry the key to the gate","next":"dragon","enter":[{"act":"speak","id":"oswin","text":"That's it! To the gate, quickly, before he wakes."}]}
+{"op":"zone","id":"gateway","at":[4,1.5,28],"radius":3.5}
+{"op":"when","id":"unlock","event":"enter","zone":"gateway","stage":"open_gate","if":"holding(key)","do":[{"act":"sound","name":"unlock"},{"act":"remove","target":"gate"},{"act":"take","asset":"key"},{"act":"stage","go":"next"}]}
+{"op":"stage","id":"dragon","goal":"Defeat Vharn","enter":[{"act":"narrate","text":"The gate groans open. Above the tower, something vast unfolds its wings."},{"act":"spawn","asset":"dragon","id":"vharn","at":[4,0,48],"scale":1.5,"behavior":"attack","health":25,"damage":20,"speed":1.2},{"act":"music","mood":"epic"},{"act":"sound","name":"roar"}]}
+{"op":"when","id":"slain","event":"die","target":"vharn","do":[{"act":"burst","kind":"fire"},{"act":"slowmo","seconds":2},{"act":"direct","note":"the knight has slain the dragon Vharn at the foot of the tower: bring out Princess Ilse and end the tale"}]}
+{"op":"when","id":"fell","event":"die","target":"player","do":[{"act":"fade","seconds":2},{"act":"heal","who":"player","amount":100},{"act":"teleport","who":"player","to":[0,0,0]},{"act":"speak","id":"oswin","text":"Up, knight. He is not done with you, nor you with him."}]}
+{"op":"scatter","id":"pines","asset":"pine_tree","count":60,"area":"around","radius":[14,150],"clusters":9}
+{"op":"scatter","id":"crows","asset":"bird","count":9,"area":"sky","motion":"orbit","tint":"#202020"}
+{"op":"ambience","loop":"wind"}
+{"op":"music","mood":"mysterious"}
+{"op":"say","text":"The hermit by the fire knows something. Look at him and hold the talk button to speak; your sword is in reach."}

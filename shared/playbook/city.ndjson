@@ -1,0 +1,22 @@
+{"playbook":"driving through a city","ask":"drive a taxi through a big city","tags":["city","downtown","town","drive","driving","taxi","cab","traffic","street","streets","avenue","skyscraper","skyline","metropolis","york","tokyo","cruise","urban"]}
+{"op":"think","text":"A downtown grid at dusk: towers, shopfronts, traffic and walkers, a fare waiting at the kerb."}
+{"op":"sky","preset":"dusk","image":"a dense city skyline of lit towers fading into orange haze, distant bridges"}
+{"op":"terrain","type":"flat","material":"asphalt","size":"wide","regions":[{"id":"park","material":"grass","at":[75,75],"size":[52,40]}]}
+{"op":"road","id":"grid","kind":"street","shape":"grid","blocks":[4,4],"block":[60,46],"sidewalks":true,"lamps":true,"traffic":{"assets":["car","taxi","bus","van","police_car"],"count":14},"walkers":{"assets":["person","woman","child"],"count":10},"buildings":{"assets":["office_block","glass_tower","apartment_block","shop","brownstone","art_deco_tower"],"density":0.95}}
+{"op":"spawn","id":"diner","asset":"diner","at":[12,0,22],"rot_y":-90,"sign":"MEL'S","light":"#FF5060"}
+{"op":"scatter","id":"park_trees","asset":"oak_tree","count":22,"area":"around","radius":[60,100],"clusters":4}
+{"op":"spawn","id":"cart","asset":"food_cart","at":[-6,0,9],"light":"#FFD9A0"}
+{"op":"scatter","id":"street_stuff","asset":"trash_can","count":10,"area":"front","radius":[6,40],"physics":true}
+{"op":"spawn","id":"fare","asset":"woman","at":[5.5,0,30],"behavior":"still","name":"Ms Okafor","persona":"A lawyer late for court. Brisk, tips well if you are quick, hates potholes.","says":["Taxi!","Over here!"],"voice":"bright"}
+{"op":"zone","id":"pickup","at":[4,1,30],"radius":5,"show":"beam","color":"#FFD040"}
+{"op":"zone","id":"dropoff","at":[124,1,138],"radius":7,"show":"beam","color":"#40E080"}
+{"op":"ride","asset":"taxi","drive":"car"}
+{"op":"var","name":"fares","value":0,"label":"Fares"}
+{"op":"var","name":"meter","value":0,"label":"Meter ($)"}
+{"op":"hud","objective":"Pick up the fare at the yellow beam"}
+{"op":"when","id":"picked","event":"enter","zone":"pickup","if":"riding(taxi)","once":true,"do":[{"act":"speak","id":"fare","text":"The courthouse on Fifth, and step on it."},{"act":"remove","target":"fare","delay":2},{"act":"objective","text":"Drop her at the green beam"},{"act":"set","var":"meter","to":3}]}
+{"op":"when","id":"ticking","event":"every","seconds":1,"if":"meter > 0","do":[{"act":"add","var":"meter","by":0.4}]}
+{"op":"when","id":"dropped","event":"enter","zone":"dropoff","if":"meter > 0","do":[{"act":"add","var":"fares"},{"act":"banner","text":"Fare paid: ${meter}"},{"act":"sound","name":"coin"},{"act":"set","var":"meter","to":0},{"act":"direct","note":"the taxi fare was delivered: put a new passenger with a persona somewhere else in the city, and a new drop-off","delay":3}]}
+{"op":"ambience","loop":"city_night"}
+{"op":"music","mood":"lofi"}
+{"op":"say","text":"Your cab, your city. Right trigger to go, left to brake, left stick to steer: there's a fare waving at the yellow beam."}

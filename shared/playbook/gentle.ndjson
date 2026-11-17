@@ -1,0 +1,26 @@
+{"playbook":"a gentle place","ask":"a peaceful beach at sunset","tags":["peaceful","relax","relaxing","calm","quiet","beach","sunset","meditate","zen","garden","cozy","cabin","campfire","lake","waterfall","meadow","grandma","chill","serene","nature","picnic"]}
+{"op":"think","text":"A warm cove at sunset: a fire, a rug, shells to gather, gulls, a little boat to row. Nothing can go wrong here."}
+{"op":"sky","preset":"sunset_pink","clouds":0.5,"cycle":600}
+{"op":"terrain","type":"beach","material":"sand","patches":"grass","features":["outcrops"],"height":0.3}
+{"op":"spawn","id":"fire","asset":"campfire","at":[1.5,0,3],"light":"#FF9A40"}
+{"op":"fx","id":"embers","kind":"embers","on":"fire","size":0.6}
+{"op":"spawn","id":"rug","asset":"rug","at":[-0.5,0,2.4]}
+{"op":"spawn","id":"chairs","asset":"beach_chair","at":[-1.5,0,3.6],"rot_y":160,"repeat":2,"step":[1.2,0,0]}
+{"op":"spawn","id":"parasol","asset":"beach_umbrella","at":[-1,0,4.2]}
+{"op":"scatter","id":"shells","asset":"seashell","count":12,"area":"front","radius":[2,14],"physics":true}
+{"op":"scatter","id":"pebbles","asset":"rock","count":10,"area":"front","radius":[1.5,5],"scale":[0.08,0.14],"physics":true}
+{"op":"spawn","id":"basket","asset":"crate","at":[0.6,0,1.6],"solid":true,"label":"Shell basket"}
+{"op":"zone","id":"in_basket","on":"basket","radius":0.7}
+{"op":"spawn","id":"dinghy","asset":"boat","at":[5,0,11],"rot_y":20}
+{"op":"scatter","id":"palms","asset":"palm_tree","count":18,"area":"behind","radius":[8,40],"clusters":4}
+{"op":"scatter","id":"gulls","asset":"bird","count":8,"area":"sky","motion":"orbit"}
+{"op":"scatter","id":"crabs","asset":"crab","count":5,"area":"front","radius":[4,12],"behavior":"flee"}
+{"op":"spawn","id":"lighthouse","asset":"lighthouse","at":[-40,0,70],"light":"#FFF0C0"}
+{"op":"var","name":"shells","value":0,"label":"Shells gathered"}
+{"op":"when","id":"gathered","event":"enter","zone":"in_basket","target":"seashell","do":[{"act":"add","var":"shells"},{"act":"sound","name":"chime"},{"act":"burst","kind":"sparkles","color":"#FFE0A0"}]}
+{"op":"when","id":"skip","event":"hit","target":"rock","if":"height(rock) < 0.1","do":[{"act":"burst","kind":"splash"},{"act":"sound","name":"splash"}]}
+{"op":"when","id":"dozen","event":"becomes","test":"shells >= 12","once":true,"do":[{"act":"banner","text":"Every shell on the beach. Beautiful."},{"act":"fx","kind":"fireflies","seconds":60}]}
+{"op":"weather","type":"none"}
+{"op":"ambience","loop":"ocean_waves"}
+{"op":"music","mood":"calm"}
+{"op":"say","text":"Nothing to do but be here. Gather shells into the basket if you like, skim a pebble, or point at the little boat and pull the trigger to row out."}

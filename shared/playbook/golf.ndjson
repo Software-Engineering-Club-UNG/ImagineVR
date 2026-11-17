@@ -1,0 +1,23 @@
+{"playbook":"a golf hole","ask":"let me play a round of golf","tags":["golf","golfing","putt","putting","tee","fairway","green","hole","driving","range","caddy","club","links","par"]}
+{"op":"think","text":"A par three by the sea: a tee at their feet, a fairway between bunkers, a green and a flag 85 m out."}
+{"op":"sky","preset":"clear_noon","clouds":0.4}
+{"op":"terrain","type":"rolling","material":"grass","size":"wide","height":0.25,"features":["pond"],"regions":[{"id":"tee","material":"fairway","at":[0,0.5],"size":[5,4],"level":true},{"id":"fairway","material":"fairway","at":[0,44],"size":[24,70],"blend":6},{"id":"green","material":"green","at":[0,85],"radius":9,"level":true,"blend":4},{"id":"bunker_l","material":"sand","at":[-11,76],"radius":4.5,"height":-0.6},{"id":"bunker_r","material":"sand","at":[10,82],"radius":3.5,"height":-0.6}]}
+{"op":"spawn","id":"golf_ball","asset":"golf_ball","at":[0,0.06,1.1],"physics":true,"bounce":0.35}
+{"op":"spawn","id":"flag","asset":"golf_flag","at":[0,0,85]}
+{"op":"zone","id":"cup","at":[0,0.05,85],"radius":0.3,"show":"glow","color":"#FFFFFF"}
+{"op":"give","asset":"golf_club"}
+{"op":"spawn","id":"cart","asset":"golf_cart","at":[-4,0,-1],"rot_y":30}
+{"op":"spawn","id":"marker","asset":"cube","at":[2.2,0,0.6],"scale":[0.5,0.9,0.08],"tint":"#2F6B3A","sign":"1  PAR 3  85 m"}
+{"op":"scatter","id":"pines","asset":"pine_tree","count":70,"area":"around","radius":[20,160],"clusters":10}
+{"op":"scatter","id":"gulls","asset":"bird","count":7,"area":"sky","motion":"orbit"}
+{"op":"var","name":"strokes","value":0,"label":"Strokes"}
+{"op":"var","name":"to_pin","value":85,"label":"To pin (m)"}
+{"op":"hud","objective":"Hole 1, par 3: swing the club through the ball"}
+{"op":"when","id":"swing","event":"strike","target":"golf_ball","do":[{"act":"add","var":"strokes"},{"act":"sound","name":"swing"}]}
+{"op":"when","id":"range","event":"every","seconds":0.5,"target":"golf_ball","do":[{"act":"set","var":"to_pin","to":"round(dist(golf_ball, cup))"}]}
+{"op":"when","id":"lie","event":"rest","target":"golf_ball","if":"strokes > 0","do":[{"act":"banner","text":"{to_pin} m to the pin"}]}
+{"op":"when","id":"wet","event":"rest","target":"golf_ball","if":"height(golf_ball) < -0.4","do":[{"act":"banner","text":"In the water: one stroke, back to the tee"},{"act":"add","var":"strokes"},{"act":"reset","target":"golf_ball"}]}
+{"op":"when","id":"holed","event":"enter","zone":"cup","target":"golf_ball","if":"speed(golf_ball) < 4","do":[{"act":"sound","name":"coin"},{"act":"remove"},{"act":"burst","kind":"confetti"},{"act":"win","text":"In the hole in {strokes}!"},{"act":"direct","note":"they holed out on hole 1 in {strokes} strokes: build hole 2 somewhere new","delay":5}]}
+{"op":"ambience","loop":"birds_breeze"}
+{"op":"music","mood":"calm"}
+{"op":"say","text":"Hole one, par three. Grip the club, swing through the ball; walk or take the cart to wherever it lands."}

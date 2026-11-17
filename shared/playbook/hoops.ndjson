@@ -1,0 +1,22 @@
+{"playbook":"throwing at a target","ask":"shoot some hoops","tags":["basketball","hoops","hoop","basket","throw","throwing","shots","free","three","pointer","court","dunk","toss","darts","cornhole","ring","carnival"]}
+{"op":"think","text":"A street court at golden hour: a hoop five metres out, a rack of balls, thirty seconds on the clock."}
+{"op":"sky","preset":"golden_hour"}
+{"op":"terrain","type":"flat","material":"asphalt"}
+{"op":"spawn","id":"court","asset":"cube","at":[0,0,5],"scale":[10,0.02,12],"tint":"#B8562E","solid":true,"surface":"rubber"}
+{"op":"spawn","id":"key_line","asset":"cube","at":[0,0.021,4.2],"scale":[3.6,0.01,0.06],"tint":"#F2F2F2"}
+{"op":"spawn","id":"hoop","asset":"basketball_hoop","at":[0,0,6.2],"solid":true}
+{"op":"zone","id":"net","at":[0,2.85,5.75],"size":[0.5,0.3,0.5]}
+{"op":"spawn","id":"balls","asset":"basketball","at":[-1.2,1,0.8],"physics":true,"repeat":5,"step":[0.3,0,0],"bounce":0.8}
+{"op":"spawn","id":"rack","asset":"table","at":[-0.6,0,0.8],"solid":true}
+{"op":"scatter","id":"fence","asset":"fence","count":14,"area":"ring","radius":[9,10]}
+{"op":"spawn","id":"boombox","asset":"speaker","at":[3,0,1],"label":"press for a new round"}
+{"op":"var","name":"baskets","value":0,"label":"Baskets"}
+{"op":"timer","name":"clock","seconds":30,"label":"Time"}
+{"op":"hud","objective":"Thirty seconds: sink as many as you can"}
+{"op":"when","id":"swish","event":"enter","zone":"net","target":"basketball","if":"clock > 0","do":[{"act":"add","var":"baskets"},{"act":"sound","name":"score"},{"act":"burst","kind":"sparkles"},{"act":"banner","text":"Swish! {baskets}"}]}
+{"op":"when","id":"return_ball","event":"rest","target":"basketball","if":"dist(basketball, player) > 3","do":[{"act":"teleport","to":[0,1.2,0.9]}]}
+{"op":"when","id":"buzzer","event":"becomes","test":"clock <= 0","do":[{"act":"sound","name":"horn"},{"act":"win","text":"{baskets} baskets"}]}
+{"op":"when","id":"again","event":"press","target":"boombox","do":[{"act":"set","var":"baskets","to":0},{"act":"set","var":"clock","to":30},{"act":"reset","target":"balls"}]}
+{"op":"music","mood":"lofi"}
+{"op":"ambience","loop":"city_night"}
+{"op":"say","text":"Balls on the rack. Grip one, swing your arm and let go at the top: thirty seconds on the clock."}

@@ -1,0 +1,23 @@
+{"playbook":"a vehicle that fights","ask":"drive a tank and blow things up","tags":["tank","tanks","battle","war","army","military","cannon","destroy","destruction","blow","explode","mech","turret","artillery","battlefield","derby","demolition","crush","smash"]}
+{"op":"think","text":"A desert proving ground: a tank under them, a village of breakable walls, fuel dumps, two enemy tanks on patrol."}
+{"op":"sky","preset":"desert_noon"}
+{"op":"terrain","type":"dunes","material":"sand","size":"wide","height":0.3}
+{"op":"ride","asset":"tank","drive":"tank"}
+{"op":"player","health":200}
+{"op":"scatter","id":"huts","asset":"house","count":9,"area":"front","radius":[30,90],"solid":true,"health":4,"breaks":"stone","tint":"#D8C8A0"}
+{"op":"scatter","id":"fuel","asset":"explosive_barrel","count":14,"area":"front","radius":[18,100],"physics":true,"health":1,"clusters":4}
+{"op":"scatter","id":"crates","asset":"crate","count":20,"area":"front","radius":[10,70],"physics":true,"breaks":"wood"}
+{"op":"spawn","id":"foe_1","asset":"tank","tint":"#6A5A3A","path":[[-60,0,80],[60,0,90],[70,0,140],[-50,0,130]],"speed":5,"health":12,"team":"red","behavior":"shoot","damage":15,"sight":80,"solid":true}
+{"op":"spawn","id":"foe_2","asset":"tank","tint":"#6A5A3A","path":[[90,0,40],[100,0,110],[20,0,150]],"speed":4,"health":12,"team":"red","behavior":"shoot","damage":15,"sight":80,"solid":true}
+{"op":"spawn","id":"watchtower","asset":"tower","at":[0,0,120],"solid":true,"health":10,"breaks":"stone"}
+{"op":"var","name":"wrecked","value":0,"label":"Wrecked"}
+{"op":"hud","objective":"Knock out both enemy tanks"}
+{"op":"when","id":"boom","event":"die","target":"explosive_barrel","do":[{"act":"explode","force":20,"damage":15,"radius":8}]}
+{"op":"when","id":"flattened","event":"die","target":"house","do":[{"act":"add","var":"wrecked"},{"act":"burst","kind":"dust"},{"act":"sound","name":"crash"}]}
+{"op":"when","id":"tank_down","event":"die","target":"tank","do":[{"act":"explode","force":14},{"act":"fx","kind":"fire","seconds":30},{"act":"add","var":"wrecked","by":5},{"act":"banner","text":"Enemy armour destroyed"}]}
+{"op":"when","id":"won","event":"becomes","test":"alive(foe_1) + alive(foe_2) == 0 and time > 5","do":[{"act":"win","text":"Field's yours. Wrecked: {wrecked}"}]}
+{"op":"when","id":"lost","event":"die","target":"player","do":[{"act":"lose","text":"Knocked out"},{"act":"heal","who":"player","amount":200,"delay":4},{"act":"teleport","who":"player","to":[0,0,0],"delay":4}]}
+{"op":"weather","type":"dust","intensity":0.3}
+{"op":"ambience","loop":"desert_wind"}
+{"op":"music","mood":"action"}
+{"op":"say","text":"She's all yours. Right trigger drives, left stick steers, and the B button fires the main gun: two enemy tanks are out there."}

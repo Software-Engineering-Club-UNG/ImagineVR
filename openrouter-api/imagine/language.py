@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import difflib
 import math
-import re
 
+from . import v3
 from .catalog import Catalog
+from .fix import color, flag, name_of, num, pick, points, size3, text_of, vec  # noqa: F401  (re-exported)
 
 STREAM_OPS = ("transcript", "status", "note", "think", "say", "error", "done")
 
@@ -33,67 +34,8 @@ BURSTS = ("confetti", "sparks", "smoke", "sparkles", "dust", "splash", "fire")
 SOUNDS = ("gunshot", "zap", "boom", "pop", "whoosh", "sparkle", "bell", "drum", "chime", "thud", "confetti", "none")
 
 MAX_PARTS = 48
-_ID = re.compile(r"[^a-z0-9_]+")
-_COLOR = re.compile(r"^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$")
-
-
-# ---------------------------------------------------------------------------- small repairs
-
-def name_of(value, fallback: str = "") -> str:
-    text = _ID.sub("_", str(value or "").strip().lower()).strip("_")
-    return text[:40] or fallback
-
-
-def num(value, lo: float, hi: float, default: float | None = None) -> float | None:
-    if isinstance(value, bool):
-        return default
-    if isinstance(value, str):
-        try:
-            value = float(value)
-        except ValueError:
-            return default
-    if not isinstance(value, (int, float)) or math.isnan(value) or math.isinf(value):
-        return default
-    return round(min(max(float(value), lo), hi), 4)
-
-
-def color(value) -> str | None:
-    if isinstance(value, str) and _COLOR.match(value.strip()):
-        hexed = value.strip().lstrip("#").upper()
-        if len(hexed) == 3:
-            hexed = "".join(c * 2 for c in hexed)
-        return "#" + hexed
-    return None
-
-
-def vec(value, n: int, lo: float, hi: float) -> list[float] | None:
-    if isinstance(value, (list, tuple)) and len(value) == n:
-        out = [num(v, lo, hi) for v in value]
-        if None not in out:
-            return out
-    return None
-
-
-def size3(value, lo: float, hi: float) -> list[float] | float | None:
-    """A size may be one number or three."""
-    three = vec(value, 3, lo, hi)
-    return three if three is not None else num(value, lo, hi)
-
-
-def points(value, n: int, most: int, lo: float = -200, hi: float = 200) -> list[list[float]] | None:
-    if not isinstance(value, (list, tuple)):
-        return None
-    out = [p for p in (vec(v, n, lo, hi) for v in value[:most]) if p is not None]
-    return out if len(out) >= 2 else None
-
-
-def pick(value, allowed, default=None):
-    text = str(value or "").strip().lower().replace(" ", "_")
-    return text if text in allowed else default
-
-
-def flag(value) -> bool:
-    return value is True or (isinstance(value, str) and value.strip().lower() == "true")
+OPS = frozenset(("say", "think", "sky", "fog", "light", "terrain", "weather", "ambience", "physics", "player", "clear", "make",
+                 "structure", "door", "spawn", "scatter", "give", "ride", "modify", "remove", "when"))
 
 
 def to_frame(header: str | None) -> list[float] | None:
@@ -126,6 +68,18 @@ def _to_user(frame: list[float] | None, p: list[float]) -> list[float]:
     return [dx * c - dz * s, p[1], dx * s + dz * c]
 
 
+def _moved_actions(actions, move):
+    """Actions that name a place (`teleport to`, `spawn at`, `checkpoint at`), with that place moved."""
+    out = []
+    for action in actions:
+        action = dict(action)
+        for key in ("to", "at"):
+            if isinstance(action.get(key), list) and len(action[key]) == 3:
+                action[key] = move(action[key])
+        out.append(action)
+    return out
+
+
 def reframe(stmt: dict, frame: list[float] | None) -> dict:
     """The same statement as seen from where the user stands now: the model only ever sees user-relative positions."""
     old = stmt.get("frame")
@@ -136,16 +90,23 @@ def reframe(stmt: dict, frame: list[float] | None) -> dict:
     def move(p):
         return [round(v, 1) for v in _to_user(frame, _to_world(old, p))]
 
-    if "at" in out:
+    if isinstance(out.get("at"), list) and len(out["at"]) == 3:
         out["at"] = move(out["at"])
         out.pop("place", None)
-    if out.get("op") == "structure":
+    if out.get("op") in ("structure", "road") and ("rot_y" in out or out.get("op") == "structure"):
         out["rot_y"] = round(out.get("rot_y", 0) + (old[2] if old else 0) - (frame[2] if frame else 0), 1)
     if out.get("room"):
         return {k: v for k, v in stmt.items() if k != "frame"}  # room-local, not user-relative
-    for key in ("along", "path"):
+    for key in ("along", "path", "points"):
         if key in out:
             out[key] = [move(p) for p in out[key]]
+    if isinstance(out.get("regions"), list):
+        out["regions"] = [{**r, "at": move(r["at"])} for r in out["regions"]]
+    if isinstance(out.get("board"), dict) and "at" in out["board"]:
+        out["board"] = {**out["board"], "at": move(out["board"]["at"])}
+    for key in ("do", "enter"):
+        if isinstance(out.get(key), list):
+            out[key] = _moved_actions(out[key], move)
     if out.get("op") == "scatter" and "along" not in out and (old or frame):
         centre = move([0.0, 0.0, 0.0])
         if abs(centre[0]) + abs(centre[2]) > 3:
@@ -164,13 +125,28 @@ class WorldState:
         self.made: dict[str, dict] = {}         # name -> a one-line summary of a `make`
         self.rules: dict[str, dict] = {}        # id -> when
         self.structure: dict | None = None
+        self.extras: dict[str, dict] = {}       # "road:main", "zone:cup", "var:score", "stage:gate", "fx:fire_1" -> the statement
+        self.sounds: dict[str, int] = {}        # name -> layers, of each `sfx` defined
+        self.story: dict | None = None
         self._auto = 0
+
+    @property
+    def size(self) -> str:
+        """How big the ground is: normal, wide or vast."""
+        return self.globals.get("terrain", {}).get("size") or "normal"
+
+    def zones(self) -> set[str]:
+        return {key[5:] for key in self.extras if key.startswith("zone:")}
+
+    def cast(self) -> dict[str, dict]:
+        """Everyone who can be spoken to: things given a persona or a name."""
+        return {key: thing for key, thing in self.things.items() if thing.get("persona") or thing.get("name")}
 
     def next_id(self, base: str) -> str:
         while True:
             self._auto += 1
             candidate = f"{base}{self._auto}"
-            if candidate not in self.things and candidate not in self.rules:
+            if candidate not in self.things and candidate not in self.rules and not any(k.endswith(":" + candidate) for k in self.extras):
                 return candidate
 
     def apply(self, stmt: dict) -> None:
@@ -184,18 +160,47 @@ class WorldState:
             self.things = {k: v for k, v in self.things.items() if v["op"] == "give"}
             self.rules = {}
             self.structure = None
+            self.extras = {}
+            self.story = None
         elif op in ("sky", "terrain"):
             merged = {**self.globals.get(op, {}), **stmt} if not stmt.get("preset" if op == "sky" else "type") else stmt
-            self.globals[op] = {k: v for k, v in merged.items() if k != "t"}
-        elif op in ("weather", "ambience", "physics", "player", "fog", "light"):
+            if op == "terrain" and "size" not in merged and self.globals.get(op, {}).get("size"):
+                merged = {**merged, "size": self.globals[op]["size"]}     # a new kind of ground keeps the size it had
+            self.globals[op] = {k: v for k, v in merged.items() if k not in ("t", "image_url")}
+        elif op in ("weather", "ambience", "physics", "fog", "light"):
             self.globals[op] = stmt
             if op == "weather" and stmt.get("type") == "none":
                 self.globals.pop(op)
+        elif op == "player":
+            # where they were put is not a standing fact about them; the rest is
+            self.globals[op] = {**self.globals.get(op, {}), **{k: v for k, v in stmt.items() if k not in ("at", "face", "frame")}}
         elif op == "ride":
             if stmt.get("asset") == "none":
                 self.globals.pop("ride", None)
             else:
                 self.globals["ride"] = stmt
+        elif op in ("road", "zone", "fx"):
+            self.extras[f"{op}:{stmt['id']}"] = stmt
+        elif op == "var":
+            self.extras[f"var:{stmt['name']}"] = stmt
+        elif op == "stage":
+            if "id" in stmt:
+                self.extras[f"stage:{stmt['id']}"] = stmt
+        elif op == "hud":
+            kept = {k: v for k, v in {**self.globals.get("hud", {}), **stmt}.items() if k not in ("banner", "seconds", "frame")}
+            if stmt.get("hide"):
+                self.globals.pop("hud", None)
+            elif len(kept) > 1:
+                self.globals["hud"] = kept
+        elif op == "music":
+            if stmt.get("stop"):
+                self.globals.pop("music", None)
+            else:
+                self.globals["music"] = stmt
+        elif op == "sfx":
+            self.sounds[stmt["name"]] = len(stmt["layers"])
+        elif op == "story":
+            self.story = {**(self.story or {}), **{k: v for k, v in stmt.items() if k != "op"}}
         elif op == "make":
             self.made[stmt["name"]] = {"kind": stmt.get("kind", "thing"), "parts": len(stmt["parts"]), "fires": "fires" in stmt}
         elif op == "structure":
@@ -204,7 +209,11 @@ class WorldState:
         elif op == "door" and self.structure:
             for door in self.structure["doors"]:
                 if door["id"] == stmt["id"]:
-                    door["state"] = ("closed" if door["state"] == "open" else "open") if stmt["state"] == "toggle" else ("closed" if stmt["state"] == "close" else "open")
+                    if stmt["state"] in ("lock", "unlock"):
+                        door["locked"] = stmt["state"] == "lock"
+                        door["state"] = "closed" if stmt["state"] == "lock" else door["state"]
+                    else:
+                        door["state"] = ("closed" if door["state"] == "open" else "open") if stmt["state"] == "toggle" else ("closed" if stmt["state"] == "close" else "open")
         elif op in ("spawn", "scatter", "give"):
             self.things[stmt["id"]] = stmt
         elif op == "modify":
@@ -215,32 +224,44 @@ class WorldState:
                     self.things.pop(stmt["id"])
                 else:
                     self.things[stmt["id"]] = {**target, **changed}
+            elif stmt["id"] == "ride" and "ride" in self.globals:
+                self.globals["ride"] = {**self.globals["ride"], **{k: v for k, v in stmt.items() if k not in ("op", "id", "t")}}
         elif op == "remove":
             if self.structure and self.structure["id"] == stmt["id"]:
                 self.structure = None
                 self.things = {k: v for k, v in self.things.items() if not v.get("room")}
             self.things.pop(stmt["id"], None)
             self.rules.pop(stmt["id"], None)
+            for key in [k for k in self.extras if k.split(":", 1)[1] == stmt["id"]]:
+                self.extras.pop(key)
         elif op == "when":
             self.rules[stmt["id"]] = stmt
 
-    def render(self, frame: list[float] | None = None, user_state: str = "") -> str:
+    def render(self, frame: list[float] | None = None, user_state: str = "", play_state: str = "") -> str:
         import json
 
         def line(stmt: dict) -> str:
             return json.dumps(reframe(stmt, frame), separators=(",", ":"))
 
         lines = [line(s) for s in self.globals.values()]
+        if self.story:
+            lines.append("(the story: " + "; ".join(f"{k}: {v}" for k, v in self.story.items()) + ")")
         if self.structure:
             lines.append(line(self.structure))
+        lines += [line(s) for key, s in self.extras.items() if key.startswith("road:")]
         for name, info in self.made.items():
             lines.append(f'(you made "{name}": {info["kind"]}, {info["parts"]} parts{", fires" if info["fires"] else ""})')
+        for name in self.sounds:
+            lines.append(f'(you defined the sound "{name}")')
         lines += [line(s) for s in self.things.values()]
+        lines += [line(s) for key, s in self.extras.items() if not key.startswith("road:")]
         lines += [line(s) for s in self.rules.values()]
         if not lines:
             lines = ["(empty: the dark room)"]
         if user_state:
             lines.append("USER RIGHT NOW: " + user_state)
+        if play_state:
+            lines.append("PLAY RIGHT NOW: " + play_state)
         return "\n".join(lines)
 
 
@@ -260,19 +281,32 @@ def parse_line(line: str) -> dict | None:
     return stmt if isinstance(stmt, dict) and isinstance(stmt.get("op"), str) else None
 
 
-class Checker:
+class Checker(v3.V3):
     """Turns what the model wrote into what the headset plays. One per turn."""
 
     def __init__(self, catalog: Catalog, world: WorldState, frame: list[float] | None = None, structures: bool = False,
-                 wide: bool | None = None):
+                 wide: bool | None = None, play: bool = False, gen: bool = False, only: tuple[str, ...] | None = None):
         self.catalog = catalog
         self.world = world
         self.frame = frame
         self.structures = structures
         self.wide = structures if wide is None else wide   # the client builds the second version of interiors
+        self.play = play                                   # the client plays the third version of the language (v3.py)
+        self.gen = gen and play                            # ...and can fetch what is generated for it by URL
+        self.only = only                                   # when set, the only statements this turn may write
         self.problem: str | None = None
         self.missing: list[str] = []      # asset names used that neither the catalog nor a `make` provides
         self.made_now: set[str] = set()
+
+    @property
+    def limit(self) -> float:
+        """How far from the middle a position may be written: past the edge of the ground, for what hangs in the sky."""
+        return max(200.0, v3.reach_of(self.world.size) + 100.0) if self.play else 200.0
+
+    @property
+    def reach(self) -> float:
+        """How far out things may be scattered over the ground."""
+        return v3.reach_of(self.world.size) if self.play else 115.0
 
     # ---- assets
 
@@ -301,8 +335,17 @@ class Checker:
         """The repaired statement, or None when it cannot be played (or must wait for a missing asset)."""
         op = str(raw.get("op", "")).strip().lower()
         op = {"blueprint": "make", "rule": "when", "sound": "ambience", "gravity": "physics", "delete": "remove", "change": "modify"}.get(op, op)
+        if self.play:
+            op = v3.OP_ALIASES.get(op, op)
+        elif op in v3.OPS:
+            return None     # a headset from before the third version would not know what to do with it
+        # only what is a statement: `_part`, `_action` and the like are helpers, not things the model may call by name
+        if op not in OPS and not (self.play and op in v3.OPS):
+            return None
+        if self.only is not None and op not in self.only:
+            return None
         handler = getattr(self, "_" + op, None)
-        if handler is None or op.startswith("_"):
+        if handler is None:
             return None
         stmt = handler(raw, strict) if op in ("spawn", "scatter", "give", "ride") else handler(raw)
         if stmt is None:
@@ -313,8 +356,19 @@ class Checker:
             stmt["t"] = t
         if self.frame and op in ("spawn", "scatter", "give", "ride", "structure") and not stmt.get("room"):
             stmt["frame"] = self.frame
+        elif self.frame and self.play and self._placed(op, stmt):
+            stmt["frame"] = self.frame
         self.world.apply(stmt)
         return stmt
+
+    @staticmethod
+    def _placed(op: str, stmt: dict) -> bool:
+        """Does this statement of the third version say where something is? Then it needs to say where the user stood."""
+        if op in ("road", "zone", "fx"):
+            return "on" not in stmt
+        if op in ("when", "stage"):
+            return any(isinstance(a.get(k), list) for a in stmt.get("do", []) + stmt.get("enter", []) for k in ("to", "at"))
+        return (op == "terrain" and "regions" in stmt) or (op == "player" and "at" in stmt) or (op == "hud" and "board" in stmt)
 
     # ---- talk
 
@@ -335,6 +389,8 @@ class Checker:
         for key, lo, hi in (("sun_elevation", -90, 90), ("sun_azimuth", 0, 360), ("sun_size", 0, 1), ("stars", 0, 1), ("clouds", 0, 1),
                             ("moon", 0, 1), ("aurora", 0, 1), ("nebula", 0, 1), ("fog", 0, 1)):
             out[key] = num(raw.get(key), lo, hi)
+        if self.play:
+            self._sky_v3(raw, out)
         return out if any(v is not None for v in out.values()) else {"preset": "morning"}
 
     def _fog(self, raw):
@@ -359,6 +415,8 @@ class Checker:
         for key in ("tint", "grid_color", "water_color"):
             out[key] = color(raw.get(key))
         out["seed"] = num(raw.get("seed"), 0, 99999)
+        if self.play:
+            self._terrain_v3(raw, out)
         return out if any(v is not None for v in out.values()) else {"type": "rolling"}
 
     def _weather(self, raw):
@@ -373,6 +431,8 @@ class Checker:
         return {"gravity": num(raw.get("gravity"), -0.5, 2, 1)}
 
     def _player(self, raw):
+        if self.play:
+            return self._player_v3(raw)
         return {"scale": num(raw.get("scale"), 0.05, 20, 1)}
 
     def _clear(self, raw):
@@ -411,6 +471,9 @@ class Checker:
         step = vec(raw.get("step"), 3, -40, 40)
         if repeat and step:
             part["repeat"], part["step"] = int(repeat), step
+        if self.play:
+            self._part_v3(raw, part)
+            shape = part["shape"]
         # a shape that needs a drawing and did not get a usable one becomes the nearest plain shape, not nothing
         if shape == "lathe":
             part["profile"] = points(raw.get("profile"), 2, 16, 0, 60)
@@ -429,14 +492,16 @@ class Checker:
 
     def _make(self, raw):
         name = name_of(raw.get("name") or raw.get("id") or raw.get("asset"), "thing")
-        parts = [p for p in (self._part(r) for r in (raw.get("parts") if isinstance(raw.get("parts"), list) else [])[:MAX_PARTS]) if p]
+        most = v3.MAX_PARTS if self.play else MAX_PARTS
+        parts = [p for p in (self._part(r) for r in (raw.get("parts") if isinstance(raw.get("parts"), list) else [])[:most]) if p]
         if not parts:
             parts = [{"shape": "cube", "scale": [0.5, 0.5, 0.5], "color": "#C8C8D0"}]
         out = {"name": name, "kind": pick(raw.get("kind"), KINDS, "thing"), "parts": parts}
         fires = raw.get("fires")
         if fires is not None and fires is not False:
             fires = fires if isinstance(fires, dict) else {}
-            out["kind"] = "tool"
+            if not (self.play and out["kind"] in ("vehicle", "flyer", "animal", "person")):
+                out["kind"] = "tool"     # in the third version a tank, a jet or a dragon may shoot and still be what it is
             out["fires"] = {k: v for k, v in {
                 "sound": pick(fires.get("sound"), SOUNDS, "zap"),
                 "every": num(fires.get("every", fires.get("cooldown")), 0.05, 5, 0.25),
@@ -451,6 +516,8 @@ class Checker:
             }.items() if v is not None}
         if out["kind"] == "tool":
             out["grip"] = vec(raw.get("grip"), 3, -5, 5)
+        if self.play:
+            self._make_v3(raw, out)
         self.made_now.add(name)
         if name in self.missing:
             self.missing.remove(name)
@@ -484,7 +551,8 @@ class Checker:
             close = difflib.get_close_matches(identity, ids, n=1, cutoff=0.0)
             wanted = name_of(raw.get("room"))
             identity = next((d["id"] for d in self.world.structure["doors"] if wanted and d["room"] == wanted), close[0] if close else ids[0])
-        return {"id": identity, "state": pick(raw.get("state"), ("open", "close", "toggle"), "toggle")}
+        states = ("open", "close", "toggle", "lock", "unlock") if self.play else ("open", "close", "toggle")
+        return {"id": identity, "state": pick(raw.get("state"), states, "toggle")}
 
     def _room(self, raw, identity: str = "") -> dict | None:
         """The room of the interior a statement puts its thing in, or None when it names none (or there is no interior)."""
@@ -499,13 +567,15 @@ class Checker:
         out["motion"] = pick(raw.get("motion"), MOTIONS)
         out["solid"] = True if flag(raw.get("solid")) else None
         out["physics"] = True if flag(raw.get("physics")) else None
+        if self.play:
+            self._common_v3(raw, out)
 
     def _spawn(self, raw, strict):
         asset = self.asset(raw.get("asset") or "cube", strict)
         if asset is None:
             return None
         out = {"id": name_of(raw.get("id")) or self.world.next_id(asset + "_"), "asset": asset}
-        out["at"] = vec(raw.get("at"), 3, -200, 200)
+        out["at"] = vec(raw.get("at"), 3, -self.limit, self.limit)
         target = self._room(raw, out["id"])
         if target is not None:
             # measured from the middle of the room's floor, and kept inside its walls
@@ -517,7 +587,7 @@ class Checker:
                          num(p[2], -max(target["size"][2] / 2 - edge, 0), max(target["size"][2] / 2 - edge, 0))]
         if out["at"] is None:
             out["place"] = pick(raw.get("place"), PLACES, "front")
-            out["distance"] = num(raw.get("distance"), 0, 110)
+            out["distance"] = num(raw.get("distance"), 0, self.reach - 5)
             out["height"] = num(raw.get("height"), -5, 80)
         out["scale"] = size3(raw.get("scale"), 0.02, 60)
         out["rot_y"] = num(raw.get("rot_y"), -360, 360)
@@ -530,7 +600,7 @@ class Checker:
             out["ring"] = num(raw.get("ring"), 0.5, 100)
             if out["step"] is None and out["ring"] is None:
                 out.pop("repeat")
-        out["path"] = points(raw.get("path"), 3, 24)
+        out["path"] = points(raw.get("path"), 3, 24, -self.limit, self.limit)
         if out["path"]:
             out["speed"] = num(raw.get("speed"), 0.1, 40)
             out["loop"] = False if raw.get("loop") is False else None
@@ -543,7 +613,7 @@ class Checker:
         out = {"id": name_of(raw.get("id")) or self.world.next_id(asset + "_"), "asset": asset}
         out["count"] = int(num(raw.get("count"), 1, 300, 12))
         out["area"] = pick(raw.get("area"), AREAS)
-        for key, lo, hi in (("radius", 0, 115), ("height", 0, 80), ("scale", 0.02, 30)):
+        for key, lo, hi in (("radius", 0, self.reach), ("height", 0, 80), ("scale", 0.02, 30)):
             pair = vec(raw.get(key), 2, lo, hi)
             if pair:
                 out[key] = sorted(pair)
@@ -551,7 +621,7 @@ class Checker:
                 out[key] = [num(raw.get(key), lo, hi)] * 2
         out["clusters"] = num(raw.get("clusters"), 1, 24)
         out["spread"] = num(raw.get("spread"), 0, 40)
-        out["along"] = points(raw.get("along"), 3, 24)
+        out["along"] = points(raw.get("along"), 3, 24, -self.limit, self.limit)
         out["where"] = pick(raw.get("where"), WHERES)
         out["seed"] = num(raw.get("seed"), 0, 99999)
         if self.wide:
@@ -586,8 +656,11 @@ class Checker:
         asset = self.asset(raw.get("asset"), strict)
         if asset is None:
             return None
-        return {"asset": asset, "tint": color(raw.get("tint", raw.get("color"))), "speed": num(raw.get("speed"), 0.2, 3),
-                "path": points(raw.get("path"), 3, 24), "loop": False if raw.get("loop") is False else None}
+        out = {"asset": asset, "tint": color(raw.get("tint", raw.get("color"))), "speed": num(raw.get("speed"), 0.2, 3),
+               "path": points(raw.get("path"), 3, 24, -self.limit, self.limit), "loop": False if raw.get("loop") is False else None}
+        if self.play:
+            self._ride_v3(raw, out)
+        return out
 
     def _modify(self, raw):
         target = name_of(raw.get("id"))
@@ -597,6 +670,8 @@ class Checker:
                "motion": pick(raw.get("motion"), MOTIONS), "behavior": pick(raw.get("behavior"), BEHAVIORS)}
         if raw.get("count") is not None:
             out["count"] = int(num(raw.get("count"), 0, 300, 12))
+        if self.play:
+            self._modify_v3(raw, out)
         return out
 
     def _remove(self, raw):
@@ -640,6 +715,8 @@ class Checker:
         return {k: v for k, v in out.items() if v is not None}
 
     def _when(self, raw):
+        if self.play:
+            return self._when_v3(raw)
         event = pick(raw.get("event") or raw.get("on"), EVENTS) or {"shot": "hit", "struck": "hit", "touch": "near", "reach": "near",
                                                                  "timer": "every", "trigger": "use", "fire": "use"}.get(str(raw.get("event", "")).lower())
         actions = raw.get("do") or raw.get("actions") or []

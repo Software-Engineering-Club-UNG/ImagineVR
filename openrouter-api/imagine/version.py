@@ -1,2 +1,2 @@
 """Shared wire-language version."""
-LANGUAGE_VERSION = 2
+LANGUAGE_VERSION = 3
