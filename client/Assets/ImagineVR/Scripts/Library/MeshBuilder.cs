@@ -36,6 +36,134 @@ namespace ImagineVR
 
         public int TriangleCount => (_tris.Count + _glowTris.Count) / 3;
 
+        // ------------------------------------------------------------------ parts that move
+        //
+        // A wheel, a rotor, a steering wheel, a sail: drawn into the mesh like everything else (so
+        // scenery, which is combined, still shows it at rest), and also remembered as a range of
+        // vertices around a pivot, so a living copy can draw it as a piece of its own and turn it.
+
+        sealed class Capture
+        {
+            public PartDef Part;
+            public int VertStart, VertEnd;
+        }
+
+        readonly List<Capture> _captures = new List<Capture>();
+        readonly List<KeyValuePair<string, Vector3>> _marks = new List<KeyValuePair<string, Vector3>>();
+        Capture _open;
+
+        /// <summary>The moving pieces captured by the last Build, each with its own mesh around its pivot. Empty when there are none.</summary>
+        public List<PartDef> Parts { get; private set; } = new List<PartDef>();
+        /// <summary>Everything that is not a moving piece, from the last Build: what a living copy draws as its body. Null when there are no pieces.</summary>
+        public Mesh Body { get; private set; }
+        /// <summary>Points the recipe marked: where a lamp, a seat, a gun's muzzle, an exhaust is.</summary>
+        public List<KeyValuePair<string, Vector3>> Marks => _marks;
+
+        /// <summary>
+        /// Starts a moving piece. Its pivot is where the current transform's origin is, unless one is
+        /// given in model space; its own axis is the current transform's up (a cylinder's length, a
+        /// rotor's shaft). Everything drawn until EndPart belongs to it.
+        /// </summary>
+        public MeshBuilder BeginPart(string role, Vector3? pivot = null)
+        {
+            if (_open != null) EndPart();
+            var part = new PartDef
+            {
+                Role = role ?? "",
+                Pivot = pivot ?? _xf.MultiplyPoint3x4(Vector3.zero),
+                Axis = _xf.MultiplyVector(Vector3.up).normalized,
+            };
+            if (part.Axis.sqrMagnitude < 0.5f) part.Axis = Vector3.up;
+            _open = new Capture { Part = part, VertStart = _verts.Count };
+            return this;
+        }
+
+        public PartDef OpenPart => _open != null ? _open.Part : null;
+
+        public MeshBuilder EndPart()
+        {
+            if (_open == null) return this;
+            _open.VertEnd = _verts.Count;
+            if (_open.VertEnd > _open.VertStart) _captures.Add(_open);
+            _open = null;
+            return this;
+        }
+
+        /// <summary>Remembers where something is (a lamp, a seat, a muzzle) without drawing anything.</summary>
+        public MeshBuilder Mark(string role, Vector3 local)
+        {
+            _marks.Add(new KeyValuePair<string, Vector3>(role, _xf.MultiplyPoint3x4(local)));
+            return this;
+        }
+
+        int PartOf(int vertex)
+        {
+            for (int i = 0; i < _captures.Count; i++) if (vertex >= _captures[i].VertStart && vertex < _captures[i].VertEnd) return i;
+            return -1;
+        }
+
+        /// <summary>A mesh of only these triangles, with positions moved so that `origin` is at its own origin.</summary>
+        Mesh Slice(string name, List<int> solid, List<int> glow, Vector3 origin)
+        {
+            var map = new Dictionary<int, int>();
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var c = new List<Color>(); var a = new List<Vector2>(); var b = new List<Vector2>();
+            List<int> Remap(List<int> source)
+            {
+                var result = new List<int>(source.Count);
+                foreach (int i in source)
+                {
+                    if (!map.TryGetValue(i, out int j))
+                    {
+                        j = v.Count;
+                        map[i] = j;
+                        v.Add(_verts[i] - origin); n.Add(_normals[i]); c.Add(_colors[i]); a.Add(_uv0[i]); b.Add(_uv1[i]);
+                    }
+                    result.Add(j);
+                }
+                return result;
+            }
+            List<int> s = Remap(solid), g = Remap(glow);
+            var mesh = new Mesh { name = name };
+            if (v.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.SetVertices(v); mesh.SetNormals(n); mesh.SetColors(c); mesh.SetUVs(0, a); mesh.SetUVs(1, b);
+            mesh.subMeshCount = g.Count > 0 ? 2 : 1;
+            mesh.SetTriangles(s, 0, true);
+            if (g.Count > 0) mesh.SetTriangles(g, 1, true);
+            return mesh;
+        }
+
+        void BuildParts(string name)
+        {
+            Parts = new List<PartDef>();
+            Body = null;
+            if (_open != null) EndPart();
+            if (_captures.Count == 0) return;
+            var bodySolid = new List<int>(); var bodyGlow = new List<int>();
+            var partSolid = new List<int>[_captures.Count]; var partGlow = new List<int>[_captures.Count];
+            for (int i = 0; i < _captures.Count; i++) { partSolid[i] = new List<int>(); partGlow[i] = new List<int>(); }
+            for (int t = 0; t + 2 < _tris.Count; t += 3)
+            {
+                int owner = PartOf(_tris[t]);
+                List<int> into = owner < 0 ? bodySolid : partSolid[owner];
+                into.Add(_tris[t]); into.Add(_tris[t + 1]); into.Add(_tris[t + 2]);
+            }
+            for (int t = 0; t + 2 < _glowTris.Count; t += 3)
+            {
+                int owner = PartOf(_glowTris[t]);
+                List<int> into = owner < 0 ? bodyGlow : partGlow[owner];
+                into.Add(_glowTris[t]); into.Add(_glowTris[t + 1]); into.Add(_glowTris[t + 2]);
+            }
+            Body = Slice(name + "_body", bodySolid, bodyGlow, Vector3.zero);
+            for (int i = 0; i < _captures.Count; i++)
+            {
+                PartDef part = _captures[i].Part;
+                part.Mesh = Slice(name + "_" + part.Role + i, partSolid[i], partGlow[i], part.Pivot);
+                Bounds b = part.Mesh.bounds;
+                part.Radius = Mathf.Max(b.extents.y, Mathf.Max(b.extents.z, 0.05f));
+                Parts.Add(part);
+            }
+        }
+
         /// <summary>Size of the solid geometry from the last Build, ignoring halos.</summary>
         public Bounds SolidBounds { get; private set; }
 
@@ -629,6 +757,7 @@ namespace ImagineVR
                 b.Expand(1.5f);
                 mesh.bounds = b;
             }
+            BuildParts(name);
             return mesh;
         }
     }

@@ -18,6 +18,8 @@ class Session:
         self.lock = asyncio.Lock()  # one turn at a time
         self.last_active = time.monotonic()
         self._turn_times: deque[float] = deque(maxlen=config.TURNS_PER_MINUTE)
+        self.talk: dict[str, deque[tuple[str, str]]] = {}   # with each character: (what the user said, what they answered)
+        self._event_times: deque[float] = deque(maxlen=config.EVENTS_PER_MINUTE)
 
     def touch(self) -> None:
         self.last_active = time.monotonic()
@@ -30,9 +32,30 @@ class Session:
         self._turn_times.append(now)
         return True
 
+    def allow_event(self) -> bool:
+        """
+        A world may call the director back when something happens in its story. A rule that fires
+        every second must not become a model call every second: a few a minute, and never two close together.
+        """
+        now = time.monotonic()
+        if self._event_times and now - self._event_times[-1] < config.EVENT_GAP_SECONDS:
+            return False
+        if len(self._event_times) == self._event_times.maxlen and now - self._event_times[0] < 60:
+            return False
+        self._event_times.append(now)
+        return True
+
+    def spoken_with(self, who: str) -> deque[tuple[str, str]]:
+        if who not in self.talk:
+            if len(self.talk) > 24:
+                self.talk.pop(next(iter(self.talk)))
+            self.talk[who] = deque(maxlen=8)
+        return self.talk[who]
+
     def reset(self) -> None:
         self.world = WorldState()
         self.history.clear()
+        self.talk.clear()
 
 
 class SessionStore:

@@ -47,49 +47,85 @@ namespace ImagineVR
     {
         World _world;
         Route _route;
-        float _speed, _distance;
+        float _speed, _distance, _now, _roll, _lastYaw;
+        bool _flies;
+        Articulated _parts;
+        static readonly Collider[] Ahead = new Collider[12];
+
+        /// <summary>How fast it goes when nothing is in its way, in metres a second.</summary>
+        public float Speed { get => _speed; set => _speed = Mathf.Clamp(value, 0f, 80f); }
 
         public static GameObject Create(World world, AssetDef def, Route route, float speed, float start, Vector3 scale, Color tint, string groupId = null)
         {
             var go = new GameObject("Mover_" + def.Id);
             go.transform.SetParent(world.transform, false);
             go.transform.localScale = scale;
-            Mesh mesh = def.Mesh;
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            MeshRenderer mr = go.AddComponent<MeshRenderer>();
-            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            mr.receiveShadows = false;
-            mr.sharedMaterials = mesh.subMeshCount > 1
-                ? new[] { world.Objects.LitMaterial, world.Objects.GlowMaterial }
-                : new[] { world.Objects.LitMaterial };
-            var props = new MaterialPropertyBlock();
-            props.SetColor("_Tint", tint);
-            props.SetFloat("_Appear", 1f);
-            mr.SetPropertyBlock(props);
-
-            Shadows.Cast(go.transform, def.Bounds);
             Mover m = go.AddComponent<Mover>();
+            // wheels roll, propellers spin, rotors turn: whatever moves on it moves
+            m._parts = Articulated.Attach(go, def, tint);
+            Shadows.Cast(go.transform, def.Bounds);
             m._world = world;
             m._route = route;
-            m._speed = speed;
+            m._speed = m._now = speed;
+            m._flies = def.FliesRidden;
             m._distance = Mathf.Clamp01(start) * route.Length;
-            m.Place(1f);
+            m.Place(1f, 0f);
             return go;
         }
 
         void Update()
         {
-            _distance += _speed * Time.deltaTime;
-            Place(1f - Mathf.Exp(-Time.deltaTime * 6f));
+            float dt = Time.deltaTime;
+            // traffic stops for what is in front of it: the car ahead, the user, a pedestrian. Flyers do not.
+            float want = _speed;
+            if (!_flies && _speed > 0.5f && Time.frameCount % 4 == (GetInstanceID() & 3)) _blocked = Blocked();
+            if (_blocked) want = 0f;
+            _now = Mathf.MoveTowards(_now, want, (want < _now ? 8f : 3f) * dt);
+            _distance += _now * dt;
+            Place(1f - Mathf.Exp(-dt * 6f), dt);
+        }
+        bool _blocked;
+
+        bool Blocked()
+        {
+            Vector3 forward = transform.forward;
+            Vector3 probe = transform.position + forward * (4f + _now * 0.4f) + Vector3.up;
+            int n = Physics.OverlapSphereNonAlloc(probe, 2f, Ahead, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                Collider c = Ahead[i];
+                if (c.transform.IsChildOf(transform)) continue;
+                if (c.GetComponentInParent<Mover>() != null || c.GetComponentInParent<Creature>() != null || c.GetComponentInParent<Rig>() != null || c is CharacterController) return true;
+            }
+            // the user on foot, or what they ride, standing in the road
+            Transform head = _world.Head;
+            if (head != null)
+            {
+                Vector3 to = head.position - transform.position;
+                to.y = 0f;
+                if (to.magnitude < 7f && Vector3.Dot(to.normalized, forward) > 0.8f) return true;
+            }
+            return false;
         }
 
-        void Place(float turn)
+        void Place(float turn, float dt)
         {
             Vector3 p = _route.At(_distance, out Vector3 heading);
             p.y += _world.Terrain.HeightAt(p.x, p.z);
             transform.position = p;
             if (heading.sqrMagnitude > 0.0001f && (_route.Loop || _distance < _route.Length))
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(heading), turn);
+            {
+                Quaternion look = Quaternion.LookRotation(_flies ? heading : new Vector3(heading.x, 0f, heading.z));
+                float yaw = look.eulerAngles.y;
+                float rate = dt > 0f ? Mathf.DeltaAngle(_lastYaw, yaw) / dt : 0f;
+                _lastYaw = yaw;
+                // what flies banks into its turns; what drives leans out of them a little
+                float roll = _flies ? Mathf.Clamp(-rate * 0.6f, -50f, 50f) : Mathf.Clamp(rate * 0.03f, -3f, 3f);
+                _roll = Mathf.Lerp(_roll, roll, 1f - Mathf.Exp(-dt * 3f));
+                transform.rotation = Quaternion.Slerp(transform.rotation, look * Quaternion.Euler(0f, 0f, _roll), turn);
+                if (_parts != null) { _parts.Steer = Mathf.Clamp(rate / 40f, -1f, 1f); }
+            }
+            if (_parts != null) { _parts.Speed = _now; _parts.Throttle = Mathf.Clamp01(0.3f + _now / 30f); }
         }
     }
 }

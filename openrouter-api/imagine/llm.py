@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import re
 import time
@@ -47,26 +48,41 @@ def client() -> httpx.AsyncClient:
     return _client
 
 
-def build_messages(system_prompt: str, user_content: str, model: str) -> list[dict]:
+# What follows this line in a system prompt is particular to one call (the sections chosen for this request);
+# what comes before is the same for every call and is what the provider is asked to cache.
+SPLIT = "\n<<<THIS REQUEST>>>\n"
+
+# How this call differs from the ordinary one: {"max_tokens": 1200, "temperature": 0.5, "images": [data URLs]}.
+# Set by the caller in its own task, so that calls running side by side each keep their own.
+options: contextvars.ContextVar[dict | None] = contextvars.ContextVar("imagine_llm_options", default=None)
+
+
+def build_messages(system_prompt: str, user_content: str, model: str, images: list[str] | None = None) -> list[dict]:
     """The long, stable instructions go first so provider-side prompt caching can apply."""
+    stable, _, particular = system_prompt.partition(SPLIT)
     if model.startswith(("anthropic/", "google/")):
-        system = {
-            "role": "system",
-            "content": [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
-        }
+        content = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}}]
+        if particular:
+            content.append({"type": "text", "text": particular})
+        system = {"role": "system", "content": content}
     else:
-        system = {"role": "system", "content": system_prompt}
-    return [system, {"role": "user", "content": user_content}]
+        system = {"role": "system", "content": stable + ("\n" + particular if particular else "")}
+    if images:
+        user = {"role": "user", "content": [{"type": "text", "text": user_content}] + [{"type": "image_url", "image_url": {"url": url}} for url in images]}
+    else:
+        user = {"role": "user", "content": user_content}
+    return [system, user]
 
 
 async def stream_lines(system_prompt: str, user_content: str, model: str | None = None) -> AsyncIterator[str]:
     model = model or config.MODEL
+    wanted = options.get() or {}
     body: dict = {
         "model": model,
-        "messages": build_messages(system_prompt, user_content, model),
+        "messages": build_messages(system_prompt, user_content, model, wanted.get("images")),
         "stream": True,
-        "temperature": 0.8,
-        "max_tokens": 7000,
+        "temperature": wanted.get("temperature", 0.8),
+        "max_tokens": wanted.get("max_tokens", 7000),
     }
     if config.REASONING in ("low", "medium", "high"):
         # not excluded from the stream: its arrival is how a model that is thinking is told from one that has hung

@@ -1,0 +1,24 @@
+{"playbook":"a goal to score in","ask":"hockey shootout","tags":["hockey","puck","ice","rink","goal","goals","shootout","penalty","soccer","football","keeper","goalie","score","stick","shot","polo","lacrosse","curling"]}
+{"op":"think","text":"A lit rink: slick ice, a net twelve metres out, a goalie sliding across it, ten pucks."}
+{"op":"sky","preset":"night_stars"}
+{"op":"terrain","type":"flat","material":"ice"}
+{"op":"spawn","id":"rink","asset":"cube","at":[0,0,9],"scale":[16,0.04,26],"tint":"#E8F4FF","solid":true,"surface":"ice","finish":"gloss"}
+{"op":"spawn","id":"boards","asset":"cube","at":[-8.1,0,9],"scale":[0.2,1.1,26],"tint":"#F2F2F2","repeat":2,"step":[16.2,0,0],"solid":true,"surface":"rubber"}
+{"op":"spawn","id":"end_board","asset":"cube","at":[0,0,22.1],"scale":[16.4,1.1,0.2],"tint":"#F2F2F2","solid":true,"surface":"rubber"}
+{"op":"spawn","id":"crease","asset":"cube","at":[0,0.045,12.5],"scale":[2.6,0.01,1.4],"tint":"#4080E0"}
+{"op":"spawn","id":"net","asset":"soccer_goal","at":[0,0,13.6],"scale":0.5,"solid":true}
+{"op":"zone","id":"goal","at":[0,0.6,13.5],"size":[1.8,1.2,0.9]}
+{"op":"spawn","id":"goalie","asset":"robot","scale":1.1,"path":[[-1.1,0,12.4],[1.1,0,12.4]],"speed":1.8,"solid":true,"label":"Ironside"}
+{"op":"spawn","id":"pucks","asset":"hockey_puck","at":[-1.2,0.06,1.4],"physics":true,"repeat":5,"step":[0.6,0,0],"friction":0.02}
+{"op":"give","asset":"hockey_stick"}
+{"op":"var","name":"goals","value":0,"label":"Goals"}
+{"op":"var","name":"shots","value":0,"label":"Shots"}
+{"op":"hud","objective":"Slap the pucks past the goalie","board":{"at":[0,4,22],"title":"HOME","show":["goals","shots"]}}
+{"op":"when","id":"shot","event":"strike","target":"hockey_puck","do":[{"act":"add","var":"shots"},{"act":"sound","name":"swing"}]}
+{"op":"when","id":"scored","event":"enter","zone":"goal","target":"hockey_puck","do":[{"act":"add","var":"goals"},{"act":"sound","name":"horn"},{"act":"banner","text":"GOAL!"},{"act":"burst","kind":"confetti"},{"act":"remove","delay":1}]}
+{"op":"when","id":"save","event":"collide","target":"hockey_puck","with":"goalie","do":[{"act":"sound","name":"clang"},{"act":"banner","text":"Saved!"}]}
+{"op":"when","id":"more","event":"becomes","test":"count(hockey_puck) == 0 or (moving(hockey_puck) == 0 and shots >= 5 and time > 5)","cooldown":6,"do":[{"act":"reset","target":"pucks"},{"act":"set","var":"shots","to":0}]}
+{"op":"when","id":"hat_trick","event":"becomes","test":"goals >= 3","once":true,"do":[{"act":"win","text":"Hat trick!"},{"act":"sound","name":"cheer"},{"act":"modify","target":"goalie","speed":3.2}]}
+{"op":"scatter","id":"floodlights","asset":"stage_light","count":6,"area":"ring","radius":[14,16],"light":"#E0F0FF"}
+{"op":"music","mood":"action"}
+{"op":"say","text":"Stick's in reach. Grip it and swing through a puck: get it past Ironside. Three goals and he speeds up."}

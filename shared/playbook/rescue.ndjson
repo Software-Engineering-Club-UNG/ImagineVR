@@ -1,0 +1,25 @@
+{"playbook":"a helicopter rescue","ask":"helicopter rescue on a mountain","tags":["helicopter","chopper","rescue","hover","mountain","lift","winch","save","climbers","coastguard","medevac","heli"]}
+{"op":"think","text":"A storm-lit mountain: stranded climbers on two ledges, a helipad to bring them back to."}
+{"op":"sky","preset":"stormy","fog":0.25}
+{"op":"terrain","type":"mountains","material":"rock","patches":"snow","size":"wide","height":0.8,"regions":[{"id":"pad","material":"concrete","at":[0,6],"radius":9,"level":true}]}
+{"op":"weather","type":"snow","intensity":0.5}
+{"op":"spawn","id":"pad_mark","asset":"cube","at":[0,0.02,6],"scale":[10,0.02,10],"tint":"#D8C020","pattern":"checker","pattern_color":"#202020","pattern_scale":2.5}
+{"op":"spawn","id":"hut","asset":"log_cabin","at":[-14,0,10],"light":"#FFC070"}
+{"op":"spawn","id":"climber_a","asset":"person","at":[60,38,120],"behavior":"still","tint":"#F06020","name":"Dara","says":["Over here!","Hurry!"],"light":"#FF6020"}
+{"op":"spawn","id":"climber_b","asset":"woman","at":[-90,55,170],"behavior":"still","tint":"#F0D020","name":"Iris","says":["Down here!"],"light":"#FFE020"}
+{"op":"zone","id":"ledge_a","on":"climber_a","radius":7,"show":"beam","color":"#FF6020"}
+{"op":"zone","id":"ledge_b","on":"climber_b","radius":7,"show":"beam","color":"#FFE020"}
+{"op":"zone","id":"helipad","at":[0,2,6],"radius":9}
+{"op":"ride","asset":"helicopter","drive":"heli"}
+{"op":"var","name":"aboard","value":0,"label":"Aboard"}
+{"op":"var","name":"saved","value":0,"label":"Saved","max":2}
+{"op":"timer","name":"daylight","seconds":240,"label":"Daylight"}
+{"op":"hud","objective":"Hover over each beam to winch a climber aboard, then land on the pad"}
+{"op":"when","id":"lift_a","event":"enter","zone":"ledge_a","if":"speed() < 5","once":true,"do":[{"act":"sound","name":"powerup"},{"act":"remove","target":"climber_a"},{"act":"add","var":"aboard"},{"act":"banner","text":"Dara is aboard"}]}
+{"op":"when","id":"lift_b","event":"enter","zone":"ledge_b","if":"speed() < 5","once":true,"do":[{"act":"sound","name":"powerup"},{"act":"remove","target":"climber_b"},{"act":"add","var":"aboard"},{"act":"banner","text":"Iris is aboard"}]}
+{"op":"when","id":"home","event":"enter","zone":"helipad","if":"aboard > 0 and height() < 4","do":[{"act":"add","var":"saved","by":"aboard"},{"act":"set","var":"aboard","to":0},{"act":"sound","name":"cheer"}]}
+{"op":"when","id":"all_safe","event":"becomes","test":"saved >= 2","do":[{"act":"win","text":"Everyone's home."}]}
+{"op":"when","id":"dark","event":"becomes","test":"daylight <= 0 and saved < 2","do":[{"act":"lose","text":"Night fell on the mountain."}]}
+{"op":"ambience","loop":"storm"}
+{"op":"music","mood":"tense"}
+{"op":"say","text":"Two climbers are stuck up there. Left stick flies, right stick turns and climbs: hover over a beam to winch them up, then bring them back to this pad."}

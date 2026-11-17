@@ -14,6 +14,36 @@ namespace ImagineVR
     [Flags]
     public enum TerrainFeature { None = 0, River = 1, Pond = 2, Path = 4, Terraces = 8, Outcrops = 16 }
 
+    /// <summary>
+    /// One painted and shaped patch of ground (`terrain.regions`): a disc or a turned rectangle, with
+    /// its own material, flattened level or raised and dug, softened at the edge. Plain values.
+    /// </summary>
+    public struct TerrainRegion
+    {
+        public string Name, Material;
+        public Vector2 At, Size;
+        public float Radius, Yaw, Height, Blend;
+        public bool Level, Box;
+        public Color Low, High;
+        public float LevelHeight;   // filled in when the ground is made: the height it is levelled to
+
+        /// <summary>How much of the region is at this point: 1 inside, falling to 0 across the blend at its edge.</summary>
+        public float Weight(float x, float z)
+        {
+            float dx = x - At.x, dz = z - At.y, outside;
+            if (Box)
+            {
+                float c = Mathf.Cos(-Yaw * Mathf.Deg2Rad), s = Mathf.Sin(-Yaw * Mathf.Deg2Rad);
+                float lx = dx * c - dz * s, lz = dx * s + dz * c;
+                outside = Mathf.Max(Mathf.Abs(lx) - Size.x * 0.5f, Mathf.Abs(lz) - Size.y * 0.5f);
+            }
+            else outside = Mathf.Sqrt(dx * dx + dz * dz) - Radius;
+            if (outside <= 0f) return 1f;
+            float t = 1f - outside / Mathf.Max(Blend, 0.01f);
+            return t <= 0f ? 0f : t * t * (3f - 2f * t);
+        }
+    }
+
     /// <summary>Everything that decides the form of one piece of ground. Plain values: safe on a worker thread.</summary>
     public struct TerrainRecipe
     {
@@ -23,6 +53,8 @@ namespace ImagineVR
         public TerrainFeature Features;
         public float Roughness;     // 0 smooth, 1 broken, lumpy ground
         public float WaterLevel;    // of the shape itself, relative to its zero; NaN when it has none
+        public float Scale;         // the third version: how much bigger than the usual 125 m the ground is (wide, vast)
+        public TerrainRegion[] Regions;   // painted and shaped patches: a green, a bunker, a plaza, a runway
 
         public bool Has(TerrainFeature f) => (Features & f) != 0;
         public bool Watered => !float.IsNaN(WaterLevel) || Has(TerrainFeature.River) || Has(TerrainFeature.Pond);
@@ -106,6 +138,13 @@ namespace ImagineVR
             Ground("ice", "Pale blue ice", "frozen,glacier,arctic,blue", "frozen,glacier", "#BFE3F2", "#E6F6FC", "#8FC0DA", "#A8D4E8", 0.08f, "#2A6A9A");
             Ground("swamp", "Dark wet mud and moss", "mud,marsh,bog,wet", "marsh,bog,mud", "#4A4A30", "#5A5A38", "#3A3626", "#3A4028", 0.2f, "#3A4A2A");
             Ground("seabed", "Pale sea floor sand and silt", "ocean floor,underwater,reef", "sea floor,ocean floor", "#C8B890", "#A8B8A0", "#6A7A70", "#B8A880", 0.2f);
+            // the third version: ground for games (scripts/catalog_additions.json lists the same, in this order)
+            Ground("green", "Close-mown putting green: a ball rolls true on it", "golf,putting,lawn,bowls,croquet", "putting green,golf green", "#4FAE4C", "#62C25A", "#6A7A50", "#C9B98A", 0.05f);
+            Ground("fairway", "Mown fairway and sports turf", "golf,pitch,field,turf,stadium", "turf,pitch,sports field", "#5AA84A", "#6DBA58", "#7A6A50", "#C9B98A", 0.12f);
+            Ground("gravel", "Loose grey gravel", "path,yard,track,quarry", "pebbles,shingle", "#9A9690", "#ADA9A2", "#7A7670", "#B0A898", 0.25f);
+            Ground("mud", "Dark wet mud: slow and slippery", "bog,rally,wet,farm", "bog,muddy", "#5A4430", "#6A523A", "#4A3828", "#7A6448", 0.2f);
+            Ground("cobble", "Old cobblestones", "medieval,old town,street,square", "cobblestone,cobbles,paving stones", "#8A8278", "#9A9288", "#6A645C", "#A09888", 0.3f);
+            for (int i = GroundMaterials.Count - 5; i < GroundMaterials.Count; i++) GroundMaterials[i].Since = 3;
 
             Terrain("flat", TerrainShape.Flat, "Perfectly level ground", "level,plain,plaza,floor", "level,plain,paved", "grass", 0f);
             Terrain("rolling", TerrainShape.Rolling, "Gentle rolling ground", "gentle,meadow,park,field", "gentle hills,meadow,fairway", "grass", 0.3f);
@@ -132,7 +171,8 @@ namespace ImagineVR
     public static class TerrainMath
     {
         public const int N = 129;            // vertices per side
-        public const float Extent = 125f;    // half-size of the mesh in metres
+        /// <summary>Half-size of the mesh in metres: 125, or more for wide and vast ground (set before each one is made).</summary>
+        public static float Extent = 125f;
 
         static float Hash(int x, int y, int seed)
         {
@@ -412,8 +452,18 @@ namespace ImagineVR
             for (int i = 0; i < n; i++) data.Coords[i] = TerrainMath.Coord(i);
 
             float h0 = TerrainMath.Raw(shape, recipe.Amp, seed, 0f, 0f);
+            // wide and vast ground is the same kind of ground drawn larger: its hills further apart, not taller
+            float k = Mathf.Max(recipe.Scale, 1f);
+            TerrainRegion[] regions = recipe.Regions ?? new TerrainRegion[0];
             if (!float.IsNaN(recipe.WaterLevel)) data.WaterY = recipe.WaterLevel - h0;
             else if (recipe.Watered && shape != TerrainShape.None) data.WaterY = TerrainMath.FeatureWater;
+            for (int g = 0; g < regions.Length; g++)
+            {
+                float cx = regions[g].At.x, cz = regions[g].At.y, cr = Mathf.Sqrt(cx * cx + cz * cz);
+                float ct = Mathf.Clamp01((cr - safeRadius) / 8f);
+                ct = ct * ct * (3f - 2f * ct);
+                regions[g].LevelHeight = TerrainMath.Height(recipe, h0, data.WaterY, cx / k, cz / k, out _, out _) * ct;
+            }
             var rocks = new float[n * n];
             var trails = new float[n * n];
             float min = float.MaxValue, max = float.MinValue;
@@ -426,7 +476,15 @@ namespace ImagineVR
                     float r = Mathf.Sqrt(x * x + z * z);
                     float t = Mathf.Clamp01((r - safeRadius) / 8f);
                     t = t * t * (3f - 2f * t);
-                    float h = TerrainMath.Height(recipe, h0, data.WaterY, x, z, out float rock, out float trail) * t;
+                    float h = TerrainMath.Height(recipe, h0, data.WaterY, x / k, z / k, out float rock, out float trail) * t;
+                    for (int g = 0; g < regions.Length; g++)
+                    {
+                        float w = regions[g].Weight(x, z);
+                        if (w <= 0f) continue;
+                        h = regions[g].Level ? Mathf.Lerp(h, regions[g].LevelHeight + regions[g].Height, w) : h + regions[g].Height * w;
+                        rock *= 1f - w;
+                        trail *= 1f - w;
+                    }
                     data.Heights[j * n + i] = h;
                     rocks[j * n + i] = rock * t;
                     trails[j * n + i] = trail;
@@ -476,6 +534,11 @@ namespace ImagineVR
                     {
                         float wet = Mathf.Clamp01((y - (data.WaterY - 0.2f)) / 1.1f);
                         c = Color.Lerp(mat.Shore, c, wet);
+                    }
+                    for (int g = 0; g < regions.Length; g++)
+                    {
+                        float w = regions[g].Weight(x, z);
+                        if (w > 0f) c = Color.Lerp(c, Color.Lerp(regions[g].Low, regions[g].High, 0.5f + (TerrainMath.Noise(x / 2.3f, z / 2.3f, seed + g) - 0.5f) * 0.4f), w);
                     }
                     float patch = 1f + (TerrainMath.Noise(x / 3.1f, z / 3.1f, seed + 5) - 0.5f) * mat.Patch
                                      + (TerrainMath.Noise(x / 21f, z / 21f, seed + 9) - 0.5f) * mat.Patch;
@@ -606,6 +669,16 @@ namespace ImagineVR
             _collider.enabled = false;
         }
 
+        /// <summary>What the ground is made of at a point: a painted region there, or the ground's own material.</summary>
+        public string MaterialAt(float x, float z)
+        {
+            for (int g = 0; g < _regions.Length; g++) if (_regions[g].Weight(x, z) > 0.5f) return _regions[g].Material;
+            return _material;
+        }
+
+        TerrainRegion[] _regions = new TerrainRegion[0];
+        float _scale = 1f;
+
         public float HeightAt(float x, float z)
         {
             Layer layer = _pending ?? _current;
@@ -632,6 +705,36 @@ namespace ImagineVR
             if (s.Has("seed")) { int sd = s.Int("seed"); if (sd != _seed) { _seed = sd; rebuild = true; } }
             if (s.Has("features")) { TerrainFeature f = TerrainRecipe.Parse(s.StrList("features")); if (f != _features) { _features = f; rebuild = true; } }
             if (s.Has("roughness")) { float ro = Mathf.Clamp01(s.Num("roughness")); if (!Mathf.Approximately(ro, _roughness)) { _roughness = ro; rebuild = true; } }
+            if (s.Has("size"))
+            {
+                string size = s.Str("size");
+                float scale = size == "vast" ? 9.6f : size == "wide" ? 3.2f : 1f;
+                if (!Mathf.Approximately(scale, _scale)) { _scale = scale; rebuild = true; }
+            }
+            if (s.Has("regions"))
+            {
+                Pose frame = s.Frame();
+                var list = new List<TerrainRegion>();
+                foreach (Dictionary<string, object> d in s.ObjList("regions"))
+                {
+                    Statement r = Statement.Wrap(d);
+                    Vector3 at = Statement.InWorld(frame, r.Vec("at", Vector3.zero));
+                    GroundMaterial m = r.Has("material") ? Library.Resolve(Library.GroundMaterials, r.Str("material")) : null;
+                    Color low = m != null ? m.Low : new Color(0.5f, 0.5f, 0.5f), high = m != null ? m.High : low;
+                    bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+                    var region = new TerrainRegion
+                    {
+                        Name = r.Str("id"), Material = m != null ? m.Id : _material, At = new Vector2(at.x, at.z),
+                        Box = r.Has("size"), Radius = r.Num("radius", 6f), Yaw = frame.rotation.eulerAngles.y + r.Num("rot_y", 0f),
+                        Height = r.Num("height", 0f), Level = r.Flag("level"), Blend = r.Num("blend", 2.5f),
+                        Low = linear ? low.linear : low, High = linear ? high.linear : high,
+                    };
+                    if (r.Fields.TryGetValue("size", out object sz) && sz is List<object> two && two.Count == 2) region.Size = new Vector2(System.Convert.ToSingle(two[0]), System.Convert.ToSingle(two[1]));
+                    list.Add(region);
+                }
+                _regions = list.ToArray();
+                rebuild = true;
+            }
             if (s.Has("patches"))
             {
                 GroundMaterial m = Library.Resolve(Library.GroundMaterials, s.Str("patches"));
@@ -652,7 +755,11 @@ namespace ImagineVR
             GroundMaterial patches = _patches != null ? Library.Resolve(Library.GroundMaterials, _patches) : null;
             TerrainShape shape = type.Shape;
             float safe = _safeRadius;
-            var recipe = new TerrainRecipe { Shape = shape, Amp = _amp, Seed = _seed, Features = _features, Roughness = _roughness, WaterLevel = type.WaterLevel };
+            var recipe = new TerrainRecipe { Shape = shape, Amp = _amp, Seed = _seed, Features = _features, Roughness = _roughness, WaterLevel = type.WaterLevel, Scale = _scale, Regions = (TerrainRegion[])_regions.Clone() };
+            // the size of the ground decides how far the user may go, and where the world fades into the sky
+            TerrainMath.Extent = 125f * _scale;
+            World.Radius = TerrainMath.Extent - 5f;
+            if (World.Instance != null && World.Instance.Sky != null) World.Instance.Sky.SetWorldRadius(World.Radius);
             _jobStatement = s;
             _jobType = type;
             if (synchronous || shape == TerrainShape.None)
@@ -673,6 +780,7 @@ namespace ImagineVR
         /// </summary>
         void NewGround(Statement s)
         {
+            if (!s.Has("regions")) _regions = new TerrainRegion[0];
             _features = TerrainFeature.None;
             _roughness = 0f;
             _patches = null;

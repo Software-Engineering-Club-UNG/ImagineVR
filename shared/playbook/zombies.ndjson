@@ -1,0 +1,26 @@
+{"playbook":"waves of enemies","ask":"zombie apocalypse with a shotgun","tags":["zombie","zombies","apocalypse","undead","horde","wave","waves","survive","survival","shotgun","defend","siege","monsters","aliens","invasion","shooter","fps","attack","enemies"]}
+{"op":"think","text":"A barricaded gas station at night: cover, explosive barrels, three waves from the dark, then a brute."}
+{"op":"sky","preset":"spooky","fog":0.35}
+{"op":"terrain","type":"flat","material":"asphalt"}
+{"op":"spawn","id":"station","asset":"gas_station","at":[0,0,-9],"rot_y":180,"solid":true,"light":"#D8E8FF"}
+{"op":"spawn","id":"cover_front","asset":"sandbags","at":[0,0,4],"solid":true,"repeat":3,"step":[2.2,0,0]}
+{"op":"spawn","id":"cover_left","asset":"sandbags","at":[-5,0,1],"rot_y":70,"solid":true}
+{"op":"spawn","id":"wreck","asset":"car","at":[6,0,7],"rot_y":35,"solid":true,"tint":"#5A5A5A"}
+{"op":"scatter","id":"barrels","asset":"explosive_barrel","count":5,"area":"front","radius":[9,18],"physics":true,"health":2}
+{"op":"scatter","id":"lamps","asset":"street_lamp","count":4,"area":"ring","radius":[10,12],"light":"#FFB060"}
+{"op":"spawn","id":"ammo_crate","asset":"crate","at":[-1.5,0,1.2],"solid":true,"label":"MEDKIT: press"}
+{"op":"give","asset":"pump_shotgun"}
+{"op":"player","health":100}
+{"op":"var","name":"kills","value":0,"label":"Kills"}
+{"op":"stage","id":"wave_1","goal":"Wave 1: hold the forecourt","first":true,"next":"wave_2","enter":[{"act":"spawn","asset":"zombie","count":6,"behavior":"attack","health":2,"damage":8,"speed":0.9,"near":"player","radius":24},{"act":"sound","name":"alarm"}]}
+{"op":"stage","id":"wave_2","goal":"Wave 2: they are faster","next":"wave_3","enter":[{"act":"banner","text":"WAVE 2"},{"act":"spawn","asset":"zombie","count":9,"behavior":"attack","health":2,"damage":8,"speed":1.5,"near":"player","radius":26},{"act":"give","asset":"frag_grenade"}]}
+{"op":"stage","id":"wave_3","goal":"Wave 3: kill the brute","next":"dawn","enter":[{"act":"banner","text":"WAVE 3"},{"act":"spawn","asset":"zombie","count":8,"behavior":"attack","health":3,"damage":10,"speed":1.3,"near":"player","radius":26},{"act":"spawn","asset":"zombie","id":"brute","count":1,"scale":2.4,"behavior":"attack","health":30,"damage":30,"speed":0.8,"near":"player","radius":28,"tint":"#804040"}]}
+{"op":"stage","id":"dawn","goal":"You made it to dawn","enter":[{"act":"win","text":"Dawn. {kills} down."},{"act":"music","mood":"calm"}]}
+{"op":"when","id":"cleared","event":"becomes","test":"alive(zombie) == 0 and time > 4","do":[{"act":"heal","who":"player","amount":25},{"act":"stage","go":"next","delay":3}]}
+{"op":"when","id":"down","event":"die","target":"zombie","do":[{"act":"add","var":"kills"},{"act":"burst","kind":"smoke","color":"#405030"}]}
+{"op":"when","id":"barrel_boom","event":"die","target":"explosive_barrel","do":[{"act":"explode","force":16,"damage":20,"radius":6}]}
+{"op":"when","id":"medkit","event":"press","target":"ammo_crate","cooldown":20,"do":[{"act":"heal","who":"player","amount":50},{"act":"sound","name":"heal"}]}
+{"op":"when","id":"dead","event":"die","target":"player","do":[{"act":"lose","text":"Overrun on {kills} kills"},{"act":"stage","go":"wave_1","delay":5},{"act":"set","var":"kills","to":0,"delay":5}]}
+{"op":"ambience","loop":"spooky"}
+{"op":"music","mood":"tense"}
+{"op":"say","text":"They're coming out of the fog. Grip the shotgun, trigger fires; shoot the red barrels when they bunch up, and press the crate for a medkit."}

@@ -1,0 +1,28 @@
+{"playbook":"a place that teaches","ask":"walk me through the solar system","tags":["solar","system","planets","space","learn","teach","education","museum","science","explain","show","how","works","inside","cell","volcano","history","dinosaur","tour","guide","exhibit"]}
+{"op":"think","text":"A walkway through the planets in order, each labelled, each telling its fact when pressed, a guide to ask."}
+{"op":"sky","preset":"deep_space","nebula":0.5}
+{"op":"terrain","type":"none"}
+{"op":"physics","gravity":0.3}
+{"op":"player","jump":true}
+{"op":"spawn","id":"walk","asset":"cube","at":[0,0,26],"scale":[3,0.1,60],"tint":"#1C2238","solid":true,"finish":"glass","pattern":"grid","pattern_color":"#3050A0","pattern_scale":1}
+{"op":"spawn","id":"sun","asset":"planet","at":[0,6,-14],"scale":9,"tint":"#FFC030","light":{"color":"#FFD890","range":60,"intensity":2},"label":"The Sun","motion":"spin"}
+{"op":"spawn","id":"mercury","asset":"planet","at":[-3,1.6,4],"scale":0.5,"tint":"#9A8F88","label":"Mercury","motion":"spin"}
+{"op":"spawn","id":"venus","asset":"planet","at":[3,1.6,10],"scale":0.9,"tint":"#E0B870","label":"Venus","motion":"spin"}
+{"op":"spawn","id":"earth","asset":"planet","at":[-3,1.6,16],"scale":1,"tint":"#3070D0","label":"Earth","motion":"spin"}
+{"op":"spawn","id":"mars","asset":"planet","at":[3,1.6,22],"scale":0.7,"tint":"#C05030","label":"Mars","motion":"spin"}
+{"op":"spawn","id":"jupiter","asset":"planet","at":[-5,3,31],"scale":4,"tint":"#D0A070","label":"Jupiter","motion":"spin"}
+{"op":"spawn","id":"saturn","asset":"ringed_planet","at":[6,3,41],"scale":3.4,"label":"Saturn","motion":"spin"}
+{"op":"scatter","id":"belt","asset":"asteroid","count":40,"area":"ring","radius":[24,28],"motion":"orbit","scale":[0.2,0.6]}
+{"op":"spawn","id":"guide","asset":"astronaut","at":[1.6,0.1,2.5],"behavior":"follow","name":"Commander Rao","voice":"warm","persona":"A retired astronaut who loves questions. Explains the solar system simply and vividly, one idea at a time, and always ends by pointing at the next thing to look at.","says":["Ask me anything.","Press a planet to hear about it."]}
+{"op":"var","name":"visited","value":0,"label":"Worlds visited","max":6}
+{"op":"hud","objective":"Walk the path: point at a planet and pull the trigger"}
+{"op":"when","id":"f_mercury","event":"press","target":"mercury","once":true,"do":[{"act":"add","var":"visited"},{"act":"narrate","text":"Mercury: the smallest planet, where a year lasts eighty-eight days."}]}
+{"op":"when","id":"f_venus","event":"press","target":"venus","once":true,"do":[{"act":"add","var":"visited"},{"act":"narrate","text":"Venus: hot enough to melt lead, wrapped in clouds of acid."}]}
+{"op":"when","id":"f_earth","event":"press","target":"earth","once":true,"do":[{"act":"add","var":"visited"},{"act":"narrate","text":"Earth: the only world we know with oceans on its surface, and with us."}]}
+{"op":"when","id":"f_mars","event":"press","target":"mars","once":true,"do":[{"act":"add","var":"visited"},{"act":"narrate","text":"Mars: a cold red desert with the tallest volcano in the solar system."}]}
+{"op":"when","id":"f_jupiter","event":"press","target":"jupiter","once":true,"do":[{"act":"add","var":"visited"},{"act":"narrate","text":"Jupiter: a storm bigger than Earth has raged here for centuries."}]}
+{"op":"when","id":"f_saturn","event":"press","target":"saturn","once":true,"do":[{"act":"add","var":"visited"},{"act":"narrate","text":"Saturn: its rings are ice, some pieces as small as dust, some as big as houses."}]}
+{"op":"when","id":"tour_done","event":"becomes","test":"visited >= 6","do":[{"act":"win","text":"Six worlds visited"},{"act":"direct","note":"they finished the tour of the inner planets and Jupiter and Saturn: offer the outer planets, or a closer look at one of them"}]}
+{"op":"ambience","loop":"space_hum"}
+{"op":"music","mood":"dreamy"}
+{"op":"say","text":"Welcome aboard the walkway. Point at any planet and pull the trigger to hear about it, or look at Commander Rao and hold the talk button to ask her anything."}

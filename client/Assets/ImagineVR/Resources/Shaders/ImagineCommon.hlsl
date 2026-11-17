@@ -107,13 +107,14 @@ half3 ImInteriorBase(half3 albedo, float3 normalWS, float3 worldPosition)
     return ImLight(albedo, normalWS);
 }
 
-float4 _ImHeldLightPositions[4];
-float4 _ImHeldLightDirections[4];
-float4 _ImHeldLightColors[4];
+// Twelve point or spot lights: four held (flashlights, lanterns) and eight in the world (lamps, fires, headlights). See Lights.cs.
+float4 _ImHeldLightPositions[12];
+float4 _ImHeldLightDirections[12];
+float4 _ImHeldLightColors[12];
 half3 ImInteriorLight(half3 albedo, float3 normalWS, float3 worldPosition)
 {
     half3 lit = ImInteriorBase(albedo, normalWS, worldPosition);
-    [unroll] for (int i = 0; i < 4; i++)
+    [unroll] for (int i = 0; i < 12; i++)
     {
         float4 source = _ImHeldLightPositions[i];
         if (source.w <= 0) continue;

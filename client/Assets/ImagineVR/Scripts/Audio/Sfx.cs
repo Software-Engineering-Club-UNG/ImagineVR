@@ -73,10 +73,16 @@ namespace ImagineVR
             }
         }
 
+        /// <summary>A sound made on the spot (`sfx`), found by name like any other from now on.</summary>
+        public static void Register(string name, AudioClip clip) { if (!string.IsNullOrEmpty(name) && clip != null) Clips[name] = clip; }
+
         public static AudioClip Get(string name)
         {
             name = Known(name);
             if (Clips.TryGetValue(name, out AudioClip clip)) return clip;
+            // the sounds the third version names, synthesised from a recipe the first time they are wanted
+            clip = Synth.Builtin(name);
+            if (clip != null) { Clips[name] = clip; return clip; }
             clip = Resources.Load<AudioClip>("Sfx/" + name);
             if (clip == null)
             {

@@ -1,0 +1,22 @@
+{"playbook":"mini golf","ask":"mini golf with a windmill","tags":["mini","minigolf","crazy","putt","putting","windmill","golf","course"]}
+{"op":"think","text":"A felt lane with kerbs and a windmill across the middle; the cup behind it; a putter and three holes to make."}
+{"op":"sky","preset":"golden_hour"}
+{"op":"terrain","type":"flat","material":"grass"}
+{"op":"spawn","id":"felt","asset":"cube","at":[0,0,7],"scale":[2.4,0.06,13],"tint":"#2E8B57","solid":true,"surface":"felt"}
+{"op":"spawn","id":"kerb","asset":"cube","at":[-1.3,0,7],"scale":[0.2,0.22,13.4],"tint":"#E8DCC0","repeat":2,"step":[2.6,0,0],"solid":true,"surface":"rubber"}
+{"op":"spawn","id":"kerb_end","asset":"cube","at":[0,0,13.6],"scale":[2.8,0.22,0.2],"tint":"#E8DCC0","solid":true,"surface":"rubber"}
+{"op":"make","name":"putt_mill","kind":"thing","parts":[{"shape":"cube","position":[-0.8,0.9,0],"scale":[0.7,1.8,0.8],"taper":0.7,"color":"#C84030","pattern":"planks"},{"shape":"cube","position":[0.8,0.9,0],"scale":[0.7,1.8,0.8],"taper":0.7,"color":"#C84030","pattern":"planks"},{"shape":"cube","position":[0,2.1,0],"scale":[2.4,0.9,0.9],"color":"#C84030"},{"shape":"pyramid","position":[0,3.0,0],"scale":[2.6,0.9,1.1],"color":"#3A3A48"},{"shape":"cube","position":[0,2.1,0.6],"scale":[0.22,3.4,0.06],"color":"#F2EAD8","pivot":[0,2.1,0.6],"anim":{"spin":[0,0,50]}},{"shape":"cube","position":[0,2.1,0.6],"scale":[3.4,0.22,0.06],"color":"#F2EAD8","pivot":[0,2.1,0.6],"anim":{"spin":[0,0,50]}}],"refine":"a little red clapboard windmill for a crazy-golf course, with a tunnel through its base 0.9 m wide for the ball, a slate roof, white lattice sails that turn, a tiny door and window boxes"}
+{"op":"spawn","id":"mill","asset":"putt_mill","at":[0,0.06,8],"solid":true}
+{"op":"spawn","id":"golf_ball","asset":"golf_ball","at":[0,0.12,1.2],"physics":true,"bounce":0.5}
+{"op":"zone","id":"cup","at":[0,0.1,12.4],"radius":0.22,"show":"glow"}
+{"op":"spawn","id":"flag","asset":"golf_flag","at":[0.5,0,12.6],"scale":0.6}
+{"op":"give","asset":"golf_club"}
+{"op":"var","name":"strokes","value":0,"label":"Strokes"}
+{"op":"var","name":"hole","value":1,"label":"Hole","max":3}
+{"op":"hud","objective":"Putt under the windmill and into the cup"}
+{"op":"when","id":"tap","event":"strike","target":"golf_ball","do":[{"act":"add","var":"strokes"},{"act":"sound","name":"click"}]}
+{"op":"when","id":"holed","event":"enter","zone":"cup","target":"golf_ball","do":[{"act":"sound","name":"coin"},{"act":"burst","kind":"sparkles"},{"act":"banner","text":"Hole {hole} in {strokes}!"},{"act":"add","var":"hole"},{"act":"set","var":"strokes","to":0},{"act":"reset","target":"golf_ball","delay":2}]}
+{"op":"when","id":"done","event":"becomes","test":"hole > 3","do":[{"act":"win","text":"Course complete!"}]}
+{"op":"scatter","id":"lanterns","asset":"paper_lantern","count":10,"area":"ring","radius":[6,9],"light":"#FFC060"}
+{"op":"music","mood":"playful"}
+{"op":"say","text":"Crazy golf. Grip the putter and tap the ball gently: time it under the windmill's sails."}

@@ -5,7 +5,9 @@ from pathlib import Path
 from imagine.catalog import Catalog
 from imagine.language import Checker, WorldState, parse_line, reframe, to_frame
 
-CATALOG = Catalog.load(Path(__file__).resolve().parents[2] / "shared" / "catalog.json")
+# These are the tests of the language as a headset from before its third version plays it, so they run on
+# the catalog such a headset has. What the third version adds is tested in test_v3.py.
+CATALOG = Catalog.load(Path(__file__).resolve().parents[2] / "shared" / "catalog.json").before(3)
 
 
 def checker(frame=None):
@@ -118,7 +120,7 @@ def test_modify_and_remove():
 def test_the_prompt_is_small_and_names_only_real_assets():
     import re
     template = (Path(__file__).resolve().parents[1] / "imagine" / "prompt.md").read_text(encoding="utf-8")
-    prompt = template.replace("{{CATALOG}}", CATALOG.render())
+    prompt = template.replace("{{CATALOG}}", CATALOG.before(3).render())      # as a headset from before the third version is told it
     assert len(prompt) < 24_000, "every turn pays for the prompt"
     made = set(re.findall(r'"op":"make","name":"([a-z_]+)"', template))
     for name in set(re.findall(r'"asset":"([a-z_]+)"', template)) - made - {"none"}:

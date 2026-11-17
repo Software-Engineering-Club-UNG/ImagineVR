@@ -281,7 +281,7 @@ namespace ImagineVR.EditorTools
             Library.EnsureLoaded();
             var root = new Dictionary<string, object>
             {
-                ["language_version"] = 2,
+                ["language_version"] = 3,
                 ["catalog_version"] = "",
                 ["limits"] = new Dictionary<string, object>
                 {
@@ -309,7 +309,12 @@ namespace ImagineVR.EditorTools
             root["terrain_types"] = terrains;
 
             var materials = new List<object>();
-            foreach (GroundMaterial m in Library.GroundMaterials) materials.Add(m.ToCatalog());
+            foreach (GroundMaterial m in Library.GroundMaterials)
+            {
+                Dictionary<string, object> d = m.ToCatalog();
+                if (m.Since > 0) d["since"] = m.Since;     // written last, as scripts/catalog.py writes it
+                materials.Add(d);
+            }
             root["materials"] = materials;
 
             var assets = new List<object>();
@@ -328,6 +333,7 @@ namespace ImagineVR.EditorTools
                     if (a.Held.Effect.Length > 0) d["held_effect"] = a.Held.Effect;
                     d["use"] = a.Desc;
                 }
+                if (a.Since > 0) d["since"] = a.Since;
                 assets.Add(d);
             }
             root["assets"] = assets;

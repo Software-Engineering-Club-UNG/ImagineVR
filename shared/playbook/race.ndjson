@@ -1,0 +1,20 @@
+{"playbook":"a race round a circuit","ask":"let me race a sports car","tags":["race","racing","racer","track","circuit","lap","laps","grand","prix","speedway","nascar","kart","drift","rally","formula","time","trial"]}
+{"op":"think","text":"A banked circuit on a wide plain: grandstand at the start, barriers, three rivals, lap times on the dash."}
+{"op":"sky","preset":"clear_noon"}
+{"op":"terrain","type":"rolling","material":"grass","size":"vast","height":0.1}
+{"op":"road","id":"track","kind":"track","shape":"oval","at":[0,0,60],"size":[260,150],"width":14,"barriers":true,"checkpoints":6}
+{"op":"spawn","id":"stand","asset":"grandstand","at":[-22,0,10],"rot_y":90,"solid":true}
+{"op":"spawn","id":"pit_wall","asset":"barrier","at":[9,0,4],"repeat":8,"step":[0,0,3],"solid":true}
+{"op":"scatter","id":"tyres","asset":"tire_stack","count":14,"area":"front","radius":[14,60],"physics":true}
+{"op":"spawn","id":"rival_1","asset":"race_car","tint":"#2050D0","path":[[4,0,20],[4,0,120],[60,0,135],[120,0,60],[60,0,-15],[4,0,0]],"speed":24,"solid":true}
+{"op":"spawn","id":"rival_2","asset":"sports_car","tint":"#F0C020","path":[[-3,0,35],[-3,0,120],[60,0,138],[124,0,60],[60,0,-18],[-3,0,0]],"speed":21,"solid":true}
+{"op":"ride","asset":"sports_car","tint":"#D02020","drive":"car","grip":0.8}
+{"op":"var","name":"laps_to_go","value":3,"label":"Laps to go"}
+{"op":"hud","objective":"Three laps. Beat your best."}
+{"op":"when","id":"lapped","event":"lap","do":[{"act":"add","var":"laps_to_go","by":-1},{"act":"banner","text":"Lap {lap}: {lap_time}s  (best {best_lap}s)"},{"act":"sound","name":"beep"}]}
+{"op":"when","id":"finish","event":"becomes","test":"laps_to_go <= 0","do":[{"act":"win","text":"Chequered flag! Best lap {best_lap}s"},{"act":"sound","name":"cheer"},{"act":"set","var":"laps_to_go","to":3,"delay":8}]}
+{"op":"when","id":"crash","event":"hit","target":"tire_stack","do":[{"act":"sound","name":"crash"},{"act":"burst","kind":"dust"}]}
+{"op":"scatter","id":"crowd_trees","asset":"oak_tree","count":60,"area":"edges","clusters":8}
+{"op":"music","mood":"action"}
+{"op":"ambience","loop":"wind"}
+{"op":"say","text":"You're on the grid. Right trigger is the throttle, left trigger brakes, steer with the left stick or grab the wheel: three laps."}

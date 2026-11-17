@@ -20,6 +20,8 @@ namespace ImagineVR
             "say", "clear", "sky", "light", "fog", "terrain", "weather", "physics",
             "spawn", "scatter", "give", "ride", "player", "modify", "remove", "ambience",
             "make", "when", "structure", "door",
+            // the third version (play-v1)
+            "road", "zone", "var", "hud", "stage", "fx", "sfx", "music", "speak", "narrate", "story",
         };
 
         public bool IsStream => StreamOps.Contains(Op);
@@ -42,6 +44,14 @@ namespace ImagineVR
         public static Statement Wrap(Dictionary<string, object> fields) => new Statement { Op = "", Fields = fields ?? new Dictionary<string, object>() };
 
         public Vector3 Vec(string key, Vector3 fallback) => TryVec3(key, out Vector3 v) ? v : fallback;
+
+        /// <summary>Makes a wrapped object (a rule's action) into a statement of this operation, to be applied like one the server sent.</summary>
+        public Statement WithOp(string op)
+        {
+            Op = op;
+            Fields["op"] = op;
+            return this;
+        }
 
         public List<Dictionary<string, object>> ObjList(string key)
         {

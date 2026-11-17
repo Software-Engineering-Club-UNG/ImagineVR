@@ -59,6 +59,7 @@ def _stem(word: str) -> str:
 class Catalog:
     def __init__(self, data: dict):
         self.data = data
+        self._earlier: dict[int, "Catalog"] = {}
         self.language_version: int = int(data.get("language_version", 1))
         self.version: str = str(data.get("catalog_version", "unknown"))
         self.limits: dict = {**DEFAULT_LIMITS, **data.get("limits", {})}
@@ -86,6 +87,19 @@ class Catalog:
     def load(cls, path: Path) -> "Catalog":
         with open(path, "r", encoding="utf-8") as f:
             return cls(json.load(f))
+
+    def before(self, language_version: int) -> "Catalog":
+        """
+        The catalog as a headset from before that version of the language has it. An entry says
+        `since` when it arrived; an older build has no recipe for it, and would stand a labelled
+        block in its place, so that headset's model is never told it exists.
+        """
+        if language_version not in self._earlier:
+            data = dict(self.data)
+            for key in KINDS.values():
+                data[key] = [e for e in self.data.get(key, []) if int(e.get("since", 0)) < language_version]
+            self._earlier[language_version] = Catalog(data)
+        return self._earlier[language_version]
 
     # ------------------------------------------------------------------ lookup
 

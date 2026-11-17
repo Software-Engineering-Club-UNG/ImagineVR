@@ -1,0 +1,19 @@
+{"playbook":"a dogfight","ask":"jet fighter dogfight","tags":["dogfight","fighter","jet","jets","combat","air","enemy","planes","shoot","missile","gun","warplane","ace","squadron","bomber","battle","sky"]}
+{"op":"think","text":"Already airborne over an ocean of cloud and islands: four bandits circling, cannons live, a wingman."}
+{"op":"sky","preset":"sunset_pink","clouds":0.7}
+{"op":"terrain","type":"archipelago","material":"sand","patches":"grass","size":"vast","height":0.5}
+{"op":"player","health":100}
+{"op":"ride","asset":"fighter_jet","drive":"plane","altitude":220,"speed":1.4}
+{"op":"spawn","id":"bandit_1","asset":"fighter_jet","tint":"#703030","path":[[-200,240,500],[200,260,700],[420,220,300],[100,200,60],[-300,250,200]],"speed":46,"health":6,"team":"red","solid":true}
+{"op":"spawn","id":"bandit_2","asset":"fighter_jet","tint":"#703030","path":[[300,300,400],[-100,280,650],[-400,240,300],[-100,260,-50],[320,280,80]],"speed":42,"health":6,"team":"red","solid":true}
+{"op":"spawn","id":"bandit_3","asset":"fighter_jet","tint":"#703030","path":[[0,200,800],[350,210,560],[150,190,200],[-250,220,420]],"speed":50,"health":6,"team":"red","solid":true}
+{"op":"spawn","id":"ace","asset":"fighter_jet","tint":"#101010","path":[[0,340,600],[400,320,400],[0,300,100],[-400,330,380]],"speed":55,"health":14,"team":"red","solid":true,"label":"THE BARON"}
+{"op":"scatter","id":"flak_clouds","asset":"cloud","count":40,"area":"sky","radius":[80,900]}
+{"op":"var","name":"kills","value":0,"label":"Kills"}
+{"op":"hud","objective":"Splash the four bandits"}
+{"op":"when","id":"hit_fx","event":"hit","target":"fighter_jet","do":[{"act":"burst","kind":"sparks"},{"act":"sound","name":"clang"}]}
+{"op":"when","id":"splash","event":"die","target":"fighter_jet","do":[{"act":"explode","force":0},{"act":"fx","kind":"smoke","seconds":6},{"act":"add","var":"kills"},{"act":"banner","text":"Splash {kills}!"},{"act":"remove","delay":0.3}]}
+{"op":"when","id":"flak","event":"every","seconds":6,"if":"kills < 4","do":[{"act":"damage","who":"player","amount":6,"if":"rand(0,1) < 0.5"},{"act":"shake","amount":0.4},{"act":"sound","name":"boom"}]}
+{"op":"when","id":"victory","event":"becomes","test":"kills >= 4","do":[{"act":"win","text":"Sky's clear. Ace!"},{"act":"music","mood":"heroic"}]}
+{"op":"music","mood":"action"}
+{"op":"say","text":"Bandits ahead. Right stick flies her, left stick is the throttle, and the right trigger fires the cannons."}

@@ -1,0 +1,32 @@
+{"playbook":"an escape room","ask":"an escape room in a locked library","tags":["escape","room","puzzle","locked","lock","code","clue","clues","riddle","library","mystery","detective","mansion","murder","investigate","secret","vault","heist","safe"]}
+{"op":"think","text":"Two rooms: a study with three levers to set and a clue on the wall, and a locked vault beyond with the way out."}
+{"op":"clear"}
+{"op":"sky","preset":"night_stars"}
+{"op":"structure","id":"manor","theme":"house","wall":"#5A3E30","floor":"#3A2A20","light":"#FFC878","brightness":0.4,"windows":["east"],"enter":true,"rooms":[{"id":"study","size":[7,8]},{"id":"vault","size":[4,5]}]}
+{"op":"door","id":"manor_door_1_vault","state":"lock"}
+{"op":"door","id":"manor_exit","state":"lock"}
+{"op":"scatter","id":"shelves","asset":"bookshelf","room":"study","count":8,"arrange":"walls"}
+{"op":"spawn","id":"desk","asset":"table","room":"study","at":[0,0,1.5]}
+{"op":"spawn","id":"note","asset":"cube","room":"study","at":[-3.3,1.5,0],"scale":[0.06,0.8,1.2],"tint":"#F2E8C8","sign":"RAVEN, THEN ROSE, NEVER THE CROWN"}
+{"op":"spawn","id":"lever_raven","asset":"lever","room":"study","at":[-1.5,0,3.4],"label":"Raven"}
+{"op":"spawn","id":"lever_rose","asset":"lever","room":"study","at":[0,0,3.4],"label":"Rose"}
+{"op":"spawn","id":"lever_crown","asset":"lever","room":"study","at":[1.5,0,3.4],"label":"Crown"}
+{"op":"spawn","id":"books","asset":"book","room":"study","at":[0.3,0.9,1.5],"physics":true,"repeat":3,"step":[0.25,0,0]}
+{"op":"spawn","id":"candle","asset":"lantern","room":"study","at":[-0.6,0.9,1.4],"physics":true,"light":"#FFB060"}
+{"op":"spawn","id":"exit_key","asset":"key","room":"vault","at":[0,0.9,1],"physics":true,"scale":2,"light":"#FFE080"}
+{"op":"spawn","id":"plinth","asset":"cube","room":"vault","at":[0,0,1],"scale":[0.6,0.85,0.6],"tint":"#8A8478","solid":true,"finish":"stone"}
+{"op":"scatter","id":"loot","asset":"gem","room":"vault","count":6,"physics":true}
+{"op":"var","name":"step","value":0}
+{"op":"timer","name":"clock","seconds":300,"label":"Time left"}
+{"op":"hud","objective":"Find the way out of the study"}
+{"op":"when","id":"raven","event":"press","target":"lever_raven","do":[{"act":"sound","name":"click"},{"act":"set","var":"step","to":1,"if":"step == 0"},{"act":"set","var":"step","to":0,"if":"step > 1"}]}
+{"op":"when","id":"rose","event":"press","target":"lever_rose","do":[{"act":"sound","name":"click"},{"act":"set","var":"step","to":2,"if":"step == 1"}]}
+{"op":"when","id":"crown","event":"press","target":"lever_crown","do":[{"act":"sound","name":"thud"},{"act":"set","var":"step","to":0},{"act":"banner","text":"Something resets behind the wall"}]}
+{"op":"when","id":"vault_opens","event":"becomes","test":"step == 2","do":[{"act":"sound","name":"unlock"},{"act":"door","id":"manor_door_1_vault","state":"unlock"},{"act":"door","id":"manor_door_1_vault","state":"open"},{"act":"objective","text":"The vault is open: find the key"}]}
+{"op":"when","id":"have_key","event":"grab","target":"exit_key","once":true,"do":[{"act":"door","id":"manor_exit","state":"unlock"},{"act":"objective","text":"Out through the front door!"}]}
+{"op":"zone","id":"outside","at":[0,1,-8],"size":[12,4,5]}
+{"op":"when","id":"escaped","event":"enter","zone":"outside","do":[{"act":"win","text":"Out with {clock} seconds to spare"}]}
+{"op":"when","id":"too_late","event":"becomes","test":"clock <= 0","do":[{"act":"lose","text":"The clock ran out"}]}
+{"op":"ambience","loop":"fire_crackle"}
+{"op":"music","mood":"mysterious"}
+{"op":"say","text":"The door has locked behind you. Point an empty hand at a lever and pull the trigger to throw it: the note on the wall is your only clue."}

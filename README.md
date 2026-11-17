@@ -82,9 +82,17 @@ Details: [`infra/vultr/README.md`](infra/vultr/README.md) for the VM,
 | reactions | `when`: an event (`hit`, `near`, `grab`, `use`, `every`, `start`), a target, and a list of actions |
 | talk | `think`, `say` |
 
-There are no scenario features: no kits, no game modes, no scoring system. Bowling is loose
-pins and a ball; a city to drive through is rows of solid buildings, traffic on paths and a
-ride; a shooting gallery is things that are alive and a `when hit` rule.
+There are no scenario features: no kits, no game modes. Bowling is loose pins on a slippery
+lane, a zone behind them and a rule about what is still standing; a city to drive through is a
+`road` grid with buildings and traffic and a `ride`; a shooting gallery is targets on paths and a
+`when hit` rule that adds to a counter.
+
+**Language v3** (headsets that send `play-v1`; see [docs/OVERHAUL.md](docs/OVERHAUL.md)) adds
+counters, zones, stages, health, a HUD, roads, drive models for anything ridden, parts that move,
+people who answer when spoken to, synthesised sound and music; and builds a new place with several
+model calls at once (a director, modellers, a detail pass, a play pass), shown worked examples of
+requests like the one made (`shared/playbook`). The reference is `openrouter-api/imagine/v3.py`
+and `openrouter-api/imagine/prompts/`. Older headsets get the language above, unchanged.
 
 ## Lessons from the first version (read before changing how things work)
 

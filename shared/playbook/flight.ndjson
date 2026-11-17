@@ -1,0 +1,31 @@
+{"playbook":"flying a plane","ask":"let me fly a plane","tags":["fly","flying","flight","plane","airplane","aeroplane","pilot","cessna","airfield","airport","runway","takeoff","land","landing","stunt","rings","biplane","glider","aviation"]}
+{"op":"think","text":"A grass airfield in a mountain valley: a runway ahead, hangars, a tower, rings to thread once airborne."}
+{"op":"sky","preset":"morning","clouds":0.5,"image":"a wide alpine valley ringed by snow-capped peaks under scattered morning cloud"}
+{"op":"terrain","type":"valley","material":"grass","size":"vast","height":0.5,"regions":[{"id":"strip","material":"asphalt","at":[0,200],"size":[60,480],"level":true,"blend":20}]}
+{"op":"road","id":"runway","kind":"runway","shape":"straight","at":[0,0,200],"length":440,"width":22}
+{"op":"spawn","id":"hangar_a","asset":"hangar","at":[-45,0,30],"rot_y":90,"solid":true}
+{"op":"spawn","id":"tower","asset":"control_tower","at":[-48,0,80],"solid":true,"light":"#FF4040"}
+{"op":"spawn","id":"sock","asset":"windsock","at":[18,0,12]}
+{"op":"spawn","id":"parked","asset":"biplane","at":[-24,0,24],"rot_y":120}
+{"op":"scatter","id":"sheds","asset":"warehouse","count":3,"area":"left","radius":[60,110]}
+{"op":"spawn","id":"ring","asset":"ring_gate","at":[0,45,520],"scale":3,"tint":"#40E0FF","light":"#40E0FF"}
+{"op":"spawn","id":"ring_2","asset":"ring_gate","at":[160,70,700],"rot_y":40,"scale":3,"tint":"#40E0FF"}
+{"op":"spawn","id":"ring_3","asset":"ring_gate","at":[380,60,560],"rot_y":110,"scale":3,"tint":"#40E0FF"}
+{"op":"spawn","id":"ring_4","asset":"ring_gate","at":[300,90,260],"rot_y":190,"scale":3,"tint":"#40E0FF"}
+{"op":"zone","id":"gate_1","on":"ring","radius":11}
+{"op":"zone","id":"gate_2","on":"ring_2","radius":11}
+{"op":"zone","id":"gate_3","on":"ring_3","radius":11}
+{"op":"zone","id":"gate_4","on":"ring_4","radius":11}
+{"op":"ride","asset":"prop_plane","drive":"plane"}
+{"op":"var","name":"rings","value":0,"label":"Rings","max":4}
+{"op":"hud","objective":"Take off, then fly through the four rings"}
+{"op":"when","id":"g1","event":"enter","zone":"gate_1","once":true,"do":[{"act":"add","var":"rings"},{"act":"sound","name":"powerup"},{"act":"remove","target":"ring"}]}
+{"op":"when","id":"g2","event":"enter","zone":"gate_2","once":true,"do":[{"act":"add","var":"rings"},{"act":"sound","name":"powerup"},{"act":"remove","target":"ring_2"}]}
+{"op":"when","id":"g3","event":"enter","zone":"gate_3","once":true,"do":[{"act":"add","var":"rings"},{"act":"sound","name":"powerup"},{"act":"remove","target":"ring_3"}]}
+{"op":"when","id":"g4","event":"enter","zone":"gate_4","once":true,"do":[{"act":"add","var":"rings"},{"act":"sound","name":"powerup"},{"act":"remove","target":"ring_4"}]}
+{"op":"when","id":"all_rings","event":"becomes","test":"rings >= 4","do":[{"act":"objective","text":"Now bring her home: land on the runway"},{"act":"banner","text":"All four! Now land."}]}
+{"op":"when","id":"landed","event":"becomes","test":"rings >= 4 and height() < 3 and speed() < 4 and time > 30","do":[{"act":"win","text":"A perfect landing."},{"act":"sound","name":"applause"}]}
+{"op":"scatter","id":"cloudbank","asset":"cloud","count":24,"area":"sky"}
+{"op":"ambience","loop":"wind"}
+{"op":"music","mood":"heroic"}
+{"op":"say","text":"She's fuelled and facing down the runway. Left stick forward for throttle, then ease the right stick back to lift off; roll with it to turn."}
