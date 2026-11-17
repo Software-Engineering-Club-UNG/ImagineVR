@@ -14,7 +14,7 @@ namespace ImagineVR
     /// </summary>
     public static class Maker
     {
-        public const int MaxParts = 48;
+        public const int MaxParts = 120;
 
         public static AssetDef Make(Statement s)
         {
@@ -24,7 +24,8 @@ namespace ImagineVR
             if (s.Fields.TryGetValue("parts", out object raw) && raw is List<object> list)
                 foreach (object item in list) if (item is Dictionary<string, object> part && parts.Count < MaxParts) parts.Add(part);
             Dictionary<string, object> fires = s.Obj("fires");
-            bool tool = kind == "tool" || fires != null;
+            // in the third version a tank, a jet or a dragon may shoot and still be what it is
+            bool tool = kind == "tool" || fires != null && (kind == "thing" || kind == "tool");
             s.TryVec3("grip", out Vector3 grip);
 
             var def = new AssetDef
@@ -41,6 +42,12 @@ namespace ImagineVR
                 },
             };
             if (kind == "flyer") def.Flies();
+            // the third version
+            def.Drive = s.Str("drive", "");
+            if (s.TryVec3("seat", out Vector3 seat)) def.SeatAt(seat);
+            def.Health = s.Num("health", 0f);
+            Dictionary<string, object> strike = s.Obj("strike");
+            if (strike != null) { Statement k = Statement.Wrap(strike); def.Strikes(k.Num("power", 1.2f), k.Num("loft", 0f)); }
 
             Bounds b = def.Bounds;   // builds the mesh
             if (def.Mesh.vertexCount == 0)
@@ -72,6 +79,12 @@ namespace ImagineVR
                     def.Pellets = Mathf.Clamp(f.Int("pellets", 1), 1, 12);
                     def.Spread = Mathf.Clamp(f.Num("spread", def.Pellets > 1 ? 5f : 0f), 0f, 30f);
                     def.ShotLife = def.Automatic ? 2.5f : 5f;
+                    def.Damage = Mathf.Clamp(f.Num("damage", 1f), 0f, 1000f);
+                    def.Magazine = Mathf.Clamp(f.Int("ammo", 0), 0, 999);
+                    def.ReloadSeconds = Mathf.Clamp(f.Num("reload", 1.5f), 0.2f, 10f);
+                    def.Recoil = Mathf.Clamp01(f.Num("recoil", 0f));
+                    def.Hitscan = f.Flag("hitscan");
+                    def.Blast = Mathf.Clamp(f.Num("blast", 0f), 0f, 15f);
                     if (f.TryColor("color", out Color shot)) def.Shoots(shot);
                     // `shoots`: a kind of burst, or the name of anything at all (looked up when fired, so it may be made later)
                     string shoots = f.Str("shoots", "");
@@ -99,6 +112,9 @@ namespace ImagineVR
         }
 
         // ------------------------------------------------------------------ parts
+
+        /// <summary>Builds a list of parts into a mesh: for `make`, and for library assets written as parts (Resources/LibraryV3.json).</summary>
+        public static void BuildParts(MeshBuilder mb, List<Dictionary<string, object>> parts) => Build(mb, parts);
 
         static void Build(MeshBuilder mb, List<Dictionary<string, object>> parts)
         {
@@ -177,10 +193,32 @@ namespace ImagineVR
             step = Quaternion.Inverse(Quaternion.Euler(turn)) * step;   // `step` is measured like `position`, not along the turned part
             bool centred = shape != "dome" && !drawn;
             Vector3 anchor = !centred ? Vector3.zero : p.Str("anchor") == "top" ? Vector3.down * s.y * 0.5f : p.Str("anchor") == "bottom" ? Vector3.up * s.y * 0.5f : Vector3.zero;
+            string role = p.Str("role", "");
+            Dictionary<string, object> anim = p.Obj("anim");
+            bool moves = anim != null || role == "wheel" || role == "spinner" || role == "steer" || role == "flap" || role == "door";
             for (int k = 0; k < copies; k++)
             {
                 mb.Push(step * k + anchor, Vector3.zero, mirrored ? new Vector3(-1f, 1f, 1f) : Vector3.one);
+                if (moves)
+                {
+                    Vector3? pivot = null;
+                    if (p.TryVec3("pivot", out Vector3 given)) { if (mirrored) given.x = -given.x; pivot = given + step * k; }
+                    mb.BeginPart(role, pivot);
+                    PartDef open = mb.OpenPart;
+                    if (open != null && anim != null)
+                    {
+                        Statement a = Statement.Wrap(anim);
+                        open.Spin = a.Vec("spin", Vector3.zero);
+                        open.Swing = a.Vec("swing", Vector3.zero);
+                        open.Every = Mathf.Max(a.Num("every", 2f), 0.05f);
+                        open.Bob = a.Num("bob", 0f);
+                        open.When = a.Str("when", "always");
+                        if (mirrored) { open.Spin = new Vector3(open.Spin.x, -open.Spin.y, -open.Spin.z); open.Swing = new Vector3(open.Swing.x, -open.Swing.y, -open.Swing.z); }
+                    }
+                }
+                else if (role == "lamp" || role == "seat" || role == "gun" || role == "thruster") mb.Mark(role, Vector3.zero);
                 Shape(mb, p, part, shape, s);
+                if (moves) mb.EndPart();
                 mb.Pop();
             }
             mb.Emit(0f);
@@ -254,6 +292,50 @@ namespace ImagineVR
                     if (outline.Count >= 3) mb.Push(Vector3.zero, Vector3.zero, s).Slab(outline, Mathf.Max(p.Num("thickness", 0.05f), 0.002f)).Pop();
                     else mb.BevelBox(Vector3.zero, s, Mathf.Min(0.1f * least, 0.03f));
                     break;
+                case "building": Architecture.Facade(mb, s, p); break;
+                case "stairs":
+                {
+                    int steps = Mathf.Clamp(p.Int("steps", 6), 2, 40);
+                    for (int i = 0; i < steps; i++)
+                    {
+                        float h = s.y * (i + 1) / steps, d = s.z / steps;
+                        mb.BevelBox(new Vector3(0f, -s.y * 0.5f + h * 0.5f, -s.z * 0.5f + d * (i + 0.5f)), new Vector3(s.x, h, d), Mathf.Min(0.01f, d * 0.1f));
+                    }
+                    break;
+                }
+                case "arch":
+                {
+                    // two piers and a half ring over them: a doorway, a bridge, a gate
+                    float pier = s.x * 0.18f;
+                    mb.BevelBox(new Vector3(-s.x * 0.5f + pier * 0.5f, -s.y * 0.15f, 0f), new Vector3(pier, s.y * 0.7f, s.z), 0.01f);
+                    mb.BevelBox(new Vector3(s.x * 0.5f - pier * 0.5f, -s.y * 0.15f, 0f), new Vector3(pier, s.y * 0.7f, s.z), 0.01f);
+                    float inner = s.x * 0.5f - pier, outer = s.x * 0.5f;
+                    const int seg = 10;
+                    for (int i = 0; i < seg; i++)
+                    {
+                        float a0 = Mathf.PI * i / seg, a1 = Mathf.PI * (i + 1) / seg;
+                        Vector3 c = new Vector3(0f, s.y * 0.2f, 0f);
+                        Vector3 i0 = c + new Vector3(Mathf.Cos(a0) * inner, Mathf.Sin(a0) * inner * 0.6f, 0f), i1 = c + new Vector3(Mathf.Cos(a1) * inner, Mathf.Sin(a1) * inner * 0.6f, 0f);
+                        Vector3 o0 = c + new Vector3(Mathf.Cos(a0) * outer, Mathf.Sin(a0) * outer * 0.6f + pier * 0.6f, 0f), o1 = c + new Vector3(Mathf.Cos(a1) * outer, Mathf.Sin(a1) * outer * 0.6f + pier * 0.6f, 0f);
+                        Vector3 f = Vector3.forward * s.z * 0.5f;
+                        mb.Quad(i0 + f, o0 + f, o1 + f, i1 + f, Vector3.forward).Quad(i0 - f, o0 - f, o1 - f, i1 - f, Vector3.back);
+                        mb.Quad(o0 - f, o1 - f, o1 + f, o0 + f, (o0 + o1) * 0.5f - c).Quad(i0 - f, i1 - f, i1 + f, i0 + f, c - (i0 + i1) * 0.5f);
+                    }
+                    break;
+                }
+                case "asset":
+                {
+                    // another asset as a part: a cannon on a ship, a rider on a horse, a lamp on a desk
+                    AssetDef inner = Library.Asset(p.Str("asset", ""));
+                    if (inner == null || inner.Made && inner.Id == p.Str("asset")) { mb.BevelBox(Vector3.zero, s, 0.02f); break; }
+                    Bounds ib = inner.Bounds;
+                    float k = Mathf.Min(s.x / Mathf.Max(ib.size.x, 0.01f), Mathf.Min(s.y / Mathf.Max(ib.size.y, 0.01f), s.z / Mathf.Max(ib.size.z, 0.01f)));
+                    if (!p.Has("scale") && !p.Has("size")) k = 1f;
+                    mb.Push(new Vector3(0f, -ib.size.y * k * 0.5f, 0f), Vector3.zero, Vector3.one * k);
+                    inner.Recipe(mb);
+                    mb.Pop();
+                    break;
+                }
                 case "tube":
                     List<Vector3> points = Points(part, "points");
                     if (points.Count >= 2) mb.Push(Vector3.zero, Vector3.zero, s).Tube(points, Mathf.Max(p.Num("radius", 0.05f), 0.002f), Mathf.Clamp(p.Int("sides", 6), 3, 12)).Pop();

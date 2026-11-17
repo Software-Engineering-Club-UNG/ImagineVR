@@ -26,6 +26,8 @@ namespace ImagineVR
         public bool Thrown;         // it left the hand at speed, and was not just put down
         public float RuledAt = -1f;     // when a rule last fired for it being hit, so one knock is one hit
         public float AwaySince = -1f;   // when it was first found waiting out of the user's reach; negative while in reach
+        public float Damage = 1f;       // for a shot: what it takes from something with health
+        public bool Hostile;            // a shot fired at the user, which hurts them when it reaches them
 
         Vector3 _floatAnchor;
         float _lastSound;
@@ -91,7 +93,7 @@ namespace ImagineVR
     /// <summary>Creates and looks after physics props and the things the user is given to hold.</summary>
     public sealed class PropSystem
     {
-        public const int MaxPhysics = 40;
+        public const int MaxPhysics = 64;
         const int MaxStrokes = 80;
 
         readonly World _world;
@@ -552,10 +554,26 @@ namespace ImagineVR
         {
             // struck by a shot or by something thrown hard: that is a hit, and rules may have something to say
             Prop source = collision.collider.GetComponentInParent<Prop>();
+            // the third version: struck with something swung (a club, a bat, a cue), and touching what a rule names
+            if (prop.GroupId != "shot" && source != null && source.Held && speed > 0.6f && Time.time - prop.RuledAt > 0.25f)
+            {
+                prop.RuledAt = Time.time;
+                Striker.Strike(prop, source, collision);
+                _world.Rules.Fire("strike", Rules.Of(prop));
+            }
+            if (prop.GroupId != "shot")
+            {
+                Hittable other = collision.collider.GetComponentInParent<Hittable>();
+                Creature living = collision.collider.GetComponentInParent<Creature>();
+                string with = source != null ? source.GroupId + "|" + source.Def.Id : other != null ? other.Group + "|" + other.Asset : living != null ? living.GroupId + "|" + living.Def.Id : null;
+                if (with != null && speed > 0.3f) _world.Rules.Fire("collide", Rules.Of(prop), null, with);
+            }
             if (prop.GroupId != "shot" && source != null && (source.GroupId == "shot" || speed > 2.5f) && Time.time - prop.RuledAt > 0.25f)
             {
                 prop.RuledAt = Time.time;
-                bool taken = _world.Rules.Fire("hit", Rules.Of(prop));
+                Rules.Subject struck = Rules.Of(prop);
+                struck.Amount = source.GroupId == "shot" ? source.Damage : speed * 0.25f;
+                bool taken = _world.Rules.Fire("hit", struck);
                 if (source.GroupId == "shot")
                 {
                     HeldItemRuntime payload = source.GetComponent<HeldItemRuntime>();
@@ -652,7 +670,7 @@ namespace ImagineVR
         /// a made gun's muzzle is the very end of its barrel, so every shot began inside the gun's
         /// own body, counted as a hit on it and was gone before it had moved.
         /// </summary>
-        public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null, Prop from = null)
+        public void Fire(Vector3 position, Vector3 direction, Color color, AssetDef gun = null, Prop from = null, float damage = -1f, bool hostile = false)
         {
             // a gun may throw anything: fish, arrows, a cow. Whatever it is, it is still a shot, and what it strikes is hit.
             AssetDef thrown = gun != null && gun.ShotAsset.Length > 0 ? Library.FindAsset(gun.ShotAsset) : null;
@@ -672,8 +690,10 @@ namespace ImagineVR
                     Collider own = shot.GetComponent<Collider>();
                     foreach (Collider c in from.GetComponentsInChildren<Collider>()) Physics.IgnoreCollision(own, c);
                 }
-                shot.Body.useGravity = true;
-                shot.Body.linearVelocity = aim * speed;
+                shot.Body.useGravity = !hostile;      // a shot at the user flies straight, so it can be seen coming and dodged
+                shot.Body.linearVelocity = aim * (hostile ? 14f : speed);
+                shot.Damage = damage >= 0f ? damage : gun != null ? Mathf.Max(gun.Damage, 0.1f) : 1f;
+                shot.Hostile = hostile;
                 if (gun != null && gun.Held != null && gun.Held.Effect.Length > 0)
                 {
                     var payload = shot.GetComponent<HeldItemRuntime>() ?? shot.gameObject.AddComponent<HeldItemRuntime>();

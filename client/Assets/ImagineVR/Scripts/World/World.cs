@@ -12,7 +12,8 @@ namespace ImagineVR
     public sealed class World : MonoBehaviour
     {
         public const float SafeRadius = 3f;
-        public const float Radius = 120f;
+        /// <summary>How far from the middle the user may go: 120 m, more on wide or vast ground (`terrain.size`).</summary>
+        public static float Radius { get; set; } = 120f;
         public StructureSystem Structures { get; private set; }
         public float SurfaceHeight(float x, float z)
         {
@@ -29,6 +30,8 @@ namespace ImagineVR
         public WeatherSystem Weather { get; private set; }
         public AmbienceSystem Ambience { get; private set; }
         public Rules Rules { get; private set; }
+        /// <summary>Counters, stages, zones, the user's health: what makes a place a game (the third version of the language).</summary>
+        public PlaySystem Play { get; private set; }
 
         /// <summary>The user's head. Used to place things in reach and to aim sounds.</summary>
         public Transform Head;
@@ -91,6 +94,7 @@ namespace ImagineVR
             Props = new PropSystem(this);
             Weather = new WeatherSystem(this);
             Ambience = new AmbienceSystem(this);
+            Play = new PlaySystem(this);
             Rules = new Rules(this);
             Terrain.Changed += OnGroundChanged;
         }
@@ -103,8 +107,22 @@ namespace ImagineVR
         public void Note(string text) { SessionLog.Write("note", "text", text); Noted?.Invoke(text); }
         public void Emit(string text) { Happened?.Invoke(text); }
 
-        /// <summary>Applies one world statement. Unknown operations are ignored.</summary>
+        /// <summary>
+        /// Applies one world statement. Unknown operations are ignored. A fault in what a statement
+        /// does is written to the session log and the turn goes on: one bad line must never cost the
+        /// user everything after it.
+        /// </summary>
         public void Apply(Statement s)
+        {
+            try { ApplyOne(s); }
+            catch (Exception e)
+            {
+                SessionLog.Write("fault", "op", s.Op, "error", e.GetType().Name, "message", e.Message, "at", e.StackTrace != null && e.StackTrace.Length > 300 ? e.StackTrace.Substring(0, 300) : e.StackTrace);
+                Debug.LogException(e);
+            }
+        }
+
+        void ApplyOne(Statement s)
         {
             // The first thing built in the dark room is built around the user as they stand: they
             // are brought to the middle of the world facing along it, whichever way they were turned.
@@ -139,13 +157,29 @@ namespace ImagineVR
                 case "make": Maker.Make(s); break;
                 case "structure": if (Structures.Build(s)) { EnsureLight(); _clearSkyAtTurnEnd = false; } break;
                 case "door": Structures.Door(s); break;
-                case "spawn": EnsureLight(); Objects.Spawn(s); Structures.TrackFurnishing(s); break;
-                case "scatter": EnsureLight(); Objects.Scatter(s); break;
+                case "spawn": EnsureLight(); Objects.Spawn(s); Structures.TrackFurnishing(s); Play.AfterSpawn(s); break;
+                case "scatter": EnsureLight(); Objects.Scatter(s); Play.AfterSpawn(s); break;
                 case "give": EnsureLight(); Props.Give(s); break;
                 case "ride": EnsureLight(); if (Vehicle != null) Vehicle.Apply(s); break;
-                case "player": if (Vehicle != null) Vehicle.Resize(s.Num("scale", 1f)); break;
-                case "modify": Objects.Modify(s); Props.Modify(s); break;
-                case "remove": Structures.Remove(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); Rules.Remove(s.Str("id")); break;
+                case "player":
+                    if (Vehicle != null && s.Has("scale")) Vehicle.Resize(s.Num("scale", 1f));
+                    if (Vehicle != null) Vehicle.Abilities(s);
+                    Play.SetPlayer(s);
+                    break;
+                case "modify":
+                    if (s.Str("id") == "ride") { if (Vehicle != null) Vehicle.Tune(s); break; }
+                    Objects.Modify(s); Props.Modify(s); ModifyLiving(s);
+                    break;
+                case "remove":
+                    Structures.Remove(s.Str("id")); Objects.Remove(s); Props.Remove(s.Str("id")); Rules.Remove(s.Str("id"));
+                    Emitters.Remove(s.Str("id")); Play.Remove(s.Str("id")); if (Roads != null) Roads.Remove(s.Str("id"));
+                    break;
+                // the third version
+                case "var": case "hud": case "stage": case "zone": case "story": case "speak": case "narrate": Play.Apply(s); break;
+                case "fx": Emitters.Apply(this, s); break;
+                case "sfx": Synth.Define(s); break;
+                case "music": if (Music != null) Music.Apply(s); break;
+                case "road": EnsureLight(); if (Roads != null) Roads.Build(s); break;
                 case "ambience": Ambience.Apply(s); break;
                 case "clear": Clear(s); break;
                 case "when": Rules.Install(s); break;
@@ -269,6 +303,10 @@ namespace ImagineVR
             }
             List<string> keep = s.StrList("keep");
             Rules.Clear();
+            Play.Clear();
+            Emitters.Clear();
+            if (Roads != null) Roads.Clear();
+            if (Music != null && !keep.Contains("ambience")) Music.Stop(t);
             Objects.Clear(t);
             Props.ClearLoose();
             // A new place is a new start on foot. (The ride used to survive: asked for a maze after a
@@ -289,6 +327,7 @@ namespace ImagineVR
         /// <summary>Called when a turn's `done` arrives.</summary>
         public void EndTurn()
         {
+            if (Roads != null) Roads.EndTurn();
             bool empty = !Structures.Active && Objects.Count == 0 && (_clearGroundAtTurnEnd || (!Terrain.HasGround && !Terrain.Generating));
             if (_clearGroundAtTurnEnd)
             {
@@ -307,6 +346,10 @@ namespace ImagineVR
         {
             Structures.Clear();
             Rules.Clear();
+            Play.Clear();
+            Emitters.Clear();
+            if (Roads != null) Roads.Clear();
+            if (Music != null) Music.Stop(seconds);
             Objects.Clear(seconds);
             Props.ClearLoose();
             Weather.Stop();
@@ -365,6 +408,54 @@ namespace ImagineVR
             _real = Mathf.MoveTowards(_real, QuestFeature.Passthrough && IsDark ? 1f : 0f, dt / 2.5f);
             Shader.SetGlobalFloat(RealId, _real);
             Rules.Tick(dt);
+            Play.Tick(dt);
+            if (Roads != null) Roads.Tick(dt);
+            if (Music != null) Music.Tick(dt);
+            Lights.Publish(this);
+        }
+
+        /// <summary>The road system and the music, when the third version is played. Null in a world drawn without them.</summary>
+        public RoadSystem Roads;
+        public Music Music;
+
+        /// <summary>`modify` of a living thing: what it does, how fast and hard, whose side it is on.</summary>
+        void ModifyLiving(Statement s)
+        {
+            string id = s.Str("id");
+            if (string.IsNullOrEmpty(id)) return;
+            var probe = new Rules.Subject();
+            foreach (Creature c in Creature.All)
+            {
+                if (c == null) continue;
+                probe.Group = c.GroupId;
+                probe.Asset = c.Def.Id;
+                if (!Rules.Names(id, probe)) continue;
+                c.Configure(s);
+                if (s.Has("health")) Health.Give(c.gameObject, s.Num("health"), s.Str("team"));
+            }
+        }
+
+        /// <summary>
+        /// An empty hand pointed at something and the trigger pulled: `press`. A lever, a button, a
+        /// chest, a planet in a museum. Only things a `press` rule is about answer; anything else is
+        /// left to the next use of the trigger (getting into a car, opening a door).
+        /// </summary>
+        public bool TryPress(Transform hand)
+        {
+            if (hand == null || Rules.Count == 0) return false;
+            if (!Physics.SphereCast(hand.position, 0.06f, hand.forward, out RaycastHit hit, 3.5f, ~0, QueryTriggerInteraction.Ignore)) return false;
+            Rules.Subject subject;
+            Prop prop = hit.collider.GetComponentInParent<Prop>();
+            Creature creature = hit.collider.GetComponentInParent<Creature>();
+            Hittable h = hit.collider.GetComponentInParent<Hittable>();
+            if (prop != null && !prop.Held) subject = Rules.Of(prop);
+            else if (creature != null) subject = Rules.Of(creature);
+            else if (h != null) subject = Rules.Of(h);
+            else return false;
+            if (!Rules.Handles("press", subject)) return false;
+            Rules.Fire("press", subject);
+            Sfx.Play("click", hit.point, 0.6f);
+            return true;
         }
 
         static readonly int RealId = Shader.PropertyToID("_ImReal");

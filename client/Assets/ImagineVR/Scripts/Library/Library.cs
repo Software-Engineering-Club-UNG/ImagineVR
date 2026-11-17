@@ -55,6 +55,8 @@ namespace ImagineVR
         public string Desc;
         public string[] Tags = Array.Empty<string>();
         public string[] Aliases = Array.Empty<string>();
+        /// <summary>The language version that brought it; exported as `since` so older headsets are never offered it.</summary>
+        public int Since;
 
         public Dictionary<string, object> ToCatalog()
         {
@@ -90,7 +92,7 @@ namespace ImagineVR
         public float Pitch = 1f;                // for things that make a sound when hit
         public float Stretch;                   // how much taller or shorter one copy in a scatter may be than the next (0.3 = 30%)
 
-        Mesh _mesh;
+        Mesh _mesh, _body;
         Bounds _bounds;
         public Mesh Mesh
         {
@@ -102,10 +104,32 @@ namespace ImagineVR
                     Recipe(mb);
                     _mesh = mb.Build(Id);
                     _bounds = mb.SolidBounds;
+                    _body = mb.Body;
+                    Parts = mb.Parts;
+                    Marks = new List<KeyValuePair<string, Vector3>>(mb.Marks);
+                    foreach (KeyValuePair<string, Vector3> mark in Marks)
+                        if (mark.Key == "seat" && !HasSeat) { Seat = mark.Value + Vector3.up * 0.75f; HasSeat = true; }
                 }
                 return _mesh;
             }
         }
+
+        /// <summary>Everything but the moving pieces; the whole mesh when nothing moves.</summary>
+        public Mesh BodyMesh { get { Mesh m = Mesh; return _body != null ? _body : m; } }
+        /// <summary>What combined scenery draws: the body alone when some piece is animated on its own (that piece is drawn apart, turning).</summary>
+        public Mesh SceneryMesh { get { Mesh m = Mesh; return Animated ? BodyMesh : m; } }
+        /// <summary>A piece turns even when the thing stands still: a windmill's sails, a fan, a beacon.</summary>
+        public bool Animated
+        {
+            get
+            {
+                Mesh m = Mesh;
+                foreach (PartDef p in Parts) if (p.When == "always" && (p.Spin != Vector3.zero || p.Swing != Vector3.zero || p.Bob > 0f)) return true;
+                return false;
+            }
+        }
+        /// <summary>Where the recipe marked a lamp, a seat, a gun's muzzle, an exhaust.</summary>
+        public List<KeyValuePair<string, Vector3>> Marks = new List<KeyValuePair<string, Vector3>>();
 
         /// <summary>Size of the solid part of the model (halos excluded). Use this, not Mesh.bounds, for physics and fitting.</summary>
         public Bounds Bounds { get { Mesh m = Mesh; return m != null ? _bounds : default; } }
@@ -138,6 +162,23 @@ namespace ImagineVR
         public int Pellets = 1;
         public bool ShotColored;
         public Color ShotColor;
+
+        // ---- the third version (play-v1)
+        public float Damage = 1f;               // a shot's (or a swing's) blow to something with health
+        public int Magazine;                    // shots before a reload; 0 never needs one
+        public float ReloadSeconds = 1.5f, Recoil, Blast;
+        public bool Hitscan;
+        public float StrikePower, StrikeLoft;   // a club, a bat, a cue: how hard and how high it sends a ball (see Striker)
+        public string Drive = "";               // how it handles when ridden: car, bike, tank, mount, boat, plane, glider, heli, hover, space, rail, simple
+        public Vector3 Seat;                    // where the rider's eyes are, in its own space
+        public bool HasSeat;
+        public float Health;                    // hits it takes when standing in the world; 0 is the old one-hit knock-down
+        public List<PartDef> Parts = new List<PartDef>();   // pieces that move: wheels, rotors, doors (see Articulation)
+
+        public AssetDef Strikes(float power, float loft) { StrikePower = power; StrikeLoft = loft; return this; }
+        public AssetDef Drives(string drive) { Drive = drive; return this; }
+        public AssetDef SeatAt(Vector3 eyes) { Seat = eyes; HasSeat = true; return this; }
+        public AssetDef New() { Since = 3; return this; }
 
         /// <summary>
         /// A gun, modelled barrel-forward with its grip at the origin (see Library.GunSpace).
@@ -180,6 +221,7 @@ namespace ImagineVR
         static partial void RegisterAnimals();
         static partial void RegisterMoreHoldables();
         static partial void RegisterExtendedHoldables();
+        static partial void RegisterThirdVersion();
 
         /// <summary>Registers everything. Safe to call more than once.</summary>
         public static void EnsureLoaded()
@@ -195,6 +237,8 @@ namespace ImagineVR
             RegisterAnimals();
             RegisterExtendedHoldables();
             RegisterThemes();
+            RegisterThirdVersion();
+            StrikersOfTheFirstLibrary();
             RegisterSkyPresets();
             RegisterGround();
             RegisterWeather();

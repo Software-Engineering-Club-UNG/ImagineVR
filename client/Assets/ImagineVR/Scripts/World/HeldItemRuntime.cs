@@ -386,11 +386,6 @@ namespace ImagineVR
             int slot = Array.IndexOf(Owners, owner); if (slot < 0) return;
             Owners[slot] = null; Positions[slot] = Colors[slot] = Vector4.zero; Upload();
         }
-        static void Upload()
-        {
-            Shader.SetGlobalVectorArray("_ImHeldLightPositions", Positions);
-            Shader.SetGlobalVectorArray("_ImHeldLightDirections", Directions);
-            Shader.SetGlobalVectorArray("_ImHeldLightColors", Colors);
-        }
+        static void Upload() { Lights.Held(Positions, Directions, Colors); }
     }
 }

@@ -397,10 +397,16 @@ namespace ImagineVR
             var states = new List<string>(); foreach (var d in doors) states.Add(d.Key + ":" + (d.Value.Open ? "open" : "closed"));
             return "structure " + Id + "; room " + (CurrentRoom(head) ?? "outside") + "; doors " + string.Join(",", states);
         }
+        /// <summary>Doors a rule or a statement has locked: the user's hand cannot open them until something unlocks them.</summary>
+        readonly HashSet<string> locked = new HashSet<string>();
+
         public void Door(Statement s)
         {
-            if (doors.TryGetValue(s.Str("id", ""), out StructureDoor door)) door.Set(s.Str("state", "toggle"));
-            else world.Note("That door does not exist in this interior.");
+            string id = s.Str("id", ""), state = s.Str("state", "toggle");
+            if (!doors.TryGetValue(id, out StructureDoor door)) { world.Note("That door does not exist in this interior."); return; }
+            if (state == "lock") { locked.Add(id); door.Set("close"); return; }
+            if (state == "unlock") { locked.Remove(id); Sfx.Play("unlock", door.transform.position, 0.8f); return; }
+            door.Set(state);
         }
         public bool TryInteract(Transform hand, bool pressed)
         {
@@ -409,7 +415,16 @@ namespace ImagineVR
             if (!Physics.Raycast(hand.position, hand.forward, out RaycastHit hit, 2f, ~0, QueryTriggerInteraction.Ignore)) return false;
             StructureDoor door = hit.collider.GetComponentInParent<StructureDoor>();
             if (door == null) return false;
-            door.Highlight(); if (pressed) door.Set("toggle"); return pressed;
+            door.Highlight();
+            if (pressed && locked.Contains(door.Id))
+            {
+                // locked: it rattles, and the user is told so, in place of nothing happening
+                Sfx.Play("lock", door.transform.position, 0.8f);
+                world.Emit("locked");
+                return true;
+            }
+            if (pressed) door.Set("toggle");
+            return pressed;
         }
 
         public bool HeadBlocked(Vector3 head)
@@ -453,6 +468,7 @@ namespace ImagineVR
         public void TrackFurnishing(string id) { if (Active && !string.IsNullOrEmpty(id)) furnishingIds.Add(id); }
         public void Clear()
         {
+            locked.Clear();
             if (Active && world.Vehicle != null && Contains(world.Head.position))
             {
                 Vector3 local = zones[0].Center - Vector3.forward * (zones[0].Size.z / 2 + 2);

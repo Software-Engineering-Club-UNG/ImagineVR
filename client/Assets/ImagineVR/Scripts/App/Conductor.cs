@@ -78,6 +78,51 @@ namespace ImagineVR
             Enqueue(turn);
         }
 
+        /// <summary>
+        /// A story calling the director back. Not shown as something the user said; and never two at
+        /// once: one waiting is enough, and later ones while it waits are dropped (the server rate-limits them too).
+        /// </summary>
+        public void SubmitEvent(string note)
+        {
+            if (string.IsNullOrEmpty(note) || _eventWaiting) return;
+            _eventWaiting = true;
+            Turn turn = Client.SendEvent(note);
+            Enqueue(turn);
+        }
+        bool _eventWaiting;
+
+        /// <summary>A character speaks: their voice comes from where they stand, or, for the narrator, from close by.</summary>
+        public void SpeakAs(Transform speaker, string url)
+        {
+            if (string.IsNullOrEmpty(url)) return;
+            StartCoroutine(SpeakFrom(url, speaker));
+        }
+
+        IEnumerator SpeakFrom(string url, Transform speaker)
+        {
+            AudioType type = url.EndsWith(".wav") ? AudioType.WAV : AudioType.MPEG;
+            using (UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(url, type))
+            {
+                request.timeout = 20;
+                yield return request.SendWebRequest();
+                if (request.result != UnityWebRequest.Result.Success) yield break;
+                AudioClip clip = DownloadHandlerAudioClip.GetContent(request);
+                if (clip == null) yield break;
+                Vector3 at = speaker != null ? speaker.position + Vector3.up * 1.5f : World.Head != null ? World.Head.position + World.Head.forward * 0.6f : Vector3.zero;
+                var go = new GameObject("Speech");
+                go.transform.position = at;
+                if (speaker != null) go.transform.SetParent(speaker, true);
+                AudioSource source = go.AddComponent<AudioSource>();
+                source.clip = clip;
+                source.spatialBlend = speaker != null ? 1f : 0.3f;
+                source.minDistance = 2f;
+                source.maxDistance = 30f;
+                source.rolloffMode = AudioRolloffMode.Linear;
+                source.Play();
+                Destroy(go, clip.length + 0.5f);
+            }
+        }
+
         /// <summary>Plays statements from a script instead of the server: demos, tests, the replay tool.</summary>
         public Turn SubmitScript(string ndjson, string label = null)
         {
@@ -156,6 +201,7 @@ namespace ImagineVR
                     if (Rig != null) Rig.Haptic(true, 0.6f, 0.15f);
                     return;
                 case "done":
+                    if (_current != null && _current.IsEvent) _eventWaiting = false;
                     World.EndTurn();
                     if (!_problem)
                     {
@@ -218,7 +264,7 @@ namespace ImagineVR
 
         IEnumerator Speak(string url)
         {
-            using (UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(url, AudioType.MPEG))
+            using (UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(url, url.EndsWith(".wav") ? AudioType.WAV : AudioType.MPEG))
             {
                 request.timeout = 15;
                 yield return request.SendWebRequest();

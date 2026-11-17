@@ -81,6 +81,8 @@ namespace ImagineVR
             Client.Settings = _settings;
             Client.Pose = UserPose;
             Client.UserState = UserState;
+            Client.PlayState = World.Play.Header;
+            Client.TalkTo = Addressed;
             Client.World = World;
             TextAsset version = Resources.Load<TextAsset>("CatalogVersion");
             if (version != null) Client.CatalogVersion = version.text.Trim();
@@ -101,6 +103,16 @@ namespace ImagineVR
             Hints.Terminal = Terminal;
             Hints.World = World;
             Hints.Conductor = Conductor;
+
+            // the game drawn in front of the user, a story calling back, and characters' voices
+            Hud = new GameObject("Hud").AddComponent<Hud>();
+            Hud.transform.SetParent(transform, false);
+            Hud.Build(Rig.Head, _font, World.Play, World);
+            World.Play.Hud = Hud;
+            World.Play.Directed += note => Conductor.SubmitEvent(note);
+            World.Play.Spoke += OnSpoke;
+            World.Roads = new RoadSystem(World);
+            World.Music = new Music(World);
 
             World.Noted += Terminal.Note;
             World.Happened += OnWorldEvent;
@@ -165,6 +177,41 @@ namespace ImagineVR
             look.y = 0f;
             float yaw = look.sqrMagnitude > 0.01f ? Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg : Rig.transform.eulerAngles.y;
             return string.Format(CultureInfo.InvariantCulture, "{0:0.00},{1:0.00},{2:0.0}", p.x, p.z, yaw);
+        }
+
+        public Hud Hud { get; private set; }
+
+        /// <summary>
+        /// The character the user is speaking to, if any: someone with a persona or a name, within five
+        /// metres, that they are looking at. What they say goes to that character and not to the builder.
+        /// </summary>
+        string Addressed()
+        {
+            Transform head = Rig != null ? Rig.Head : null;
+            if (head == null) return null;
+            string best = null;
+            float bestScore = float.MaxValue;
+            foreach (Creature c in Creature.All)
+            {
+                if (c == null || !c.Up || string.IsNullOrEmpty(c.GroupId) || !c.Talks) continue;
+                Vector3 to = c.transform.position + Vector3.up * (c.Height * 0.8f) - head.position;
+                float d = to.magnitude;
+                if (d > 5f) continue;
+                float angle = Vector3.Angle(head.forward, to);
+                if (angle > 28f) continue;
+                float score = d + angle * 0.08f;
+                if (score < bestScore) { bestScore = score; best = c.GroupId; }
+            }
+            return best;
+        }
+
+        /// <summary>A line said by a character or the narrator: its voice from the server, at the speaker.</summary>
+        void OnSpoke(string id, string text, string voice)
+        {
+            Transform speaker = World.Play.Speaker(id);
+            if (voice != null && voice.StartsWith("url:")) { Conductor.SpeakAs(speaker, voice.Substring(4)); return; }
+            if (Quiet) return;
+            StartCoroutine(Client.Voice(text, voice, url => { if (url != null) Conductor.SpeakAs(speaker, url); else if (speaker != null) Sfx.Play("babble", speaker.position + Vector3.up * 1.5f, 0.5f, Random.Range(0.9f, 1.2f)); }));
         }
 
         /// <summary>The headset's own account of the user, which the model is told to trust over its memory of what it gave them.</summary>

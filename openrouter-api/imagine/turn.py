@@ -267,7 +267,7 @@ async def _run_turn(session: Session, catalog: Catalog, system_prompt, *, text: 
 
     def speak(stmt: dict) -> dict:
         """A statement someone hears: given the address its voice will be at."""
-        if tts.enabled() and (stmt["op"] == "say" or caps.gen):
+        if tts.enabled() and (stmt["op"] == "say" or caps.play):
             voice = stmt.get("voice") or (session.world.things.get(stmt.get("id") or "", {}).get("voice") if stmt["op"] == "speak" else None)
             stmt["audio"] = f"{base_url}/v1/audio/{tts.start(stmt['text'], voice or ('narrator' if stmt['op'] != 'speak' else None))}"
         return stmt

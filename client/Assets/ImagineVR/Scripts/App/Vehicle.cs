@@ -43,6 +43,57 @@ namespace ImagineVR
         Vector3 grappleTarget;
         float grappleUntil;
 
+        // ---- the third version: things that drive and fly as what they are (see Drive.cs)
+        DriveModel _model;
+        Articulated _parts;
+        Transform _wheel;
+        PartDef _wheelPart;
+        float _wheelHeld = -999f, _wheelStart, _wheelSteer, _gaugeAt, _gunAt;
+        bool _canJump, _canFly;
+        float _walkScale = 1f, _jumpUntil;
+
+        /// <summary>Where the headlights of what is ridden are, and which way they point. False when it has none.</summary>
+        public bool Lamps(out Vector3 at, out Vector3 ahead)
+        {
+            at = ahead = Vector3.zero;
+            if (_visual == null || _def == null) return false;
+            Vector3 sum = Vector3.zero;
+            int n = 0;
+            foreach (var mark in _def.Marks) if (mark.Key == "lamp") { sum += mark.Value; n++; }
+            if (n == 0 && (_model == null || _model.Kind != "car" && _model.Kind != "bike" && _model.Kind != "tank")) return false;
+            Bounds b = _def.Bounds;
+            Vector3 local = n > 0 ? sum / n : new Vector3(b.center.x, b.min.y + b.size.y * 0.4f, b.max.z);
+            at = _visual.transform.TransformPoint(local) + _visual.transform.forward * 0.3f;
+            ahead = (_visual.transform.forward - _visual.transform.up * 0.12f).normalized;
+            return true;
+        }
+
+        /// <summary>The drive model in use, or null for the old way of riding (`simple`, rails).</summary>
+        public DriveModel Model => _model;
+
+        /// <summary>`player`: jumping, flying, walking speed.</summary>
+        public void Abilities(Statement s)
+        {
+            if (s.Has("jump")) _canJump = s.Flag("jump");
+            if (s.Has("fly")) _canFly = s.Flag("fly");
+            if (s.Has("speed")) _walkScale = Mathf.Clamp(s.Num("speed"), 0.3f, 4f);
+        }
+
+        /// <summary>`modify id:"ride"`.</summary>
+        public void Tune(Statement s)
+        {
+            if (!Riding) return;
+            if (s.Has("drive") && _def != null) { _model = NewModel(s.Str("drive"), _def, 1f); }
+            if (_model != null) _model.Tune(s);
+            else if (s.Has("speed")) _top = (_def.FliesRidden ? 16f : _def.Category == "vehicles" ? 11f : 7f) * Mathf.Clamp(s.Num("speed"), 0.2f, 3f);
+        }
+
+        static DriveModel NewModel(string kind, AssetDef def, float speed)
+        {
+            if (string.IsNullOrEmpty(kind) || kind == "auto") kind = DriveModel.KindFor(def);
+            return kind == "simple" || kind == "rail" ? null : new DriveModel(kind, def, speed);
+        }
+
         /// <summary>Pull across the ground through the walking capsule, never through solid walls.</summary>
         public void PullTo(Vector3 feet)
         {
@@ -80,9 +131,15 @@ namespace ImagineVR
             AssetDef def = name == "none" ? null : Library.FindAsset(name);
             if (def == null) { Dismount(true); return; }
             _world.Placed(s, name, def, false, _rig.transform.position, null);
-            Mount(def, s.TryColor("tint", out Color tint) ? tint : Color.white, Mathf.Clamp(s.Num("speed", 1f), 0.2f, 3f));
+            if (s.TryVec3("seat", out Vector3 seat)) def.SeatAt(seat);
+            // a ride written just after a road starts on it, facing along it
+            if (!s.Has("path") && _world.Roads != null && _world.Roads.TakeStart(out Vector3 roadStart, out float roadYaw)) PlaceAt(roadStart, roadYaw);
+            Mount(def, s.TryColor("tint", out Color tint) ? tint : Color.white, Mathf.Clamp(s.Num("speed", 1f), 0.2f, 4f), s.Str("drive"));
             // on rails: a roller coaster, a guided tour, a boat ride. The route does the steering.
             _route = s.TryPath("path", out System.Collections.Generic.List<Vector3> points) ? new Route(points, s.Flag("loop", true)) : null;
+            if (_route != null) _model = null;
+            if (_model != null && s.Has("grip")) _model.Tune(Statement.Make("modify", "grip", (double)s.Num("grip")));
+            if (_model != null && s.Has("altitude")) _model.StartAloft(s.Num("altitude"));
             _travelled = 0f;
         }
 
@@ -97,7 +154,7 @@ namespace ImagineVR
             if (_terminal != null) _terminal.Recenter(false);
         }
 
-        void Mount(AssetDef def, Color tint, float speed)
+        void Mount(AssetDef def, Color tint, float speed, string drive = null)
         {
             walker.enabled = false;
             Dismount();
@@ -114,25 +171,32 @@ namespace ImagineVR
             _seat = top > 6f ? 0.3f : (enclosed ? top - 0.25f : top + 0.45f) - eyes;
             _top = (def.FliesRidden ? 16f : enclosed ? 11f : 7f) * speed;
             _speed = 0f;
+            _model = NewModel(drive, def, speed);
+            // where the driver sits: the seat it says, else behind the wheel (left of centre in a car), else on top
+            Vector3 seatAt = new Vector3(b.center.x, top - 0.25f, b.center.z - b.extents.z * (enclosed ? 0.12f : 0.2f));
+            bool seated = def.HasSeat;
+            if (seated) seatAt = def.Seat;
+            else if (_model != null && (_model.Kind == "car" || _model.Kind == "tank") && b.size.x > 1.3f && top < 4f) { seatAt.x = b.center.x - b.extents.x * 0.32f; seatAt.y = Mathf.Min(top - 0.2f, 1.1f); seatAt.z = b.center.z - b.extents.z * 0.1f; seated = true; }
+            if (seated) _seat = seatAt.y - eyes;
 
             _visual = new GameObject("Vehicle_" + def.Id);
             _visual.transform.SetParent(_rig.transform, false);
             // the user sits a little behind the middle, with the nose out in front
-            _visual.transform.localPosition = new Vector3(-b.center.x, -_seat, -b.center.z + b.extents.z * (enclosed ? 0.12f : 0.2f));
-            Mesh mesh = def.Mesh;
-            _visual.AddComponent<MeshFilter>().sharedMesh = mesh;
-            MeshRenderer mr = _visual.AddComponent<MeshRenderer>();
-            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            mr.receiveShadows = false;
-            mr.sharedMaterials = mesh.subMeshCount > 1
-                ? new[] { _world.Objects.LitMaterial, _world.Objects.GlowMaterial }
-                : new[] { _world.Objects.LitMaterial };
+            _visual.transform.localPosition = seated ? new Vector3(-seatAt.x, -_seat, -seatAt.z) : new Vector3(-b.center.x, -_seat, -b.center.z + b.extents.z * (enclosed ? 0.12f : 0.2f));
+            // the body, and whatever moves on it: wheels that roll and steer, rotors, a steering wheel to hold
+            _parts = Articulated.Attach(_visual, def, tint);
+            if (_parts == null) Articulated.Attach(_visual, def, tint);
+            MeshRenderer mr = _visual.GetComponent<MeshRenderer>();
             var props = new MaterialPropertyBlock();
             props.SetColor("_Tint", tint);
             props.SetFloat("_Appear", 1f);
-            mr.SetPropertyBlock(props);
             _body = mr;
             _bodyProps = props;
+            _wheel = null;
+            _wheelPart = null;
+            for (int i = 0; i < def.Parts.Count; i++)
+                if (def.Parts[i].Role == "steer") { _wheelPart = def.Parts[i]; _wheel = _visual.transform.Find("Part_steer" + i); break; }
+            SessionLog.Write("drive", "asset", def.Id, "model", _model != null ? _model.Kind : "simple", "seat", seatAt, "seated", seated, "parts", def.Parts.Count);
             _visualHome = _visual.transform.localPosition;
             _roll = _tilt = _turnRate = _gait = 0f;
             // an animal being ridden walks on its own legs, as one roaming free does
@@ -176,6 +240,10 @@ namespace ImagineVR
             _body = null;
             _def = null;
             _route = null;
+            _model = null;
+            _parts = null;
+            _wheel = null;
+            if (_world != null && _world.Play != null) _world.Play.Gauge = "";
             _speed = 0f;
             rideVelocity = Vector3.zero;
             _altitude = _railHeight = 0;
@@ -282,6 +350,54 @@ namespace ImagineVR
                 _railHeight = at.y;
                 if (!_route.Loop && _travelled >= _route.Length) _route = null;   // end of the line: the controls come back
             }
+            else if (_model != null)
+            {
+                // a car, a plane, a helicopter: the drive model says how far to turn and go
+                centre = new Vector3(p.x, p.y, p.z);
+                DriveInput input = ReadDrive(xr);
+                Vector3 fwd = rig.forward;
+                float grip = 1f, slope = 0f;
+                if (!_model.Flies)
+                {
+                    string surface = Surfaces.At(_world, p + Vector3.up * 0.5f - Vector3.up * _seat, 1.5f);
+                    grip = GripOf(surface);
+                    float ahead = _world.SurfaceHeight(p.x + fwd.x * 1.5f, p.z + fwd.z * 1.5f), behind = _world.SurfaceHeight(p.x - fwd.x * 1.5f, p.z - fwd.z * 1.5f);
+                    slope = Mathf.Clamp((ahead - behind) / 3f, -1f, 1f);
+                    if (_world.Weather.IsActive) grip *= 0.9f;      // wet or snowy air: a little less grip
+                }
+                _model.Step(dt, input, fwd, grip, slope, out float yawStep, out Vector3 travel);
+                if (yawStep != 0f)
+                {
+                    rig.RotateAround(centre, Vector3.up, yawStep);
+                    p = rig.position;
+                    turn = yawStep;
+                }
+                turned = p;
+                Vector3 step = _model.Altitude > 3f ? travel : Blocked(p, travel);
+                if (step == Vector3.zero && travel.sqrMagnitude > 1e-6f)
+                {
+                    if (Mathf.Abs(_model.Speed) > 4f && Time.time - _crashedAt > 0.5f) Crash(p + rig.forward * _def.Bounds.extents.z);
+                    _model.Collide();
+                }
+                if (_model.LastLanding == DriveModel.Landing.Hard) { Crash(p); _model.LastLanding = DriveModel.Landing.None; }
+                else if (_model.LastLanding == DriveModel.Landing.Soft) { Sfx.Play("thud", p, 0.5f, 0.7f); _model.LastLanding = DriveModel.Landing.None; }
+                p += step;
+                _speed = Mathf.Abs(_model.Speed);
+                Bump(p, _model.Speed >= 0f ? rig.forward : -rig.forward);
+                FireMounted(input, xr);
+
+                if (xr && _rig.StickClicked && _model.Altitude < 2f) { Dismount(true); return; }      // not out of a plane in the sky
+                var kbd = Keyboard.current;
+                bool leaving = !xr && kbd != null && !ImagineApp.Typing && kbd.qKey.isPressed && _speed < 2f;
+                if (!leaving) _offSince = -1f;
+                else if (_offSince < 0f) _offSince = Time.time;
+                else if (Time.time - _offSince > 0.5f) { Dismount(true); return; }
+                float rim = World.Radius - 8f;
+                Vector2 level = new Vector2(p.x, p.z);
+                if (level.magnitude > rim) { level = level.normalized * rim; p.x = level.x; p.z = level.y; _model.Collide(); }
+                if (_parts != null) { _parts.Speed = _model.Speed; _parts.Steer = _model.SteerAngle / 35f; _parts.Throttle = Mathf.Max(input.Throttle, _model.ThrottleLever); }
+                Gauge();
+            }
             else
             {
                 centre = new Vector3(_rig.Head.position.x, p.y, _rig.Head.position.z);
@@ -337,7 +453,8 @@ namespace ImagineVR
             // cruising height rises with what stands there, checked now and then: above the rooftops, with
             // the tallest towers still reaching up past the user, and not so high the streets are lost in haze.
             if (Time.time >= _skylineAt) { _skylineAt = Time.time + 1.5f; _cruise = Mathf.Clamp(_world.Objects.Skyline() * 0.6f + 8f, Cruise, 60f); }
-            _altitude = Mathf.MoveTowards(_altitude, Riding && _def.FliesRidden ? _cruise : 0f, Mathf.Max(4f, _cruise / 8f) * dt);
+            if (_model != null && _route == null) _altitude = _model.Altitude;
+            else _altitude = Mathf.MoveTowards(_altitude, Riding && _def.FliesRidden ? _cruise : 0f, Mathf.Max(4f, _cruise / 8f) * dt);
             if (_route == null) _railHeight = Mathf.MoveTowards(_railHeight, 0f, 6f * dt);
             target += _altitude + _railHeight + (Riding ? _seat : 0f);
             _lastYaw = rig.eulerAngles.y;
@@ -482,7 +599,19 @@ namespace ImagineVR
             Vector3 turned = rig.position;
             Vector2 input = _world.IsDark ? Vector2.zero : MovementInput();
             Vector3 forward = MovementForward();
-            Vector3 movement = WalkDirection(forward, input) * WalkSpeed * Mathf.Clamp(_size, 0.25f, 6) * dt;
+            Vector3 movement = WalkDirection(forward, input) * WalkSpeed * _walkScale * Mathf.Clamp(_size, 0.25f, 6) * dt;
+            // `player.jump`: the right stick clicked (desktop: J); `player.fly`: the right hand points, the trigger carries them
+            var keys = Keyboard.current;
+            bool jump = _canJump && (_rig.XrActive ? _rig.StickClicked : keys != null && !ImagineApp.Typing && keys.jKey.wasPressedThisFrame);
+            if (jump && rig.position.y <= _world.SurfaceHeight(_rig.Head.position.x, _rig.Head.position.z) + 0.1f) { falling = 5.2f; _jumpUntil = Time.time + 0.2f; Sfx.Play("whoosh", rig.position, 0.3f, 1.4f); }
+            bool flyingNow = _canFly && (_rig.XrActive ? _rig.Trigger(true) > 0.5f && (_rig.RightGrabber == null || _rig.RightGrabber.Held == null) : keys != null && !ImagineApp.Typing && keys.leftShiftKey.isPressed);
+            if (flyingNow)
+            {
+                Vector3 aim = _rig.XrActive ? _rig.RightHand.forward : _rig.Head.forward;
+                movement += aim * 7f * dt;
+                falling = Mathf.Max(falling, aim.y * 7f);
+                _jumpUntil = Time.time + 0.1f;
+            }
             if (Time.time < grappleUntil)
             {
                 Vector3 delta = grappleTarget - new Vector3(_rig.Head.position.x, rig.position.y, _rig.Head.position.z);
@@ -499,7 +628,8 @@ namespace ImagineVR
             float ground = _world.SurfaceHeight(_rig.Head.position.x, _rig.Head.position.z);
             float water = _world.Terrain.WaterY;
             if (!float.IsNaN(water)) ground = Mathf.Max(ground, water);
-            falling = rig.position.y <= ground + 0.08f ? -0.5f : Mathf.Max(falling - 9.81f * dt, -20);
+            if (Time.time >= _jumpUntil) falling = rig.position.y <= ground + 0.08f ? -0.5f : Mathf.Max(falling - 9.81f * dt * Mathf.Abs(Physics.gravity.y / 9.81f), -20);
+            else falling -= 9.81f * dt;
             if (rig.position.y < ground - 0.05f) movement.y = ground - rig.position.y;
             else movement.y = falling * dt;
             Physics.SyncTransforms();
@@ -546,7 +676,11 @@ namespace ImagineVR
 
             // the air going past, once there is enough speed to hear it
             Play(_rush, Mathf.Clamp01((speed - 3.5f) / 12f) * 0.45f, 0.8f + 0.5f * pace, dt);
-            Play(_engine, machine ? 0.14f + 0.2f * pace : 0f, 0.75f + 1.05f * pace, dt);
+            // an engine climbs through its gears: the pitch rises within each one and drops at the change
+            float rev = pace;
+            if (_model != null && !_model.Flies && machine) { float gears = 5f, g = Mathf.Abs(_model.Speed) / Mathf.Max(_model.Top / gears, 0.5f); rev = Mathf.Clamp01(0.25f + 0.75f * (g - Mathf.Floor(g))) * 0.7f + pace * 0.3f; }
+            Play(_engine, machine ? 0.14f + 0.2f * pace : 0f, 0.75f + 1.05f * rev, dt);
+            if (_model != null && Mathf.Abs(_model.Side) > 3f && Time.time > _skidAt) { _skidAt = Time.time + 0.35f; Sfx.Play("screech", rig.position, Mathf.Clamp01(Mathf.Abs(_model.Side) / 10f), Random.Range(0.9f, 1.1f)); }
 
             if (!Riding)
             {
@@ -619,7 +753,8 @@ namespace ImagineVR
                 _rig.Haptic(true, 0.04f + 0.1f * pace, 0.03f);
             }
             _visual.transform.localPosition = _visualHome + Vector3.up * bob;
-            _visual.transform.localRotation = Quaternion.Euler(_tilt, 0f, _roll);
+            if (_model != null && _route == null) _visual.transform.localRotation = Quaternion.Euler(_model.VisualPitch + _tilt * 0.3f, 0f, _model.VisualRoll);
+            else _visual.transform.localRotation = Quaternion.Euler(_tilt, 0f, _roll);
 
             // dust from the ground, or spray from the water, behind anything moving along it
             _dustDue -= dt;
@@ -642,6 +777,121 @@ namespace ImagineVR
                 };
                 _dust.Emit(puff, 1);
             }
+        }
+
+        float _skidAt;
+
+        static float GripOf(string surface)
+        {
+            switch (surface)
+            {
+                case "ice": return 0.15f;
+                case "snow": return 0.35f;
+                case "sand": case "mud": case "swamp": return 0.5f;
+                case "grass": case "dry_grass": case "fairway": case "green": case "forest_floor": return 0.6f;
+                case "dirt": case "gravel": return 0.7f;
+                case "glass": case "metal": return 0.5f;
+                default: return 1f;
+            }
+        }
+
+        /// <summary>The controls, as the drive model wants them. Hands on the steering wheel steer, if there is one and they are on it.</summary>
+        DriveInput ReadDrive(bool xr)
+        {
+            var input = new DriveInput();
+            if (xr)
+            {
+                Vector2 left = _rig.MoveStick, right = _rig.TurnStick;
+                bool rightFree = _rig.RightGrabber == null || _rig.RightGrabber.Held == null, leftFree = _rig.LeftGrabber == null || _rig.LeftGrabber.Held == null;
+                input.Throttle = rightFree ? _rig.Trigger(true) : 0f;
+                input.Brake = leftFree ? _rig.Trigger(false) : 0f;
+                input.Steer = Dead(left.x);
+                input.Pitch = Dead(right.y);
+                input.Roll = Dead(right.x);
+                input.Lift = Dead(right.y);
+                input.Yaw = Dead(right.x);
+                input.ThrottleAxis = Dead(left.y);
+                input.Move = new Vector2(Dead(left.x), Dead(left.y));
+            }
+            var kb = Keyboard.current;
+            if (!xr && kb != null && !ImagineApp.Typing)
+            {
+                float ws = (kb.wKey.isPressed ? 1f : 0f) - (kb.sKey.isPressed ? 1f : 0f);
+                float ad = (kb.dKey.isPressed ? 1f : 0f) - (kb.aKey.isPressed ? 1f : 0f);
+                float ud = (kb.upArrowKey.isPressed ? 1f : 0f) - (kb.downArrowKey.isPressed ? 1f : 0f);
+                float lr = (kb.rightArrowKey.isPressed ? 1f : 0f) - (kb.leftArrowKey.isPressed ? 1f : 0f);
+                bool flying = _model != null && (_model.Kind == "plane" || _model.Kind == "glider");
+                bool hovering = _model != null && (_model.Kind == "heli" || _model.Kind == "hover" || _model.Kind == "space");
+                if (flying) { input.Pitch = -ws; input.Roll = ad; input.ThrottleAxis = ud; input.Steer = lr; }
+                else if (hovering) { input.Move = new Vector2(ad, ws); input.Lift = ud; input.Yaw = lr; }
+                else { input.Throttle = Mathf.Max(0f, ws); input.Brake = Mathf.Max(0f, -ws); input.Steer = ad; input.Handbrake = kb.leftShiftKey.isPressed; }
+            }
+            if (Autopilot != Vector2.zero) { input.Throttle = Mathf.Max(0f, Autopilot.y); input.Brake = Mathf.Max(0f, -Autopilot.y); input.Steer = Autopilot.x; input.Move = Autopilot; }
+            float hands = WheelHands();
+            if (!float.IsNaN(hands)) input.Steer = hands;
+            return input;
+        }
+
+        static float Dead(float v) => Mathf.Abs(v) < 0.12f ? 0f : v;
+
+        /// <summary>
+        /// Gripping the steering wheel with either hand and turning it steers: the angle the hands have
+        /// gone round the wheel's axis since they took hold, as a fraction of a third of a turn.
+        /// NaN when no hand is on the wheel.
+        /// </summary>
+        float WheelHands()
+        {
+            if (_wheel == null || !_rig.XrActive) return float.NaN;
+            Vector3 axis = _wheel.parent != null ? _wheel.parent.TransformDirection(_wheelPart.Axis) : Vector3.up;
+            float sum = 0f;
+            int held = 0;
+            foreach (bool right in new[] { false, true })
+            {
+                Transform hand = right ? _rig.RightHand : _rig.LeftHand;
+                Grabber grabber = right ? _rig.RightGrabber : _rig.LeftGrabber;
+                if (hand == null || _rig.Grip(right) < 0.55f || (grabber != null && grabber.Held != null)) continue;
+                Vector3 off = hand.position - _wheel.position;
+                if (off.magnitude > 0.35f) continue;
+                Vector3 flat = Vector3.ProjectOnPlane(off, axis);
+                Vector3 up = Vector3.ProjectOnPlane(_rig.transform.up, axis);
+                if (flat.sqrMagnitude < 0.0004f || up.sqrMagnitude < 0.0004f) continue;
+                sum += Vector3.SignedAngle(up, flat, axis);
+                held++;
+            }
+            if (held == 0) { _wheelHeld = -999f; return float.NaN; }
+            float angle = sum / held;
+            if (_wheelHeld < -900f) { _wheelHeld = angle; _wheelStart = angle; _wheelSteer = _model != null ? _model.SteerAngle / 35f : 0f; }
+            return Mathf.Clamp(_wheelSteer - Mathf.DeltaAngle(_wheelStart, angle) / 120f, -1f, 1f);
+        }
+
+        /// <summary>A vehicle that `fires` shoots from its guns: B on anything that drives, the right trigger on anything that flies.</summary>
+        void FireMounted(in DriveInput input, bool xr)
+        {
+            if (_def == null || !_def.HasMuzzle) return;
+            bool flying = _model != null && _model.Flies;
+            var kb = Keyboard.current;
+            bool pressed = xr ? (flying ? _rig.Trigger(true) > 0.6f : _rig.AltPressed)
+                              : kb != null && !ImagineApp.Typing && (kb.fKey.isPressed || (Mouse.current != null && Mouse.current.leftButton.isPressed));
+            if (!pressed || Time.time - _gunAt < Mathf.Max(_def.FireEvery, 0.05f)) return;
+            _gunAt = Time.time;
+            Transform v = _visual.transform;
+            var guns = new System.Collections.Generic.List<Vector3>();
+            foreach (var mark in _def.Marks) if (mark.Key == "gun") guns.Add(mark.Value);
+            if (guns.Count == 0) guns.Add(new Vector3(0f, _def.Bounds.center.y, _def.Bounds.max.z + 0.3f));
+            Vector3 aim = v.forward;
+            foreach (Vector3 g in guns) _world.Props.Fire(v.TransformPoint(g) + aim * 0.4f, aim, _def.ShotColored ? _def.ShotColor : Pal.Neon, _def, null);
+            _rig.Haptic(true, 0.6f, 0.05f);
+        }
+
+        /// <summary>The dashboard: speed and gear on the ground; airspeed, height and throttle in the air.</summary>
+        void Gauge()
+        {
+            if (Time.time < _gaugeAt || _world.Play == null) return;
+            _gaugeAt = Time.time + 0.2f;
+            int kmh = Mathf.RoundToInt(Mathf.Abs(_model.Speed) * 3.6f);
+            _world.Play.Gauge = _model.Flies
+                ? kmh + " km/h   alt " + Mathf.RoundToInt(_model.Altitude) + " m" + (_model.Kind == "plane" ? "   thr " + Mathf.RoundToInt(_model.ThrottleLever * 100f) + "%" : "")
+                : kmh + " km/h   " + _model.Gear;
         }
 
         /// <summary>Fades a looping sound towards a volume; silent loops are paused rather than left running.</summary>

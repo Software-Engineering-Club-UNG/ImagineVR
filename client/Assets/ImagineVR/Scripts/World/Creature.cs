@@ -13,7 +13,7 @@ namespace ImagineVR
     /// </summary>
     public sealed class Creature : MonoBehaviour
     {
-        public const int MaxLive = 24;
+        public const int MaxLive = 32;
         const float RiseSeconds = 1.6f, FallSeconds = 0.4f, LieSeconds = 1.1f, SinkSeconds = 0.8f;
 
         static int _alive, _downed;
@@ -40,8 +40,72 @@ namespace ImagineVR
 
         public void SetBehavior(string behavior)
         {
-            _still = behavior == "still";
-            _mode = behavior == "wander" ? Mode.Wander : behavior == "flee" ? Mode.Flee : Mode.Chase;
+            _role = behavior ?? "";
+            _still = behavior == "still" || behavior == "guard";
+            _mode = behavior == "wander" || behavior == "patrol" ? Mode.Wander : behavior == "flee" ? Mode.Flee : Mode.Chase;
+            // how close it comes: to strike, to keep shooting from, or to stay at the user's side
+            if (_collider != null)
+                _stop = behavior == "attack" ? _collider.radius + 0.75f : behavior == "shoot" ? Mathf.Clamp(_sight * 0.35f, 6f, 14f) : behavior == "follow" ? _collider.radius + 1.6f : _collider.radius + Random.Range(2f, 2.9f);
+        }
+
+        // ---- the third version: creatures that fight back
+
+        /// <summary>With health and dead: it lies where it fell and does not come back.</summary>
+        public bool StayDown;
+        /// <summary>Someone with a persona or a name: what the user says while facing them is said to them.</summary>
+        public bool Talks;
+        string _role = "";
+        float _damage = 8f, _sight = 30f, _readyAt, _windupUntil = -1f, _flinchUntil = -1f;
+
+        /// <summary>What a spawn or a `modify` says about how it behaves: `behavior`, `speed`, `damage`, `sight`.</summary>
+        public void Configure(Statement s)
+        {
+            if (s.Has("persona") || s.Has("name")) Talks = true;
+            if (s.Has("damage")) _damage = Mathf.Clamp(s.Num("damage"), 0f, 1000f);
+            if (s.Has("sight")) _sight = Mathf.Clamp(s.Num("sight"), 1f, 200f);
+            if (s.Has("speed")) _speed = Mathf.Clamp(s.Num("speed"), 0.1f, 6f);
+            if (s.Has("behavior")) SetBehavior(s.Str("behavior"));
+        }
+
+        /// <summary>Hit, but not finished: it reels back a step and is slowed a moment.</summary>
+        public void Flinch()
+        {
+            _flinchUntil = Time.time + 0.35f;
+            _windupUntil = -1f;
+            Vector3 away = transform.position - User;
+            away.y = 0f;
+            if (away.sqrMagnitude > 0.001f) transform.position += away.normalized * 0.25f;
+            Fx.Burst(transform.position + Vector3.up * (_height * 0.6f), new Color(1f, 0.85f, 0.5f), Color.white, 8, 2f, 0.04f, 0.3f, 0.5f, true);
+        }
+
+        /// <summary>Striking and shooting at the user, for `attack` and `shoot`. Telegraphed, so a quick user can step back or shoot first.</summary>
+        void Fight(Vector3 toUser)
+        {
+            if (_world.Play.PlayerMax <= 0f && _role != "shoot") return;     // nothing to hurt: it comes close and menaces, as before
+            float d = toUser.magnitude;
+            if (_role == "attack")
+            {
+                if (_windupUntil < 0f && d < _stop + 0.5f && Time.time >= _readyAt) { _windupUntil = Time.time + 0.45f; Sfx.Play("growl", transform.position + Vector3.up * _height, 0.6f, Random.Range(0.9f, 1.2f)); }
+                if (_windupUntil > 0f && Time.time >= _windupUntil)
+                {
+                    _windupUntil = -1f;
+                    _readyAt = Time.time + 1.2f;
+                    if (d < _stop + 1f) _world.Play.HurtPlayer(_damage, transform.position + Vector3.up * _height * 0.7f);
+                }
+            }
+            else if (_role == "shoot" && d < _sight && Time.time >= _readyAt)
+            {
+                if (_windupUntil < 0f) { _windupUntil = Time.time + 0.4f; Fx.Burst(transform.position + Vector3.up * _height * 0.8f + transform.forward * _radius, new Color(1f, 0.3f, 0.2f), Color.white, 6, 0.6f, 0.05f, 0.4f, 0f, true); }
+                else if (Time.time >= _windupUntil)
+                {
+                    _windupUntil = -1f;
+                    _readyAt = Time.time + Random.Range(1.4f, 2.4f);
+                    Vector3 from = transform.position + Vector3.up * (_height * 0.75f) + transform.forward * (_radius + 0.3f);
+                    Vector3 aim = (_world.Head != null ? _world.Head.position : User + Vector3.up * 1.5f) - from;
+                    aim += Random.insideUnitSphere * aim.magnitude * 0.04f;      // not every shot finds its mark
+                    _world.Props.Fire(from, aim, new Color(1f, 0.3f, 0.2f), null, null, _damage, true);
+                }
+            }
         }
 
         public void SetTint(Color tint)
@@ -121,6 +185,7 @@ namespace ImagineVR
             // big things stride, small things scurry: roughly a body length every two seconds
             c._speed = Random.Range(0.55f, 0.95f) * Mathf.Clamp(height / 1.75f, 0.6f, 2.5f);
             c._stop = capsule.radius + Random.Range(2f, 2.9f);   // beyond arm's length, and beyond the terminal
+            c.SetBehavior(behavior);
             c._phase = Random.value * 10f;
             c._lift = def.Airborne ? Mathf.Clamp(position.y, 1.5f, 6f) : 0f;
             c._props = props;
@@ -199,7 +264,8 @@ namespace ImagineVR
                 case State.Walking:
                 {
                     float pace = 0f;
-                    if (_still) { }
+                    if (Time.time < _flinchUntil) { }
+                    else if (_still) { if (_role == "guard" && toUser.magnitude < _sight) heading = toUser; }
                     else if (_mode == Mode.Chase)
                     {
                         heading = toUser;
@@ -234,7 +300,8 @@ namespace ImagineVR
                             pace = _speed * 0.7f;
                         }
                     }
-                    if (pace > 0f && heading.sqrMagnitude > 0.0001f) p += heading.normalized * (pace * dt);
+                    if (pace > 0f && heading.sqrMagnitude > 0.0001f) p += Steer(p, heading.normalized) * (pace * dt);
+                    if (_role == "attack" || _role == "shoot") Fight(toUser);
                     if (p.magnitude > World.Radius - 4f) p = p.normalized * (World.Radius - 4f);
                     if (_mode == Mode.Flee) _centre = Vector3.Lerp(_centre, p, dt * 0.5f);
 
@@ -280,6 +347,7 @@ namespace ImagineVR
                     }
                     break;
                 case State.Gone:
+                    if (StayDown) { Destroy(gameObject); return; }
                     if (_t >= _wait)
                     {
                         if (_mode == Mode.Chase)
@@ -311,6 +379,38 @@ namespace ImagineVR
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(heading), 1f - Mathf.Exp(-dt * 5f));
         }
 
+        static readonly RaycastHit[] Feelers = new RaycastHit[4];
+
+        /// <summary>
+        /// Two feelers ahead, left and right: walls, solid scenery and parked cars are walked round,
+        /// not through. Living things and loose props are ignored (they get knocked aside or knock it down).
+        /// </summary>
+        Vector3 Steer(Vector3 p, Vector3 heading)
+        {
+            Vector3 eye = p + Vector3.up * Mathf.Clamp(_height * 0.5f, 0.3f, 2f);
+            float reach = _radius + 1.2f;
+            if (!Blocked(eye, heading, reach)) return heading;
+            Vector3 left = Quaternion.Euler(0f, -50f, 0f) * heading, right = Quaternion.Euler(0f, 50f, 0f) * heading;
+            bool l = Blocked(eye, left, reach), r = Blocked(eye, right, reach);
+            if (!l && !r) return (GetInstanceID() & 1) == 0 ? left : right;
+            if (!l) return left;
+            if (!r) return right;
+            return Quaternion.Euler(0f, 100f, 0f) * heading;
+        }
+
+        bool Blocked(Vector3 from, Vector3 direction, float reach)
+        {
+            int n = Physics.RaycastNonAlloc(from, direction, Feelers, reach, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                Collider c = Feelers[i].collider;
+                if (c == _collider || c is MeshCollider || c.attachedRigidbody != null && !c.attachedRigidbody.isKinematic) continue;
+                if (c.GetComponentInParent<Creature>() != null || c.GetComponentInParent<Prop>() != null) continue;
+                return true;
+            }
+            return false;
+        }
+
         float stasisUntil;
         public void Stasis(float seconds) { stasisUntil = Mathf.Max(stasisUntil, Time.time + Mathf.Clamp(seconds, 0, 10)); }
 
@@ -333,7 +433,9 @@ namespace ImagineVR
                 Vector3 grip = prop.Visual.position, tip = grip + prop.Visual.up * prop.Length;
                 if (Touches(tip) || Touches((grip + tip) * 0.5f) || Touches(grip))
                 {
-                    if (!_world.Rules.Fire("hit", Rules.Of(this))) Knock(swing);
+                    Rules.Subject struck = Rules.Of(this);
+                    struck.Amount = Mathf.Max(prop.Def.Damage, 1f) * Mathf.Clamp(swing.magnitude * 0.4f, 0.5f, 3f);
+                    if (!_world.Rules.Fire("hit", struck)) Knock(swing);
                     return;
                 }
             }
@@ -349,11 +451,13 @@ namespace ImagineVR
         {
             if (_state != State.Arriving && _state != State.Walking) return;
             Prop prop = collision.collider.GetComponentInParent<Prop>();
-            if (prop == null || collision.relativeVelocity.magnitude < 2f) return;
+            if (prop == null || collision.relativeVelocity.magnitude < 2f || prop.Hostile) return;   // its own side's shots pass it by
             HeldItemRuntime payload = prop.GetComponent<HeldItemRuntime>();
             if (payload != null && payload.Profile.Action == "payload" && payload.Armed) { payload.Detonate(); return; }
             Vector3 away = transform.position - prop.transform.position;
-            bool taken = _world.Rules.Fire("hit", Rules.Of(this));
+            Rules.Subject hit = Rules.Of(this);
+            hit.Amount = prop.GroupId == "shot" ? prop.Damage : collision.relativeVelocity.magnitude * 0.25f * Mathf.Clamp(prop.Body != null ? prop.Body.mass : 1f, 0.2f, 4f);
+            bool taken = _world.Rules.Fire("hit", hit);
             if (prop.GroupId == "shot") Destroy(prop.gameObject);
             if (!taken) Knock(away);
         }
@@ -362,7 +466,9 @@ namespace ImagineVR
         public void Struck(Vector3 away)
         {
             if (_state != State.Arriving && _state != State.Walking) return;
-            if (!_world.Rules.Fire("hit", Rules.Of(this))) Knock(away);
+            Rules.Subject hit = Rules.Of(this);
+            hit.Amount = Mathf.Max(2f, away.magnitude * 0.3f);
+            if (!_world.Rules.Fire("hit", hit)) Knock(away);
         }
 
         /// <summary>Knocks it flat, falling in the given direction.</summary>

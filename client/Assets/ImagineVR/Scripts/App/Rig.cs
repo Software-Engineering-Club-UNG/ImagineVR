@@ -411,6 +411,8 @@ namespace ImagineVR
             {
                 if (_rig.XrActive && World.Instance != null && World.Instance.Structures.TryInteract(transform, trig && !_triggerDown))
                 { _triggerDown = trig; return; }
+                // pointing an empty hand at a lever, a button, a chest a rule is about, and pulling the trigger, presses it
+                if (_held == null && trig && !_triggerDown && World.Instance != null && World.Instance.TryPress(transform)) { _triggerDown = trig; return; }
                 // pointing an empty hand at something to ride and pulling the trigger gets in or on it
                 if (_held == null && trig && !_triggerDown && World.Instance != null && World.Instance.TryBoard(transform)) { _triggerDown = trig; return; }
                 if (_held == null) Reach();
@@ -553,6 +555,7 @@ namespace ImagineVR
             // Native item logic receives Israel's final launch velocity; never replace the hand/COM calculation.
             // A deliberate slow drop arms grenades, but only an actual throw starts disc/boomerang flight.
             prop.GetComponent<HeldItemRuntime>()?.Released(thrown, prop.Body.linearVelocity, transform, really);
+            if (World.Instance != null) World.Instance.Rules.Fire("drop", Rules.Of(prop));
             _rig.ShowHand(_right, true);
             Sfx.Play("release", transform.position, 0.4f);
         }

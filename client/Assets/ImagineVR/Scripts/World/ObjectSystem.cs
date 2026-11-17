@@ -65,7 +65,7 @@ namespace ImagineVR
         static readonly int AppearId = Shader.PropertyToID("_Appear"), TintId = Shader.PropertyToID("_Tint");
         static readonly int MotionId = Shader.PropertyToID("_Motion"), SwayId = Shader.PropertyToID("_Sway");
 
-        public const int MaxSpawned = 60, MaxScatterCount = 300, MaxScatterTotal = 1500;
+        public const int MaxSpawned = 140, MaxScatterCount = 300, MaxScatterTotal = 2500;
 
         readonly World _world;
         readonly Transform _root;
@@ -313,11 +313,13 @@ namespace ImagineVR
                 var route = new Route(points, s.Flag("loop", true));
                 g.Extras.Add(Mover.Create(_world, def, route, Mathf.Clamp(s.Num("speed", 4f), 0.1f, 40f), s.Num("start", 0f), scale, g.Tint, g.Id));
             }
-            else if (!Enliven(g, def, pos, scale.y, s.Str("behavior")))
+            // someone with a persona or a name is alive even standing still: they turn to face the user and can be spoken to
+            else if (!Enliven(g, def, pos, scale.y, (s.Has("persona") || s.Has("name")) && (!s.Has("behavior") || s.Str("behavior") == "still") ? "guard" : s.Str("behavior")))
             {
                 foreach (Pose copy in Copies(s, pos, rot, RowClear(def, scale)))
                 {
-                    g.Add(new Placement { Mesh = def.Mesh, Position = copy.position, Rotation = copy.rotation, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
+                    // a piece that turns on its own (sails, a fan) is drawn apart, turning; the rest goes in with the scenery
+                    g.Add(new Placement { Mesh = def.SceneryMesh, Position = copy.position, Rotation = copy.rotation, Scale = scale, Tint = Color.white, Grounded = true, OnWater = def.OnWater });
                     if (s.Flag("solid")) Solidify(g, def, copy.position, copy.rotation, scale);
                 }
             }

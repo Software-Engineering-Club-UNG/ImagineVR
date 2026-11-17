@@ -5,7 +5,7 @@ Counters
 - `{"op":"hud","objective":"Knock down all ten"}` the line that says what to do. `"board":{"at":[0,3,19],"title":"LANE 7","show":["frame","score"]}` stands a scoreboard in the world.
 
 Places that trigger
-- `{"op":"zone","id":"cup","at":[0,0.1,60],"radius":0.3}` an unseen volume (`radius`, or `size` [w,h,d]; `at` is its centre). `"show":"ring"`, `"beam"`, `"flag"` or `"glow"` marks it. `"on":"<id>"` fixes it to a thing. `"effect":{"damage":10}` works each second on what is inside: `damage`, `heal`, `slow`, `boost`, `gravity`, `push` [x,y,z], `kill`.
+- `{"op":"zone","id":"cup","at":[0,0.1,60],"radius":0.3}` an unseen volume (`radius`, or `size` [w,h,d]; `at` is its centre). `"show":"ring"`, `"beam"`, `"flag"` or `"glow"` marks it. `"on":"<id>"` fixes it to a thing. `"effect":{"damage":10}` works each second on what is inside: `damage`, `heal`, `push` [x,y,z] (a current, a wind, a conveyor), `kill`.
 
 Stages: rounds, waves, chapters
 - `{"op":"stage","id":"wave1","goal":"Hold the gate","first":true,"enter":[...actions...],"next":"wave2","timeout":90,"fail":"lost"}` Entering a stage shows its `goal` and runs `enter`. A rule with `"stage":"wave1"` only works during it.

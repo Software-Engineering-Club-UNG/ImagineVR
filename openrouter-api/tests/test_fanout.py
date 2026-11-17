@@ -202,7 +202,8 @@ def test_pictures_and_voices_are_given_an_address(monkeypatch):
     assert by["speak:cap"]["audio"] == by["narrate:"]["audio"] == by["say:"]["audio"] == "https://x/v1/audio/clip.mp3"
     assert spoken == [("Welcome aboard.", "gruff"), ("The tide turned.", "narrator"), ("Done.", "narrator")], "each in the voice of who says it"
     no_fetch, _, _ = run(monkeypatch, {"director": director}, base_url="https://x", capabilities="play-v1")
-    assert not any("image_url" in s for s in no_fetch) and not any("audio" in s for s in no_fetch if s["op"] != "say")
+    assert not any("image_url" in s for s in no_fetch), "a picture only for a headset that can show one"
+    assert all("audio" in s for s in no_fetch if s["op"] in ("speak", "narrate")), "a voice for any that plays the third version"
 
 
 # ---------------------------------------------------------------------------- people, and stories
