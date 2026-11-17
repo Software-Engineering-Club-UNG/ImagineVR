@@ -4,7 +4,11 @@ Branch `overhaul-v3`. Written by Claude Fable 5.2 for whoever continues (Opus 5.
 
 The approved plan is at `~/.claude/plans/make-a-plan-i-elegant-lobster.md`. This file supersedes it where they differ.
 
-## 1. Where things stand
+## Update (PR #17)
+
+The client work in §6 has since been written, by Opus 5.5, following §7's priorities: seams, the game layer, rules, combat, articulation, drive models, roads, terrain size and regions, lights, synth, music, and the 56 library assets. **It has not been compiled.** `docs/OVERHAUL.md` is now the current status and QA checklist. These were not done: `LitPlus.shader`, the picture and sky texture shaders (so the client does not send `gen-v1`), climbing, turret aim, and `tests/test_gen.py`. Read the rest of this file as design notes.
+
+## 1. Where things stand (when the server was finished)
 
 **Done and tested (server, Phase 1):** 174 server tests pass. The one failure you will see locally, `test_local_stt.py::test_cached_model_uses_cpu_int8_and_no_network`, only means `faster-whisper` is not installed in the scratch venv; CI installs it.
 
