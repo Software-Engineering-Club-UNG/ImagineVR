@@ -60,9 +60,9 @@ namespace ImagineVR
             float volume = Mathf.Max(b.size.x * b.size.y * b.size.z, 0.0001f);
             def.Solid(Mathf.Clamp(volume * 60f, 0.2f, 300f), 0.2f);
 
-            if (tool)
+            if (tool) def.AsTool();
+            // a gun in the hand, or a tank's cannon, a jet's guns, a dragon's breath: shots leave from the muzzle (or the `gun` parts)
             {
-                def.AsTool();
                 if (fires != null)
                 {
                     Statement f = Statement.Wrap(fires);
@@ -90,7 +90,7 @@ namespace ImagineVR
                     string shoots = f.Str("shoots", "");
                     if (Rules.IsBurst(shoots)) def.ShotBurst = shoots;
                     else if (shoots != name) def.ShotAsset = shoots;
-                    def.Behavior = "blaster";
+                    if (tool) def.Behavior = "blaster";
                 }
             }
             Library.Register(def);

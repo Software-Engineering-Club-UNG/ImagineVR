@@ -185,7 +185,6 @@ namespace ImagineVR
             _visual.transform.localPosition = seated ? new Vector3(-seatAt.x, -_seat, -seatAt.z) : new Vector3(-b.center.x, -_seat, -b.center.z + b.extents.z * (enclosed ? 0.12f : 0.2f));
             // the body, and whatever moves on it: wheels that roll and steer, rotors, a steering wheel to hold
             _parts = Articulated.Attach(_visual, def, tint);
-            if (_parts == null) Articulated.Attach(_visual, def, tint);
             MeshRenderer mr = _visual.GetComponent<MeshRenderer>();
             var props = new MaterialPropertyBlock();
             props.SetColor("_Tint", tint);

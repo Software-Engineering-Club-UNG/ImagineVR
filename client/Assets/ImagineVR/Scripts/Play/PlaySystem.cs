@@ -359,7 +359,7 @@ namespace ImagineVR
         public void AfterSpawn(Statement s)
         {
             string id = s.Str("id");
-            if (string.IsNullOrEmpty(id) || id.StartsWith(World.Cover, StringComparison.Ordinal)) return;
+            if (string.IsNullOrEmpty(id) || id.StartsWith(ImagineVR.World.Cover, StringComparison.Ordinal)) return;
             if (!id.StartsWith("rule_spawn", StringComparison.Ordinal)) _sources[id] = s;
             ThingSettings.Apply(_world, s, id, _hittable.Contains(id) || HittableByRule(id));
         }
